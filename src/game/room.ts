@@ -353,7 +353,8 @@ export class RoomWorld implements Solidity {
         p.vy += ny * push * dt * 4;
       }
       // The current is visible in the water itself.
-      if (((this.time * 60) | 0) % 3 === 0) this.fluid.splat(m.x + nx * 20, m.y + ny * 20, nx * 260, ny * 260, TILE * 1.6);
+      // Only a slight, local stir right at the entrance.
+      if (((this.time * 60) | 0) % 6 === 0) this.fluid.splat(m.x + nx * 12, m.y + ny * 12, nx * 30, ny * 30, TILE * 0.7);
     }
   }
 

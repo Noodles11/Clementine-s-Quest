@@ -68,14 +68,14 @@ export class Player extends Entity {
     // ── Jellyfish propulsion ────────────────────────────────
     // No constant thrust: each bell contraction delivers one impulse, then she
     // glides and slows in the water while the bell refills.
-    const PERIOD = 0.55 / Math.max(0.6, Math.sqrt(st.speed)); // faster jellies pulse faster
-    const THRUST = 0.2; // contraction phase (s)
-    const DRAG = 2.4;
+    const PERIOD = 0.5; // one strong stroke every half second
+    const THRUST = 0.14; // short, powerful contraction (s)
+    const DRAG = 4; // water brakes her hard between strokes
     this.pulseClock += dt;
     if (moving) {
       const a = Math.atan2(iy, ix);
-      const turned = Math.abs(Math.atan2(Math.sin(a - this.pulseAngle), Math.cos(a - this.pulseAngle))) > 1.0;
-      if (this.pulseClock >= PERIOD || (turned && this.pulseClock > THRUST) || !this.wasMoving) this.startPulse(w, a, Math.min(1, l));
+      // Strokes come every half second; the first stroke after resting comes a bit sooner.
+      if (this.pulseClock >= PERIOD || (!this.wasMoving && this.pulseClock > 0.3)) this.startPulse(w, a, Math.min(1, l));
     }
     this.wasMoving = moving;
     if (this.pulseClock < THRUST) {
@@ -97,7 +97,7 @@ export class Player extends Entity {
       this.pulseClock = THRUST;
       this.kick();
     }
-    this.pulseKick = Math.max(0, this.pulseKick - dt * 2.2);
+    this.pulseKick = Math.max(0, this.pulseKick - dt * 2);
 
     moveBox(this, this.vx * dt, this.vy * dt, this.solidity);
     this.x = clamp(this.x, -30, w.widthPx + 30);

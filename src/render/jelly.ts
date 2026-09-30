@@ -66,9 +66,11 @@ export class JellyView {
 
   private deform(p: Player, t: number) {
     const k = p.pulseKick;
-    const c = k > 0.5 ? (1 - k) * 2 : k * 2; // 0→1→0 over the kick
+    // Quick hard contraction, then a slow relaxation as the bell refills.
+    const ph = 1 - k;
+    const c = k <= 0 ? 0 : ph < 0.28 ? ph / 0.28 : 1 - (ph - 0.28) / 0.72;
     const breathe = Math.sin(t * 2.2) * 0.03;
-    return { sx: 1 - 0.2 * c + breathe, sy: 1 + 0.14 * c - breathe, c };
+    return { sx: 1 - 0.28 * c + breathe, sy: 1 + 0.2 * c - breathe, c };
   }
 
   update(dt: number, p: Player, fluid: FluidField, t: number) {
