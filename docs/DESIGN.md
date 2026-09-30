@@ -738,3 +738,20 @@ quality presets with auto-downgrade; accessibility toggles; GitHub Pages deploy.
 - Challenge, Sacrifice and Shipwreck Archive rooms, Tarot Shells, enemy flanking tactics,
   torn panel borders and Daily Dive are deferred.
 - Beams (Sunbeam) pass through rocks; Ink Sac explosions do not hurt Clementine.
+
+## 18. Art Direction v2 — "Underwater Camera" (supersedes the comic look)
+
+The game is now presented as documentary footage from an underwater camera:
+- **Lens post-process:** barrel distortion, edge chromatic aberration, per-depth color grade
+  (reds absorbed first, shadows lifted toward blue), filmic highlight roll-off, vignette, sensor grain.
+- **Camera:** gentle handheld/ROV drift, depth-of-field blur on distant reef and fish, murky haze
+  that thickens with depth, fades through black between rooms.
+- **Cinematic lighting:** surface caustics and volumetric god rays as the key light; Clementine is the
+  moving practical light.
+- **Clementine is bioluminescent:** translucent gelatinous bell, glowing gonads, luminous rim organs,
+  and light pulses that travel down her tentacles with every propulsion stroke; her glow scatters in the water.
+- **Materials:** comic ink outlines replaced by faint contact edges; bodies are top-lit with soft gradients;
+  textured rock with settled silt, shadowed overhangs, encrusting growth; realistic fish eyes.
+- **UI:** camera OSD (REC, timecode, depth in metres, water temperature), viewfinder brackets,
+  documentary lower-third captions, letterboxed specimen title cards for bosses, serif/sans typography.
+  Comic onomatopoeia removed; only informative floating text remains.

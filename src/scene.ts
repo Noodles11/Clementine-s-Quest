@@ -3,6 +3,7 @@
 
 import {
   Application,
+  Rectangle,
   BlurFilter,
   Container,
   DisplacementFilter,
@@ -36,6 +37,7 @@ import { drawItemIcon, drawPedestal, drawPickup } from './render/icons';
 import { JellyView } from './render/jelly';
 import { TerrainView } from './render/terrain';
 import { tex } from './render/textures';
+import { CameraFilter } from './render/camera';
 import { drawBubble, drawDoor, drawProp, drawShot, drawWorldExtras } from './render/worldart';
 
 export interface SceneHooks {
@@ -138,6 +140,11 @@ export class GameScene {
   transG = new Graphics();
   flashLayer = new Container();
   hud = new Hud();
+  lens = new Container();
+  camera = new CameraFilter();
+  haze!: Sprite;
+  farBlur = new BlurFilter({ strength: 5, quality: 2 });
+  midBlur = new BlurFilter({ strength: 2, quality: 1 });
 
   fx: FxSystem;
   jelly: JellyView | null = null;
@@ -182,7 +189,7 @@ export class GameScene {
     this.bgWater.height = VIEW_H;
     this.bgCaustic = new TilingSprite({ texture: T.caustic, width: VIEW_W, height: VIEW_H });
     this.bgCaustic.blendMode = 'add';
-    this.bgCaustic.alpha = 0.05;
+    this.bgCaustic.alpha = 0.015;
     this.bg.addChild(this.bgWater, this.bgSil, this.bgCaustic);
     this.rays.blendMode = 'add';
     this.trophyG.scale.set(0.55);
@@ -221,7 +228,7 @@ export class GameScene {
     this.lightSprite.blendMode = 'multiply';
 
     // Bloom.
-    this.blur = new BlurFilter({ strength: 10, quality: 3 });
+    this.blur = new BlurFilter({ strength: 14, quality: 3 });
     this.blur.blendMode = 'add';
     // Bloom doesn't need full resolution; half-res is cheaper and softer.
     this.blur.resolution = 0.5;
@@ -231,16 +238,20 @@ export class GameScene {
 
     this.fgLayer.addChild(this.fgSnow.container, this.fgG);
 
-    // Overlays.
-    const half = new Sprite(T.halftone);
-    half.alpha = 0.07;
-    half.blendMode = 'multiply';
-    const vig = new Sprite(T.vignette);
-    vig.scale.set(2);
-    this.overlay.addChild(half, vig, this.frameG);
+    // Atmospheric haze between the camera and the scene (murky water).
+    this.haze = new Sprite(Texture.WHITE);
+    this.haze.width = VIEW_W;
+    this.haze.height = VIEW_H;
+    this.worldView.addChild(this.haze);
 
-    this.root.addChild(this.worldView, this.lightSprite, this.glowRoot, this.fgLayer, this.overlay, this.flashLayer, this.transG);
-    app.stage.addChild(this.root, this.hud.container);
+    this.root.addChild(this.worldView, this.lightSprite, this.glowRoot, this.fgLayer, this.overlay, this.flashLayer);
+    // The whole view is shot through an underwater camera lens.
+    this.root.pivot.set(VIEW_W / 2, VIEW_H / 2);
+    this.root.scale.set(1.03);
+    this.lens.addChild(this.root, this.transG);
+    this.lens.filterArea = new Rectangle(0, 0, VIEW_W, VIEW_H);
+    this.lens.filters = [this.camera];
+    app.stage.addChild(this.lens, this.hud.container);
     this.hud.container.visible = false;
 
     // Refraction map.
@@ -252,31 +263,28 @@ export class GameScene {
     };
     this.fx.onImpact = (x, y, k) => this.plants?.impulse(x, y, k, 60 + k * 50);
     this.applyOptions(options);
-    this.drawFrame();
   }
 
   applyOptions(o: Options) {
     this.options = o;
     this.fx.shakeScale = o.screenShake ? 1 : 0;
     this.fx.flashScale = o.reducedFlash ? 0.25 : 1;
-    this.blur.strength = o.reducedFlash ? 6 : 10;
+    this.blur.strength = o.reducedFlash ? 8 : 14;
     this.glowRoot.alpha = o.reducedFlash ? 0.6 : 1;
+    this.camera.setStrength(o.reducedFlash);
     if (o.quality === 'low') this.qualityLevel = 0;
     else if (o.quality === 'medium') this.qualityLevel = 1;
     else this.qualityLevel = 2;
-    this.drawFrame();
+    this.applyDepthOfField();
     this.updateRefractionFilter();
   }
 
-  private drawFrame() {
-    const g = this.frameG;
-    g.clear();
-    if (!this.options.tankFrame) return;
-    // Aquarium glass edge + comic panel border.
-    g.rect(0, 0, VIEW_W, VIEW_H).stroke({ width: 10, color: INK });
-    g.roundRect(5, 5, VIEW_W - 10, VIEW_H - 10, 14).stroke({ width: 3, color: 0xbfefff, alpha: 0.35 });
-    g.poly([VIEW_W * 0.62, 5, VIEW_W * 0.7, 5, VIEW_W * 0.52, VIEW_H - 5, VIEW_W * 0.44, VIEW_H - 5]).fill({ color: 0xffffff, alpha: 0.035 });
-    g.poly([VIEW_W * 0.73, 5, VIEW_W * 0.745, 5, VIEW_W * 0.565, VIEW_H - 5, VIEW_W * 0.55, VIEW_H - 5]).fill({ color: 0xffffff, alpha: 0.05 });
+  /** Depth of field: distant layers are out of focus. */
+  private applyDepthOfField() {
+    const on = this.qualityLevel > 0;
+    this.bgSil.filters = on ? [this.farBlur] : [];
+    this.fishFar.filters = on ? [this.farBlur] : [];
+    this.fishNear.filters = on && this.qualityLevel > 1 ? [this.midBlur] : [];
   }
 
   // ── Run control ──────────────────────────────────────────
@@ -388,6 +396,11 @@ export class GameScene {
     this.ambient.width = VIEW_W;
     this.ambient.height = VIEW_H;
     this.drawSilhouettes(b, room.seed);
+    this.camera.setGrade(b.grade);
+    this.haze.texture = waterTexture(b);
+    this.haze.width = VIEW_W;
+    this.haze.height = VIEW_H;
+    this.haze.alpha = 0.1 + b.menace * 0.35;
 
     this.fishFar.removeChildren();
     this.fishNear.removeChildren();
@@ -414,7 +427,7 @@ export class GameScene {
       s.height = VIEW_H * R.range(0.9, 1.3);
       s.rotation = -0.35 + R.range(-0.05, 0.05);
       s.tint = mixColor(0xffffff, b.waterTop, 0.2);
-      (s as any).base = b.godRays * R.range(0.12, 0.3);
+      (s as any).base = b.godRays * R.range(0.16, 0.34);
       (s as any).ph = R.range(0, 10);
       this.rays.addChild(s);
       this.raySprites.push(s);
@@ -742,8 +755,13 @@ export class GameScene {
     }
     this.updateCamera();
     const sh = this.fx.shakeAmt;
-    this.root.x = sh ? R.range(-sh, sh) : 0;
-    this.root.y = sh ? R.range(-sh, sh) : 0;
+    // Handheld / ROV camera drift plus impact shake.
+    const calm = this.options.calmWater ? 0.3 : 1;
+    const swayX = (Math.sin(t * 0.37) * 3 + Math.sin(t * 0.91) * 1.2) * calm;
+    const swayY = (Math.sin(t * 0.29 + 1) * 2.4 + Math.sin(t * 0.77) * 1) * calm;
+    this.root.position.set(VIEW_W / 2 + swayX + (sh ? R.range(-sh, sh) : 0), VIEW_H / 2 + swayY + (sh ? R.range(-sh, sh) : 0));
+    this.root.rotation = Math.sin(t * 0.21) * 0.0025 * calm;
+    this.camera.time = t;
     this.cam.x = -Math.round(this.camX);
     this.cam.y = -Math.round(this.camY);
     this.glowCam.position.copyFrom(this.cam.position);
@@ -894,9 +912,11 @@ export class GameScene {
     const lights: { x: number; y: number; r: number; c: number; a: number }[] = [];
     const p = w.player;
     const m = w.menace;
-    lights.push({ x: p.x, y: p.y, r: 260 + m * 120, c: neon ? 0xffc8ff : 0xffd8a8, a: 0.55 + m * 0.6 });
-    for (const b of w.bubbles) if (lights.length < 70) lights.push({ x: b.x, y: b.y, r: 70 + b.r * 3, c: b.color, a: 0.5 });
-    for (const s of w.shots) if (lights.length < 110) lights.push({ x: s.x, y: s.y, r: 50, c: s.color, a: 0.35 });
+    // Clementine is the key practical light: warm, breathing bioluminescence.
+    const breathe = 0.85 + Math.sin(this.time * 2.2) * 0.15 + p.shootFlash * 0.25;
+    lights.push({ x: p.x, y: p.y, r: (340 + m * 160) * breathe, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.75 + m * 0.5) });
+    for (const b of w.bubbles) if (lights.length < 70) lights.push({ x: b.x, y: b.y, r: 60 + b.r * 3, c: b.color, a: 0.4 });
+    for (const s of w.shots) if (lights.length < 110) lights.push({ x: s.x, y: s.y, r: 44, c: s.color, a: 0.3 });
     for (const pd of w.pedestals) if (pd.itemId) lights.push({ x: pd.x, y: pd.y, r: 150, c: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, a: 0.5 });
     for (const pr of w.props) if (pr.active && pr.kind === 'crack') lights.push({ x: pr.x, y: pr.y - 40, r: 320, c: 0x9ef0ff, a: 0.9 });
     for (const bm of w.beams) for (let s = 0; s < bm.len; s += 120) lights.push({ x: bm.x + bm.dx * s, y: bm.y + bm.dy * s, r: 160, c: bm.color, a: 0.8 });
@@ -931,34 +951,10 @@ export class GameScene {
     g.clear();
     const tr = this.transition;
     if (!tr) return;
-    // Comic panel wipe: a slab with a thick ink edge sweeps across.
+    // Camera cut: a quick fade through black (longer and deeper when descending).
     const k = tr.t < 1 ? tr.t : 2 - tr.t;
     const e = k * k * (3 - 2 * k);
-    const col = 0x0b1a2e;
-    if (tr.dir === 'fade' || tr.dir === 'down') {
-      if (tr.dir === 'down') {
-        const h = VIEW_H * e;
-        g.rect(0, 0, VIEW_W, h).fill(col);
-        g.moveTo(0, h).lineTo(VIEW_W, h).stroke({ width: 10, color: INK });
-      } else g.rect(0, 0, VIEW_W, VIEW_H).fill({ color: 0xff5cae, alpha: e });
-      return;
-    }
-    const d = tr.dir;
-    const into = tr.t < 1;
-    const W = VIEW_W, H = VIEW_H;
-    if (d === 'L' || d === 'R') {
-      const w = W * e;
-      const fromLeft = (d === 'L') !== into;
-      const x = fromLeft ? 0 : W - w;
-      g.rect(x, 0, w, H).fill(col);
-      g.moveTo(fromLeft ? w : W - w, 0).lineTo(fromLeft ? w : W - w, H).stroke({ width: 10, color: INK });
-    } else {
-      const h = H * e;
-      const fromTop = (d === 'U') !== into;
-      const y = fromTop ? 0 : H - h;
-      g.rect(0, y, W, h).fill(col);
-      g.moveTo(0, fromTop ? h : H - h).lineTo(W, fromTop ? h : H - h).stroke({ width: 10, color: INK });
-    }
+    g.rect(-20, -20, VIEW_W + 40, VIEW_H + 40).fill({ color: 0x010204, alpha: tr.dir === 'fade' ? e * 0.9 : e });
   }
 
   private trackPerformance(frameDt: number) {

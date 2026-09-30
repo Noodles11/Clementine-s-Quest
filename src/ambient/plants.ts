@@ -2,6 +2,7 @@
 // and static coral/shells that wobble on nearby impacts.
 
 import { Container, Graphics } from 'pixi.js';
+import { EA, EW, shade } from '../render/style';
 import type { Decor } from '../gen/roomgen';
 import type { FluidField } from './fluid';
 import { Rng } from '../core/rng';
@@ -185,7 +186,7 @@ export class PlantSystem {
           const a = c.pts[i - 1], b = c.pts[i];
           const ang = Math.atan2(b.y - a.y, b.x - a.x);
           g.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, 7, 4)
-            .stroke({ width: 3, color: INK });
+            .stroke({ width: (3) * EW, color: INK, alpha: EA });
           g.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, 7, 4).stroke({ width: 1.5, color: c.d.color });
           void ang;
         }
@@ -214,9 +215,9 @@ export class PlantSystem {
         const tx = p.x + Math.cos(ang) * L, ty = p.y + Math.sin(ang) * L;
         const mx = (p.x + tx) / 2 + Math.cos(ang + 1.57) * 5, my = (p.y + ty) / 2 + Math.sin(ang + 1.57) * 5;
         g.moveTo(p.x, p.y).quadraticCurveTo(mx, my, tx, ty).quadraticCurveTo(mx - Math.cos(ang + 1.57) * 9, my - Math.sin(ang + 1.57) * 9, p.x, p.y)
-          .fill(lighten(col, 0.1)).stroke({ width: 2, color: INK });
+          .fill(shade(lighten(col, 0.1), 0.8)).stroke({ width: (2) * EW, color: INK, alpha: EA });
       }
-      g.poly(poly).fill(col).stroke({ width: 2.5, color: INK, join: 'round' });
+      g.poly(poly).fill(shade(col, 0.8)).stroke({ width: (2.5) * EW, color: INK, alpha: EA, join: 'round' });
       // Highlight line.
       g.moveTo(pts[0].x, pts[0].y);
       for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x - 1.5, pts[i].y);
@@ -230,12 +231,12 @@ export class PlantSystem {
           const tipx = bx + b.lean + b.tx + Math.sin(time * 2 + b.lean) * 3;
           const tipy = by - 10 - b.h;
           g.moveTo(bx + b.lean * 0.3, by - 8).quadraticCurveTo(bx + b.lean * 0.8, by - 8 - b.h * 0.6, tipx, tipy)
-            .stroke({ width: b.w + 3, color: INK, cap: 'round' });
+            .stroke({ width: (b.w + 3) * EW, color: INK, alpha: EA, cap: 'round' });
           g.moveTo(bx + b.lean * 0.3, by - 8).quadraticCurveTo(bx + b.lean * 0.8, by - 8 - b.h * 0.6, tipx, tipy)
             .stroke({ width: b.w, color: lighten(col, 0.2), cap: 'round' });
-          g.circle(tipx, tipy, 2.5).fill(lighten(col, 0.6));
+          g.circle(tipx, tipy, 2.5).fill(shade(lighten(col, 0.6), 0.8));
         }
-        g.ellipse(bx, by - 5, 13 * c.d.size, 9 * c.d.size).fill(darken(col, 0.15)).stroke({ width: 2.5, color: INK });
+        g.ellipse(bx, by - 5, 13 * c.d.size, 9 * c.d.size).fill(shade(darken(col, 0.15), 0.8)).stroke({ width: (2.5) * EW, color: INK, alpha: EA });
         continue;
       }
       for (const b of c.blades) {
@@ -243,7 +244,7 @@ export class PlantSystem {
         const tipx = bx + b.lean + b.tx, tipy = c.d.y - b.h;
         const cx = bx + (b.lean + b.tx) * 0.3, cy = c.d.y - b.h * 0.6;
         g.moveTo(bx - b.w / 2, c.d.y).quadraticCurveTo(cx, cy, tipx, tipy).quadraticCurveTo(cx + b.w * 0.6, cy, bx + b.w / 2, c.d.y)
-          .fill(mixColor(col, 0xffffff, 0.08)).stroke({ width: 2, color: INK, join: 'round' });
+          .fill(shade(mixColor(col, 0xffffff, 0.08), 0.8)).stroke({ width: (2) * EW, color: INK, alpha: EA, join: 'round' });
       }
     }
   }
@@ -257,12 +258,12 @@ function drawStatic(g: Graphics, d: Decor, rng: Rng, menace: number) {
       // Branching coral from the base (local origin at base).
       const branch = (x: number, y: number, ang: number, len: number, w: number, depth: number) => {
         const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
-        g.moveTo(x, y).lineTo(x2, y2).stroke({ width: w + 4, color: INK, cap: 'round' });
+        g.moveTo(x, y).lineTo(x2, y2).stroke({ width: (w + 4) * EW, color: INK, alpha: EA, cap: 'round' });
         g.moveTo(x, y).lineTo(x2, y2).stroke({ width: w, color: col, cap: 'round' });
         if (depth > 0) {
           branch(x2, y2, ang - rng.range(0.3, 0.6), len * 0.72, w * 0.75, depth - 1);
           branch(x2, y2, ang + rng.range(0.3, 0.6), len * 0.72, w * 0.75, depth - 1);
-        } else g.circle(x2, y2, w * 0.45).fill(lighten(col, 0.45));
+        } else g.circle(x2, y2, w * 0.45).fill(shade(lighten(col, 0.45), 0.8));
       };
       branch(0, 0, -Math.PI / 2 + rng.range(-0.2, 0.2), 22 * s, 9 * s, 2);
       break;
@@ -275,14 +276,14 @@ function drawStatic(g: Graphics, d: Decor, rng: Rng, menace: number) {
         const r = (30 + rng.range(-4, 4)) * s;
         pts.push(Math.cos(a) * r, Math.sin(a) * r - 6 * s);
       }
-      g.poly(pts).fill(col).stroke({ width: 3, color: INK, join: 'round' });
+      g.poly(pts).fill(shade(col, 0.8)).stroke({ width: (3) * EW, color: INK, alpha: EA, join: 'round' });
       for (let i = 1; i <= n; i += 2) g.moveTo(0, 0).lineTo(pts[i * 2], pts[i * 2 + 1]).stroke({ width: 1.5, color: darken(col, 0.3) });
-      g.rect(-3, -4, 6, 6).fill(darken(col, 0.4));
+      g.rect(-3, -4, 6, 6).fill(shade(darken(col, 0.4), 0.8));
       break;
     }
     case 'shell': {
       g.moveTo(-12 * s, 0).quadraticCurveTo(-14 * s, -18 * s, 0, -20 * s).quadraticCurveTo(14 * s, -18 * s, 12 * s, 0).closePath()
-        .fill(lighten(col, 0.3)).stroke({ width: 3, color: INK });
+        .fill(shade(lighten(col, 0.3), 0.8)).stroke({ width: (3) * EW, color: INK, alpha: EA });
       for (let i = -2; i <= 2; i++) g.moveTo(0, -2).lineTo(i * 5 * s, -17 * s).stroke({ width: 1.5, color: darken(col, 0.2) });
       break;
     }
@@ -293,28 +294,28 @@ function drawStatic(g: Graphics, d: Decor, rng: Rng, menace: number) {
         const r = (i % 2 ? 5 : 13) * s;
         pts.push(Math.cos(a) * r, Math.sin(a) * r * 0.6 - 5 * s);
       }
-      g.poly(pts).fill(col).stroke({ width: 2.5, color: INK, join: 'round' });
-      g.circle(0, -5 * s, 2).fill(lighten(col, 0.5));
+      g.poly(pts).fill(shade(col, 0.8)).stroke({ width: (2.5) * EW, color: INK, alpha: EA, join: 'round' });
+      g.circle(0, -5 * s, 2).fill(shade(lighten(col, 0.5), 0.8));
       break;
     }
     case 'rockling': {
-      g.ellipse(0, -7 * s, 16 * s, 10 * s).fill(col).stroke({ width: 3, color: INK });
-      g.ellipse(-4 * s, -11 * s, 5 * s, 2.5 * s).fill(lighten(col, 0.3));
+      g.ellipse(0, -7 * s, 16 * s, 10 * s).fill(shade(col, 0.8)).stroke({ width: (3) * EW, color: INK, alpha: EA });
+      g.ellipse(-4 * s, -11 * s, 5 * s, 2.5 * s).fill(shade(lighten(col, 0.3), 0.8));
       break;
     }
     case 'barrel': {
-      g.roundRect(-14, -34, 28, 34, 6).fill(0x8a5a32).stroke({ width: 3, color: INK });
+      g.roundRect(-14, -34, 28, 34, 6).fill(0x8a5a32).stroke({ width: (3) * EW, color: INK, alpha: EA });
       g.rect(-14, -26, 28, 4).fill(0x4a4a52);
       g.rect(-14, -10, 28, 4).fill(0x4a4a52);
       break;
     }
     case 'chain': {
-      for (let i = 0; i < 3; i++) g.ellipse(i * 10 - 10, -4, 6, 4).stroke({ width: 3, color: INK });
+      for (let i = 0; i < 3; i++) g.ellipse(i * 10 - 10, -4, 6, 4).stroke({ width: (3) * EW, color: INK, alpha: EA });
       break;
     }
     case 'pot': {
       g.moveTo(-10, 0).quadraticCurveTo(-18, -16, -7, -26).lineTo(7, -26).quadraticCurveTo(18, -16, 10, 0).closePath()
-        .fill(0xc8743a).stroke({ width: 3, color: INK });
+        .fill(0xc8743a).stroke({ width: (3) * EW, color: INK, alpha: EA });
       break;
     }
     default:

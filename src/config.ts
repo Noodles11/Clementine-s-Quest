@@ -19,5 +19,5 @@ export const DT = 1 / 60;
 /** Deepest depth playable in this version. */
 export const MAX_DEPTH_V1 = 3;
 
-export const FONT_TITLE = 'Bangers, Impact, sans-serif';
-export const FONT_UI = 'Fredoka, "Trebuchet MS", sans-serif';
+export const FONT_TITLE = 'Rajdhani, "Segoe UI", sans-serif';
+export const FONT_UI = 'Rajdhani, "Segoe UI", sans-serif';

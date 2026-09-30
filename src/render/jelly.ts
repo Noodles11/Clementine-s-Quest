@@ -6,6 +6,7 @@ import { clamp, lighten, mixColor } from '../core/math';
 import type { FluidField } from '../ambient/fluid';
 import type { Player } from '../game/player';
 import { INK } from '../ambient/plants';
+import { gelFill, glowFill, shade } from './style';
 
 interface Pt {
   x: number;
@@ -135,24 +136,31 @@ export class JellyView {
     this.lookY += (ly - this.lookY) * Math.min(1, dt * 10);
   }
 
+  /** Bioluminescent pulses: times since each pulse started. */
+  private waves: number[] = [];
+  private lastKick = 0;
+
   draw(p: Player, t: number, costumes: Set<string>) {
     const tg = this.tg, g = this.bg;
     tg.clear();
     g.clear();
     const blinkOut = p.invuln > 0 && Math.floor(t * 20) % 2 === 0;
-    this.container.alpha = blinkOut ? 0.45 : 1;
+    this.container.alpha = blinkOut ? 0.5 : 1;
     const { sx, sy } = this.deform(p, t);
+    // A new light pulse ripples down the body with every propulsion stroke.
+    if (p.pulseKick > 0.95 && t - this.lastKick > 0.25) {
+      this.waves.push(t);
+      this.lastKick = t;
+    }
+    this.waves = this.waves.filter((w0) => t - w0 < 1.2);
 
-    // Tentacles (behind the bell).
+    // Tentacles: translucent, drawn behind the bell.
     for (const tc of this.tentacles) {
       const pts = tc.pts;
       if (tc.kind === 'marginal') {
         tg.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length; i++) tg.lineTo(pts[i].x, pts[i].y);
-        tg.stroke({ width: tc.width + 2, color: INK, alpha: 0.55, cap: 'round', join: 'round' });
-        tg.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) tg.lineTo(pts[i].x, pts[i].y);
-        tg.stroke({ width: tc.width, color: lighten(TENT, 0.25), alpha: 0.95, cap: 'round', join: 'round' });
+        tg.stroke({ width: tc.width * 0.9, color: 0xffd9b0, alpha: 0.45, cap: 'round', join: 'round' });
       } else {
         const left: number[] = [], right: number[] = [];
         for (let i = 0; i < pts.length; i++) {
@@ -161,159 +169,145 @@ export class JellyView {
           const l = Math.hypot(nx, ny) || 1;
           nx /= l;
           ny /= l;
-          const frill = 1 + Math.sin(i * 2.2 + t * 6 + tc.phase) * 0.35;
-          const w = (tc.width * (1 - (i / pts.length) * 0.75)) * frill * this.size;
+          const frill = 1 + Math.sin(i * 2.2 + t * 6 + tc.phase) * 0.4;
+          const w = tc.width * (1 - (i / pts.length) * 0.75) * frill * this.size;
           left.push(pts[i].x + nx * w, pts[i].y + ny * w);
           right.push(pts[i].x - nx * w, pts[i].y - ny * w);
         }
         const poly = [...left];
         for (let i = right.length - 2; i >= 0; i -= 2) poly.push(right[i], right[i + 1]);
-        tg.poly(poly).fill({ color: mixColor(TENT, 0xff7a9a, 0.35), alpha: 0.92 }).stroke({ width: 2, color: INK, join: 'round' });
+        tg.poly(poly).fill({ color: 0xffa870, alpha: 0.32 }).stroke({ width: 1, color: 0xffe2c0, alpha: 0.5, join: 'round' });
       }
     }
 
-    // Bell.
+    // Bell: gelatinous, translucent, with a luminous rim.
     const R = 22 * this.size;
     const c = Math.cos(this.tilt), s = Math.sin(this.tilt);
     const tr = (lx: number, ly: number): [number, number] => [p.x + lx * c - ly * s, p.y + lx * s + ly * c];
     const dome: number[] = [];
-    const N = 22;
+    const N = 26;
     for (let i = 0; i <= N; i++) {
       const a = Math.PI + (i / N) * Math.PI;
       const [x, y] = tr(Math.cos(a) * R * sx, Math.sin(a) * R * 0.95 * sy + R * 0.2);
       dome.push(x, y);
     }
-    // Scalloped rim back to the left.
     const S = 16;
     for (let i = 0; i <= S; i++) {
       const u = 1 - (i / S) * 2;
-      const [x, y] = tr(u * R * sx, R * 0.2 + R * 0.12 * sy + Math.sin(i * Math.PI) * 0 + (i % 2 ? 4 : 0) * this.size);
+      const [x, y] = tr(u * R * sx, R * 0.2 + R * 0.1 * sy + (i % 2 ? 2.5 : 0) * this.size);
       dome.push(x, y);
     }
     const hurt = p.hurtFlash;
-    const bodyCol = hurt > 0 ? mixColor(BODY, 0xff4d8a, hurt * 0.6) : BODY;
-    g.poly(dome).fill({ color: bodyCol, alpha: 0.93 }).stroke({ width: 3.2, color: INK, join: 'round' });
-    // Inner lighter dome.
-    const inner: number[] = [];
-    for (let i = 0; i <= N; i++) {
-      const a = Math.PI + (i / N) * Math.PI;
-      const [x, y] = tr(Math.cos(a) * R * sx * 0.72, Math.sin(a) * R * 0.7 * sy + R * 0.18);
-      inner.push(x, y);
+    const rim = hurt > 0 ? mixColor(0xffc080, 0xff3d6a, hurt) : 0xffc27a;
+    g.poly(dome).fill(gelFill(hurt > 0 ? mixColor(0xff8a3a, 0xff4d7a, hurt * 0.6) : 0xff8a3a, rim));
+    // Radial canals.
+    const [cx0, cy0] = tr(0, -R * 0.2);
+    for (let k = 0; k < 8; k++) {
+      const a = Math.PI + ((k + 0.5) / 8) * Math.PI;
+      const [x, y] = tr(Math.cos(a) * R * 0.92 * sx, Math.sin(a) * R * 0.85 * sy + R * 0.2);
+      g.moveTo(cx0, cy0).lineTo(x, y).stroke({ width: 0.8, color: 0xfff0dc, alpha: 0.35 });
     }
-    g.poly(inner).fill({ color: BODY_LIGHT, alpha: 0.55 });
-    // Four-leaf gonad pattern.
+    // Glowing gonads (the "heart" of the light).
+    const beat = 0.75 + Math.sin(t * 3.1) * 0.15 + p.shootFlash * 0.3;
     for (let k = 0; k < 4; k++) {
-      const a = (k / 4) * Math.PI * 2 + 0.4;
-      const [x, y] = tr(Math.cos(a) * 6 * sx, -R * 0.35 + Math.sin(a) * 4 * sy);
-      g.circle(x, y, 3.6 * this.size).fill({ color: 0xff6f8a, alpha: 0.55 });
+      const a = (k / 4) * Math.PI * 2 + 0.4 + Math.sin(t * 0.7) * 0.2;
+      const [x, y] = tr(Math.cos(a) * 6 * sx, -R * 0.3 + Math.sin(a) * 4 * sy);
+      g.circle(x, y, 4.2 * this.size).fill({ color: 0xffb040, alpha: 0.55 * beat });
+      g.circle(x, y, 2 * this.size).fill({ color: 0xfff0c0, alpha: 0.8 * beat });
     }
-    // Highlight.
-    const [hx, hy] = tr(-R * 0.45 * sx, -R * 0.55 * sy);
-    g.ellipse(hx, hy, 6 * this.size, 3.5 * this.size).fill({ color: 0xffffff, alpha: 0.85 });
-    const [hx2, hy2] = tr(-R * 0.2 * sx, -R * 0.72 * sy);
-    g.circle(hx2, hy2, 2 * this.size).fill({ color: 0xffffff, alpha: 0.85 });
-
-    // Face.
-    const eyeY = -R * 0.02;
-    const blink = this.blink > 0;
-    for (const side of [-1, 1]) {
-      const [ex, ey] = tr(side * R * 0.34 * sx, eyeY);
-      if (hurt > 0.5) {
-        g.moveTo(ex - 4, ey - 4).lineTo(ex + 4, ey + 4).moveTo(ex + 4, ey - 4).lineTo(ex - 4, ey + 4).stroke({ width: 3, color: INK });
-        continue;
-      }
-      if (blink) {
-        g.moveTo(ex - 5, ey).quadraticCurveTo(ex, ey + 3, ex + 5, ey).stroke({ width: 2.5, color: INK });
-        continue;
-      }
-      g.ellipse(ex, ey, 5.6 * this.size, 6.6 * this.size).fill(0xffffff).stroke({ width: 2.2, color: INK });
-      g.circle(ex + this.lookX * 2.2, ey + this.lookY * 2.2, 3.2 * this.size).fill(INK);
-      g.circle(ex + this.lookX * 2.2 - 1.2, ey + this.lookY * 2.2 - 1.4, 1.1).fill(0xffffff);
-    }
-    const [mx, my] = tr(0, R * 0.16);
-    if (p.shootFlash > 0.3 || p.charge > 0) g.circle(mx, my, 2.8).fill(INK);
-    else g.moveTo(mx - 4, my - 1).quadraticCurveTo(mx, my + 3.5, mx + 4, my - 1).stroke({ width: 2, color: INK, cap: 'round' });
-    // Blush.
-    for (const side of [-1, 1]) {
-      const [bx, by] = tr(side * R * 0.58 * sx, R * 0.1);
-      g.ellipse(bx, by, 4, 2.2).fill({ color: 0xff5c7a, alpha: 0.5 });
+    // Specular sheen on the dome.
+    const [hx, hy] = tr(-R * 0.4 * sx, -R * 0.55 * sy);
+    g.ellipse(hx, hy, 7 * this.size, 3 * this.size).fill({ color: 0xffffff, alpha: 0.35 });
+    g.poly(dome).stroke({ width: 1.4, color: rim, alpha: 0.75, join: 'round' });
+    // Marginal light organs along the rim, lit by the travelling pulse.
+    for (let i = 0; i <= 10; i++) {
+      const u = -1 + (i / 10) * 2;
+      const [x, y] = tr(u * R * 0.95 * sx, R * 0.3);
+      const lit = 0.35 + this.pulseAt(t, 0) * 0.65;
+      g.circle(x, y, 1.3 * this.size).fill({ color: 0xfff2d0, alpha: lit });
     }
 
-    // Costumes from items.
-    if (costumes.has('crown')) {
-      const pts: number[] = [];
-      const base = -R * 0.93 * sy;
-      const cw = 13;
-      for (const [lx, ly] of [[-cw, base], [-cw, base - 10], [-cw / 2, base - 4], [0, base - 13], [cw / 2, base - 4], [cw, base - 10], [cw, base]]) {
-        const [x, y] = tr(lx, ly);
-        pts.push(x, y);
-      }
-      g.poly(pts).fill(0xffd23d).stroke({ width: 2.5, color: INK, join: 'round' });
-      const [gx, gy] = tr(0, base - 5);
-      g.circle(gx, gy, 2.5).fill(0xff6fa8);
-    }
+    // Item traits shown as subtle physical changes (no costumes).
     if (costumes.has('spikes')) {
-      for (let i = 0; i < 7; i++) {
-        const a = Math.PI + ((i + 0.5) / 7) * Math.PI;
+      for (let i = 0; i < 9; i++) {
+        const a = Math.PI + ((i + 0.5) / 9) * Math.PI;
         const [x1, y1] = tr(Math.cos(a) * R * sx, Math.sin(a) * R * 0.95 * sy + R * 0.2);
-        const [x2, y2] = tr(Math.cos(a) * (R + 7) * sx, Math.sin(a) * (R + 7) * 0.95 * sy + R * 0.2);
-        g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color: INK, cap: 'round' });
+        const [x2, y2] = tr(Math.cos(a) * (R + 5) * sx, Math.sin(a) * (R + 5) * 0.95 * sy + R * 0.2);
+        g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 1.2, color: 0xffe0b0, alpha: 0.6 });
+      }
+    }
+    if (costumes.has('lure')) {
+      const [x1, y1] = tr(0, -R * 0.9 * sy);
+      const [x2, y2] = tr(9 + Math.sin(t * 2) * 3, -R * 0.9 * sy - 18);
+      g.moveTo(x1, y1).quadraticCurveTo(x1 + 2, y2 - 6, x2, y2).stroke({ width: 1, color: 0xffe0b0, alpha: 0.6 });
+      g.circle(x2, y2, 3).fill({ color: 0xfff6b0, alpha: 0.95 });
+    }
+    if (costumes.has('crown')) {
+      for (let i = 0; i < 5; i++) {
+        const [x, y] = tr((i - 2) * 5, -R * 0.95 * sy - 1);
+        g.circle(x, y, 1.4).fill({ color: 0xff9ad0, alpha: 0.8 });
       }
     }
     if (costumes.has('barnacles')) {
       for (const [lx, ly] of [[-14, -6], [10, -12], [15, 2], [-4, -18]]) {
         const [x, y] = tr(lx * this.size, ly * this.size);
-        g.circle(x, y, 3.2).fill(0xd8c8a8).stroke({ width: 1.8, color: INK });
+        g.circle(x, y, 2.6).fill(shade(0xb8ab94));
       }
     }
-    if (costumes.has('lure')) {
-      const [x1, y1] = tr(0, -R * 0.9 * sy);
-      const [x2, y2] = tr(10 + Math.sin(t * 2) * 3, -R * 0.9 * sy - 20);
-      g.moveTo(x1, y1).quadraticCurveTo(x1 + 2, y2 - 6, x2, y2).stroke({ width: 2, color: INK });
-      g.circle(x2, y2, 4.5).fill(0xfff27a).stroke({ width: 2, color: INK });
-    }
-    if (costumes.has('ghost')) {
-      g.poly(dome).stroke({ width: 7, color: 0xc8d8ff, alpha: 0.25 + Math.sin(t * 4) * 0.1 });
-    }
-    if (costumes.has('jitter') && p.moving) {
-      for (const side of [-1, 1]) {
-        const [x, y] = tr(side * (R + 8), -R * 0.3);
-        g.moveTo(x, y - 5).lineTo(x + side * 6, y).lineTo(x, y + 5).stroke({ width: 2, color: INK });
-      }
-    }
-    // Bubble shield.
     if (p.shield > 0) {
       const r = 40 * this.size + Math.sin(t * 6) * 2;
-      g.circle(p.x, p.y + 4, r).fill({ color: 0xa0e8ff, alpha: 0.18 }).stroke({ width: 3, color: 0xdffaff, alpha: 0.9 });
-      g.ellipse(p.x - r * 0.4, p.y - r * 0.4, 9, 5).fill({ color: 0xffffff, alpha: 0.7 });
+      g.circle(p.x, p.y + 4, r).fill({ color: 0xa0e8ff, alpha: 0.08 }).stroke({ width: 1.5, color: 0xdffaff, alpha: 0.7 });
+      g.ellipse(p.x - r * 0.4, p.y - r * 0.45, 8, 3).fill({ color: 0xffffff, alpha: 0.5 });
     }
-    // Charge orb.
     if (p.charge > 0) {
       const [dx, dy] = p.chargeDir;
       const ox = p.x + dx * 26, oy = p.y + dy * 26;
       const laser = p.stats.flags.has('laser') && !p.stats.flags.has('charge');
-      const r = 3 + p.charge * (laser ? 9 : 12);
-      g.circle(ox, oy, r).fill({ color: laser ? 0xfff27a : 0xfff6e8, alpha: 0.9 }).stroke({ width: 2, color: INK });
-      if (p.charge >= 1 && Math.floor(t * 12) % 2) g.circle(ox, oy, r + 4).stroke({ width: 2, color: 0xffffff });
+      const r = 2 + p.charge * (laser ? 8 : 11);
+      g.circle(ox, oy, r).fill({ color: laser ? 0xfff2a0 : 0xfff6e8, alpha: 0.9 });
     }
+    void INK;
   }
 
-  /** Neon glow contribution (drawn into the bloom layer). */
+  /** Brightness (0..1) of the travelling light pulse at fractional position f along the body. */
+  private pulseAt(t: number, f: number) {
+    let v = 0;
+    for (const w0 of this.waves) {
+      const front = (t - w0) / 0.9; // pulse travels the body in ~0.9 s
+      v = Math.max(v, Math.max(0, 1 - Math.abs(front - f) * 5) * (1 - (t - w0) / 1.2));
+    }
+    return v;
+  }
+
+  /** Bioluminescence (drawn into the bloom layer). */
   drawGlow(gg: Graphics, p: Player, t: number, neon: boolean) {
-    const base = 0.22 + Math.sin(t * 2) * 0.04;
     const col = neon ? (Math.floor(t * 6) % 2 ? 0xff5cf0 : 0x5cf2ff) : 0xffa040;
-    gg.circle(p.x, p.y - 2, 30 * this.size).fill({ color: col, alpha: base });
-    if (p.shootFlash > 0) gg.circle(p.x + p.lastShootDir[0] * 14, p.y + p.lastShootDir[1] * 14, 22).fill({ color: 0xffe0a0, alpha: p.shootFlash * 0.9 });
-    if (p.hurtFlash > 0) gg.circle(p.x, p.y, 40).stroke({ width: 10, color: 0xff2d8a, alpha: p.hurtFlash });
-    if (p.glowBurst > 0) gg.circle(p.x, p.y, 44 + Math.sin(t * 20) * 4).fill({ color: 0xfff27a, alpha: 0.35 });
+    const breathe = 0.8 + Math.sin(t * 2.2) * 0.2;
+    const hurt = p.hurtFlash;
+    const glowCol = hurt > 0 ? 0xff2d6a : col;
+    // Wide scattering halo in the water plus a hot core.
+    gg.circle(p.x, p.y - 2, 64 * this.size).fill(glowFill(glowCol));
+    gg.circle(p.x, p.y - 6, 18 * this.size).fill({ color: 0xff9a3a, alpha: 0.3 * breathe + p.shootFlash * 0.35 });
+    gg.circle(p.x, p.y - 8, 5 * this.size).fill({ color: 0xffd9a0, alpha: 0.6 * breathe });
+    if (p.shootFlash > 0) gg.circle(p.x + p.lastShootDir[0] * 16, p.y + p.lastShootDir[1] * 16, 20).fill({ color: 0xffe0a0, alpha: p.shootFlash * 0.8 });
+    if (hurt > 0) gg.circle(p.x, p.y, 44).fill({ color: 0xff2d6a, alpha: hurt * 0.5 });
+    if (p.glowBurst > 0) gg.circle(p.x, p.y, 54 + Math.sin(t * 20) * 4).fill({ color: 0xfff27a, alpha: 0.35 });
     if (p.charge > 0) {
       const [dx, dy] = p.chargeDir;
-      gg.circle(p.x + dx * 26, p.y + dy * 26, 8 + p.charge * 14).fill({ color: 0xfff6c0, alpha: 0.6 * p.charge });
+      gg.circle(p.x + dx * 26, p.y + dy * 26, 8 + p.charge * 16).fill({ color: 0xfff6c0, alpha: 0.7 * p.charge });
     }
+    // Light travelling down every tentacle.
     for (const tc of this.tentacles) {
-      if (tc.kind !== 'marginal') continue;
-      const e = tc.pts[tc.pts.length - 1];
-      gg.circle(e.x, e.y, 3).fill({ color: 0xffd28a, alpha: 0.5 });
+      const n = tc.pts.length;
+      for (let i = 1; i < n; i += tc.kind === 'oral' ? 1 : 2) {
+        const f = i / n;
+        const lit = this.pulseAt(t, f);
+        const idle = 0.12 + 0.08 * Math.sin(t * 2 + tc.phase + i * 0.5);
+        const a = Math.min(1, idle + lit);
+        if (a < 0.1) continue;
+        const q = tc.pts[i];
+        gg.circle(q.x, q.y, (tc.kind === 'oral' ? 3.2 : 2) * this.size).fill({ color: lit > 0.3 ? 0xfff0c0 : 0xffb060, alpha: a });
+      }
     }
   }
 }

@@ -254,16 +254,16 @@ class Game {
       case 'item': {
         const def = ITEM_BY_ID[ev.id];
         if (def) {
-          this.ui.banner(def.name.toUpperCase(), def.tagline, '#' + def.color.toString(16).padStart(6, '0'));
+          this.ui.banner(def.name, def.tagline, '#' + def.color.toString(16).padStart(6, '0'));
           if (!p.seenItems.includes(ev.id)) p.seenItems.push(ev.id);
           p.stats.itemsTaken[ev.id] = (p.stats.itemsTaken[ev.id] ?? 0) + 1;
-        } else this.ui.banner('HEART CONTAINER', 'Health up!', '#ff4d6d');
+        } else this.ui.banner('Heart Container', 'Health up', '#ff4d6d');
         saveProfile(p);
         break;
       }
       case 'synergy': {
         const s = SYNERGIES.find((x) => x.id === ev.id)!;
-        setTimeout(() => this.ui.banner(`SYNERGY! ${s.name.toUpperCase()}`, s.desc, '#ff5cae'), 900);
+        setTimeout(() => this.ui.banner(s.name, `Synergy · ${s.desc}`, '#ff5cae'), 900);
         p.counters['syn_' + ev.id] = (p.counters['syn_' + ev.id] ?? 0) + 1;
         this.achieve('first_synergy');
         saveProfile(p);
@@ -271,7 +271,7 @@ class Game {
       }
       case 'transformation': {
         const t = TRANSFORMATIONS.find((x) => x.id === ev.id)!;
-        setTimeout(() => this.ui.banner(t.name, t.desc, '#9a6bff'), 1000);
+        setTimeout(() => this.ui.banner(t.name.charAt(0) + t.name.slice(1).toLowerCase(), `Transformation · ${t.desc}`, '#9a6bff'), 1000);
         p.counters['tf_' + ev.id] = (p.counters['tf_' + ev.id] ?? 0) + 1;
         this.achieve('transformation');
         saveProfile(p);
@@ -281,7 +281,7 @@ class Game {
         const run = this.run!;
         const kind = ev.kind as BossKind;
         run.data.bossesBeaten.push(kind);
-        this.ui.banner(`${BOSS_NAMES[kind].name.toUpperCase()} DEFEATED!`, 'Color floods back into the reef', '#ff9a2e');
+        this.ui.banner(BOSS_NAMES[kind].name, 'Defeated · colour floods back into the reef', '#ff9a2e');
         this.achieve(`beat_${kind}`);
         if (run.data.depth === 1) this.achieve('dive2');
         if (run.data.depth === 2) this.achieve('dive3');
@@ -303,7 +303,7 @@ class Game {
         }
         break;
       case 'snack':
-        this.ui.banner(ev.name.toUpperCase(), '', '#1b1030');
+        this.ui.banner(ev.name, 'Sea snack', '#1b1030');
         break;
       default:
         break;

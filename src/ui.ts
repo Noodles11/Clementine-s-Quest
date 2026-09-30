@@ -110,14 +110,14 @@ export class UI {
   showTitle(p: Profile, canContinue: boolean, h: { continueRun: Handler; newRun: Handler; seeded: Handler; dex: Handler; options: Handler; save: Handler; help: Handler }) {
     const s = el('div', 'title-screen');
     const left = el('div');
-    left.append(el('div', 'logo', `CLEMENTINE'S<small>QUEST</small>`));
+    left.append(el('div', 'logo', `Clementine's<small>QUEST</small>`));
     left.append(el('div', 'tagline', 'The Great Current has gone silent. One tiny jellyfish who glows a little too much drifts down to find out why.'));
     const menu = el('div', 'menu');
     if (canContinue) menu.append(btn('Continue Dive', 'orange', h.continueRun));
     menu.append(btn('New Dive', canContinue ? '' : 'orange', h.newRun));
     menu.append(btn('Seeded Dive', 'teal small', h.seeded));
     const row = el('div', 'row');
-    row.append(btn('Sea-pedia', 'purple small', h.dex), btn('Options', 'gray small', h.options));
+    row.append(btn('Field journal', 'purple small', h.dex), btn('Options', 'gray small', h.options));
     menu.append(row);
     const row2 = el('div', 'row');
     row2.append(btn('Save Code', 'gray small', h.save), btn('How to Play', 'gray small', h.help));
@@ -140,7 +140,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '420px';
-    p.append(el('h1', 'title-text screen-title', 'SEEDED DIVE'));
+    p.append(el('h1', 'title-text screen-title', 'Seeded dive'));
     p.append(el('p', 'muted', 'Enter an 8-character seed (e.g. KELP 7Q2Z). Seeded dives are for practice and sharing: they never unlock achievements.'));
     const inp = el('input') as HTMLInputElement;
     inp.type = 'text';
@@ -164,7 +164,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone help');
     p.style.width = '620px';
-    p.append(el('h1', 'title-text screen-title', 'HOW TO PLAY'));
+    p.append(el('h1', 'title-text screen-title', 'How to play'));
     p.append(el('div', '', `
       <p><b>Touch:</b> drag anywhere on the left half to swim, on the right half to aim and shoot.
       Buttons: 💣 ink bomb, ★ active item, 🍬 snack, ❚❚ pause, ▦ map.</p>
@@ -185,7 +185,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '520px';
-    p.append(el('h1', 'title-text screen-title', 'PAUSED'));
+    p.append(el('h1', 'title-text screen-title', 'Paused'));
     const seed = el('div', '', `<span class="seedline" title="Click to copy">${formatSeed(info.seed)}</span> ${info.custom ? '<span class="muted">(seeded — no unlocks)</span>' : ''}`);
     seed.querySelector('.seedline')!.addEventListener('click', () => navigator.clipboard?.writeText(formatSeed(info.seed)));
     p.append(seed);
@@ -213,7 +213,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '540px';
-    p.append(el('h1', 'title-text screen-title', 'CLEMENTINE FAINTED!'));
+    p.append(el('h1', 'title-text screen-title', 'Her light went out'));
     p.append(el('p', '', `Knocked out by <b>${esc(s.killer ?? 'the deep')}</b> on Depth ${s.depth}.`));
     p.append(this.summaryGrid(s));
     const strip = el('div', 'itemstrip');
@@ -228,7 +228,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '560px';
-    p.append(el('h1', 'title-text screen-title', 'BACK TO THE SURFACE!'));
+    p.append(el('h1', 'title-text screen-title', 'Back to the surface'));
     p.append(el('p', '', `Clementine made it through Depth ${s.depth} and floated home, glowing proudly.`));
     p.append(this.summaryGrid(s));
     if (unlocks.length) p.append(el('p', '', '<b>New:</b> ' + unlocks.map(esc).join(' · ')));
@@ -284,13 +284,13 @@ export class UI {
       const info = BOSS_NAMES[kind];
       const c = el('div', 'cover');
       const sheet = el('div', 'sheet');
-      sheet.append(el('div', 'issue', `${info.issue} · DEPTH ${depth}`), el('div', 'vs', 'VS. CLEMENTINE'));
+      sheet.append(el('div', 'issue', `Specimen ${info.issue.replace('ISSUE #', '0')} · Depth ${depth}`), el('div', 'vs', 'VS. CLEMENTINE'));
       if (img) {
         const im = el('img') as HTMLImageElement;
         im.src = img;
         sheet.append(im);
       }
-      sheet.append(el('div', 'boss-name', esc(info.name.toUpperCase())), el('div', 'boss-tag', esc(info.tagline)));
+      sheet.append(el('div', 'boss-name', esc(info.name)), el('div', 'boss-tag', esc(info.tagline)));
       c.append(sheet);
       this.popups.append(c);
       let done = false;
@@ -325,7 +325,7 @@ export class UI {
 
   floorTitle(depth: number, name: string, sub: string) {
     const f = el('div', 'floor-title');
-    f.append(el('div', 'depth', `DEPTH ${depth}`), el('div', 'name', esc(name.toUpperCase())), el('div', 'sub', esc(sub)));
+    f.append(el('div', 'depth', `DEPTH ${depth}`), el('div', 'name', esc(name)), el('div', 'sub', esc(sub)));
     this.popups.append(f);
     setTimeout(() => f.remove(), 2900);
   }
@@ -341,7 +341,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '440px';
-    p.append(el('h1', 'title-text screen-title', 'OPTIONS'));
+    p.append(el('h1', 'title-text screen-title', 'Options'));
     const opts = { ...o0 };
     const toggle = (label: string, key: keyof Options) => {
       const row = el('label', 'toggle');
@@ -360,7 +360,7 @@ export class UI {
     toggle('Reduced flashing', 'reducedFlash');
     toggle('Calm water (less motion)', 'calmWater');
     toggle('Diagonal shooting', 'diagonalShooting');
-    toggle('Fish-tank frame', 'tankFrame');
+    
     const q = el('label', 'toggle');
     q.append(el('span', '', 'Quality'));
     const sel = el('select') as HTMLSelectElement;
@@ -395,7 +395,7 @@ export class UI {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '520px';
-    p.append(el('h1', 'title-text screen-title', 'SAVE CODE'));
+    p.append(el('h1', 'title-text screen-title', 'Save code'));
     p.append(el('p', 'muted', 'Copy this code to back up your progress, or paste a code to restore it. Importing replaces your current progress.'));
     const ta = el('textarea') as HTMLTextAreaElement;
     ta.value = code;
@@ -422,7 +422,7 @@ export class UI {
     const panel = el('div', 'panel halftone');
     panel.style.width = '820px';
     panel.style.height = '480px';
-    panel.append(el('h1', 'title-text', 'SEA-PEDIA'));
+    panel.append(el('h1', 'title-text', 'Field journal'));
     const tabs = el('div', 'tabs');
     const body = el('div');
     const tabDefs: [string, () => void][] = [

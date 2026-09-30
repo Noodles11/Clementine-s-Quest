@@ -2,7 +2,10 @@
 // lightning, rings, transient lights, shake, flashes, hitstop.
 
 import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { FONT_TITLE } from '../config';
+import { FONT_UI } from '../config';
+import { mixColor } from '../core/math';
+
+const INFO_TEXT = /NEED|LOCKED|FULL|NOT ENOUGH|SECRET|SIREN|HEART UP|MARKS|Up!|Down|Belly|Bite|Foamy|Refill|Bad Clam/;
 import { cosmetic as R } from '../core/rng';
 import { ParticleSystem } from '../ambient/particles';
 import type { BurstKind, Fx } from '../game/fx';
@@ -164,26 +167,26 @@ export class FxSystem implements Fx {
   }
 
   text(x: number, y: number, str: string, color = 0xffffff, size = 22) {
+    // Documentary look: no comic sound effects, only useful information.
+    if (!INFO_TEXT.test(str)) return;
     const t = new Text({
-      text: str,
+      text: str.toUpperCase(),
       style: {
-        fontFamily: FONT_TITLE,
-        fontSize: size,
-        fill: color,
-        stroke: { color: INK, width: Math.max(4, size * 0.22), join: 'round' },
-        letterSpacing: 1,
-        dropShadow: { color: INK, distance: 3, angle: Math.PI / 3, alpha: 1, blur: 0 },
+        fontFamily: FONT_UI,
+        fontSize: Math.min(16, size * 0.7),
+        fontWeight: '600',
+        fill: mixColor(color, 0xffffff, 0.6),
+        letterSpacing: 2,
+        dropShadow: { color: 0x000000, distance: 1, angle: Math.PI / 2, alpha: 0.8, blur: 3 },
       },
     });
     t.anchor.set(0.5);
     t.x = x;
     t.y = y;
-    t.scale.set(0.2);
-    const rot = R.range(-0.18, 0.18);
-    t.rotation = rot;
+    t.alpha = 0;
     this.textLayer.addChild(t);
-    this.texts.push({ t, age: 0, life: 0.9, vy: -40, rot });
-    if (this.texts.length > 30) {
+    this.texts.push({ t, age: 0, life: 1.3, vy: -18, rot: 0 });
+    if (this.texts.length > 12) {
       const old = this.texts.shift()!;
       old.t.destroy();
     }
@@ -228,11 +231,9 @@ export class FxSystem implements Fx {
       const f = this.texts[i];
       f.age += dt;
       const k = f.age / f.life;
-      const pop = f.age < 0.12 ? 0.2 + (f.age / 0.12) * 1.1 : f.age < 0.22 ? 1.3 - ((f.age - 0.12) / 0.1) * 0.3 : 1;
-      f.t.scale.set(pop);
       f.t.y += f.vy * dt;
-      f.vy *= Math.exp(-3 * dt);
-      f.t.alpha = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+      f.vy *= Math.exp(-2 * dt);
+      f.t.alpha = k < 0.15 ? k / 0.15 : k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
       if (f.age >= f.life) {
         f.t.destroy();
         this.texts.splice(i, 1);

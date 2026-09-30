@@ -23,6 +23,8 @@ export interface TextureSet {
   spark: Texture;
   gradient: Texture;
   star: Texture;
+  rock: Texture;
+  grain: Texture;
 }
 
 let TEX: TextureSet | null = null;
@@ -190,6 +192,49 @@ function build(): TextureSet {
   st.closePath();
   st.fill();
 
+  // Rock surface: multi-octave value noise with fine pores and cracks (multiply-blended).
+  const RS = 256;
+  const [rkc, rk] = canvas(RS, RS);
+  const rimg = rk.createImageData(RS, RS);
+  const hashN = (x: number, y: number, s0: number) => {
+    let h = (x * 374761393 + y * 668265263 + s0 * 1442695) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  const vnoise = (x: number, y: number, f: number, s0: number) => {
+    const px = (x / RS) * f, py = (y / RS) * f;
+    const ix = Math.floor(px), iy = Math.floor(py);
+    const fx = px - ix, fy = py - iy;
+    const w = (a: number) => ((a % f) + f) % f;
+    const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = hashN(w(ix), w(iy), s0), b = hashN(w(ix + 1), w(iy), s0), c2 = hashN(w(ix), w(iy + 1), s0), d2 = hashN(w(ix + 1), w(iy + 1), s0);
+    return (a * (1 - u) + b * u) * (1 - v) + (c2 * (1 - u) + d2 * u) * v;
+  };
+  for (let y = 0; y < RS; y++)
+    for (let x = 0; x < RS; x++) {
+      let n = vnoise(x, y, 4, 1) * 0.5 + vnoise(x, y, 8, 2) * 0.25 + vnoise(x, y, 16, 3) * 0.15 + vnoise(x, y, 64, 4) * 0.1;
+      const ridge = Math.abs(vnoise(x, y, 6, 9) - 0.5);
+      if (ridge < 0.015) n -= 0.12; // cracks
+      const v = Math.max(0, Math.min(255, 165 + n * 90));
+      const k = (y * RS + x) * 4;
+      rimg.data[k] = v;
+      rimg.data[k + 1] = v * 0.98;
+      rimg.data[k + 2] = v * 0.95;
+      rimg.data[k + 3] = 255;
+    }
+  rk.putImageData(rimg, 0, 0);
+
+  // Film grain tile.
+  const GS = 128;
+  const [gnc, gn] = canvas(GS, GS);
+  const gimg = gn.createImageData(GS, GS);
+  for (let i = 0; i < GS * GS; i++) {
+    const v = 128 + (Math.random() - 0.5) * 120;
+    gimg.data[i * 4] = gimg.data[i * 4 + 1] = gimg.data[i * 4 + 2] = v;
+    gimg.data[i * 4 + 3] = 255;
+  }
+  gn.putImageData(gimg, 0, 0);
+
   const caustic = Texture.from(cc);
   caustic.source.addressMode = 'repeat';
   return {
@@ -205,5 +250,15 @@ function build(): TextureSet {
     spark: Texture.from(pc),
     gradient: Texture.from(gc),
     star: Texture.from(stc),
+    rock: (() => {
+      const t = Texture.from(rkc);
+      t.source.addressMode = 'repeat';
+      return t;
+    })(),
+    grain: (() => {
+      const t = Texture.from(gnc);
+      t.source.addressMode = 'repeat';
+      return t;
+    })(),
   };
 }
