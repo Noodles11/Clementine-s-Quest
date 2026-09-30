@@ -4,7 +4,7 @@
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
 > orange jellyfish on a quest to the bottom of the ocean.
 
-Status: **v0.3 — living-water & neon pass added, awaiting final approval. No code yet.**
+Status: **v0.4 — side view ("fish tank") pass, awaiting final approval. No code yet.**
 Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 ---
@@ -16,7 +16,8 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 | v1 scope | **Vertical slice**: Depths 1–3, ~28 items (no familiars/trinkets), 6 bosses, ~12 enemies, 10 synergies, 2 transformations. All core systems complete. |
 | Run length | **Progressive, Isaac-style.** First runs end after Depth 1. Each first boss kill / goal unlocks the next depth (§5.1). |
 | Resolution | **Smooth HD 960×540** logical, scaled to window. |
-| Camera | **Top-down** (slight Isaac-style 3/4 tilt for readability). |
+| Camera | **Side view — "fish tank"** (§11.1). Free 8-direction swimming, no platforming. Floor at the bottom, water surface/ceiling at the top. |
+| Descending | The next depth is reached through **The Crack** — a fissure in the boss room floor, guarded by the boss (§5.2). |
 | Clementine | **Soft-body jellyfish**: pulsing bell + physically simulated trailing tentacles (§11.2). |
 | Glow | **Neon bloom** on shots, damage, pickups, synergies (§11.3). |
 | Water | **Living water**: cosmetic fluid sim drives bubbles, fish, plants, currents (§11.4). |
@@ -93,8 +94,16 @@ Isaac-style stat block (all modified by items):
 | Speed | 1.0 | Floaty acceleration — she's a jellyfish |
 | Luck | 0 | Proc chances |
 
-**Movement feel:** slight inertia and a "pulse" squash-and-stretch animation on
-every direction change (jellyfish propulsion). Not slippery — responsive first.
+**Movement feel:** free swimming in all 8 directions with **neutral buoyancy**
+(no gravity, she doesn't sink). Slight inertia and a "pulse" squash-and-stretch
+on every direction change (jellyfish propulsion). Not slippery — responsive first.
+Idle: a tiny bob in place. The floor and rock surfaces are solid collision.
+
+**Side-view physics for objects (gameplay, deterministic):**
+- **Pickups sink** slowly and rest on the floor/ledges (hearts, coins, keys);
+  **Foam hearts float** up and rest under the ceiling — a readable rule.
+- **Ink Bombs sink** with a slow arc, can roll down slopes, explode on a fuse.
+- **Clementine's bubbles** fly straight (unaffected by buoyancy) unless an item changes that.
 
 ### Health types
 - **Coral Hearts** (red) — normal, refillable containers.
@@ -134,8 +143,8 @@ deeper as the player proves themselves:
 | Unlock | Requirement | Effect on runs |
 |---|---|---|
 | Start | — | Run = Depth 1 only. Boss kill → "Clementine surfaces" ending, run won. |
-| **Dive 2** | Beat any Depth 1 boss once | Boss room now shows a **Whirlpool** down to Kelp Jungle. Run ends at Depth 2 boss. |
-| **Dive 3** | Beat any Depth 2 boss once | Whirlpool to Sunken Galleon. Run ends at Depth 3 boss. |
+| **Dive 2** | Beat any Depth 1 boss once | Boss room's **Crack** now opens down to Kelp Jungle. Run ends at Depth 2 boss. |
+| **Dive 3** | Beat any Depth 2 boss once | Crack opens to Sunken Galleon. Run ends at Depth 3 boss. |
 | **The Admiral's Key** | Beat Rusty Admiral 3× | Adds a Key item; post-v1 it opens Depth 4. |
 | *Dive 4–6 (post-v1)* | Boss kills + item gates | e.g. carry **The Lantern Pearl** into Depth 5 to light the Trench. |
 
@@ -144,15 +153,37 @@ composed from existing sprites + captions) — "The current pulls deeper…".
 
 Each ending also unlocks content (items into pools), so early short runs
 already feed meta progress. The **surface choice**: when the next depth is
-unlocked, beating a boss shows both the Whirlpool (continue) and a **Surface
-Bubble** (end run as a win now) — like Isaac's chest vs. trapdoor.
+unlocked, beating a boss shows both the Crack (continue) and a **Surface
+Bubble** rising at the top of the room (end run as a win now) — like Isaac's
+chest vs. trapdoor. While the next depth is still locked, the Crack stays
+sealed with a glowing "?" rune — a visible promise of what's below.
+
+### 5.2 The Crack (descending)
+- Every floor's boss room is a wide arena with **The Crack** — a glowing
+  fissure in the sea floor — at the bottom center.
+- **The boss guards it:** it sits on/over the Crack or circles it. Boss intros
+  show it rising out of the fissure.
+- On the boss's death: screen shake, the boss's color returns, the rock splits
+  open with light pouring up, a strong updraft of bubbles, and the reward item
+  + Heart Container float down from above.
+- Clementine swims into the Crack → comic-panel transition of her sinking
+  through a dark tunnel → next depth's start room (she enters from the top).
+- Each depth start room has a light shaft from the crack above her, so the
+  descent reads visually across floors.
 
 ## 6. Procedural Generation
 
 Everything derived from a single **run seed** (see §10).
 
-### 6.1 Floor layout (Isaac-style grid)
-- Floor = 13×13 grid of room slots. Start room in center.
+### 6.1 Floor layout (Isaac-style grid, seen from the side)
+- Floor = 13×13 grid of room slots, where **x = left/right** and
+  **y = up/down in the water column**. Start room in the top row area
+  (you just came down), boss room placed in a low row where possible
+  (the dive goes *down*).
+- **Connections:** left/right neighbours via **side passages** in the walls;
+  up/down neighbours via **wide vertical shafts** (open gaps in the ceiling /
+  floor). Normal shafts are plain rock openings — visually distinct from
+  the glowing boss Crack so they're never confused.
 - Room count: `min(20, round(3.33 * depth + rand(5,6)))`.
 - Breadth-first expansion from start: a neighbor cell is added only if it has
   ≤1 filled neighbor (keeps a branching, maze-like shape), with random rejection.
@@ -160,19 +191,30 @@ Everything derived from a single **run seed** (see §10).
   **Boss** (farthest), **Treasure**, **Shop**, then optional **Secret**, **Curse**,
   **Challenge**, **Sacrifice**, **Library (Shipwreck Archive)**.
 - **Secret room:** placed in an empty cell with the most (≥3) room neighbors;
-  opened by bombing a wall.
-- **Big rooms** (2×1, 1×2, 2×2, L-shapes) from depth 2+.
+  opened by bombing a cracked wall, ceiling, or floor (sinking bombs make floor secrets natural).
+- **Big rooms** from depth 2+: wide caverns (2×1), **tall shafts (1×2)** with
+  vertical dives, 2×2 grottoes, L-shapes. Camera scrolls within big rooms.
 - Regenerate if constraints fail (not enough dead ends) — deterministic retry with sub-seed.
 
-### 6.2 Room interiors
-- Room size: 13×7 tiles (Isaac standard), 15×9 for big rooms scaled.
-- Interiors come from a **library of hand-authored templates** (JSON tile patterns:
-  rocks/coral, pits/trenches, spikes, enemy spawn slots) **plus** procedural
-  mutation: mirroring, rotation where symmetric, rock → biome variant swap,
-  random decoration scatter.
-- A small **template-grammar generator** also produces fully procedural rooms
-  (symmetric noise with a guaranteed flood-fill path between all doors) so the
-  pool never feels exhausted.
+### 6.2 Room interiors (side-view "tank")
+- Room = one screen, **20×11 tiles of 48px** (960×528). Big rooms are multiples.
+- Anatomy, bottom → top:
+  - **Sea floor:** a procedural heightline (noise, smoothed) with sand, rocks,
+    slopes and dips. Most decoration lives here: kelp, coral, anemones, shells,
+    shipwreck debris, treasure pots.
+  - **Mid water:** mostly open for combat; occasional **floating rock islands,
+    coral arches, hanging stalactites, sunken masts, bubble vents**.
+  - **Ceiling:** rock overhang in deep biomes, or the **shimmering water
+    surface** in Sunlit Shallows (you can't leave it — the light is too bright).
+- **Generation:** hand-authored obstacle templates (JSON: rock islands, arches,
+  pits, spike clusters, enemy slots) are stamped into a procedural terrain
+  (floor heightline + ceiling line), with mirroring (horizontal only — keeps
+  "floor is down"), biome variant swap and decoration scatter.
+- A **procedural room generator** makes fully new layouts from noise.
+  Validation: flood fill guarantees every door/shaft is reachable with a
+  Clementine-sized clearance, no enclosed pockets with enemies.
+- Pickup rest points are precomputed (floor tops / ledge tops) so sinking loot
+  never gets stuck in unreachable spots.
 - Enemy slots are filled from the depth's weighted **enemy pool** with a
   difficulty budget per room.
 
@@ -190,7 +232,7 @@ Everything derived from a single **run seed** (see §10).
 | Normal | — | Enemies, reward on clear |
 | Treasure | 🏆 | 1 item from Treasure pool (Shells-key locked from depth 2) |
 | Shop | 💰 | 2–5 items/pickups, paid with **Sand Dollars** |
-| Boss | 💀 | Boss → item + Heart Container + trapdoor ("Whirlpool") down |
+| Boss | 💀 | Arena with **The Crack**. Boss → item + Heart Container; Crack opens down (§5.2) |
 | Secret | ❓ | Bombable; rare items / big pickups |
 | Curse (Urchin Den) | ☠ | Enter costs damage; Abyss item pool |
 | Sacrifice (Anemone Altar) | ⚱ | Step on spikes for escalating rewards |
@@ -344,8 +386,15 @@ Emergent combos + named synergies with unique effects:
 ## 11. Visual Style — "Funky Comic Reef, Living Water"
 
 ### 11.1 Look & camera
-- **Top-down camera**, slight 3/4 tilt (like Isaac) so faces and bells read well.
+- **Side view, like looking into a fish tank.** Floor at the bottom, surface /
+  ceiling at the top, parallax depth layers behind the play plane.
   Fixed 960×540 logical resolution, scaled to window, letterboxed.
+- **Tank framing:** the comic panel border doubles as the aquarium frame;
+  faint glass reflection streak and slight edge vignette (toggleable).
+- **Light gradient:** brighter at the top, darker toward the floor; each depth
+  starts darker overall. The floor is lit by caustics from above.
+- Mobs are drawn in profile — fish, crabs, eels, octopi read far better from
+  the side, with clear silhouettes and faces.
 - **Comic look:** thick ink outlines (3px), flat bold fills, halftone dot
   shading, 1 highlight per shape, saturated tropical palette.
 - All characters are **procedurally drawn vector shapes**. No art pipeline.
@@ -355,6 +404,10 @@ Emergent combos + named synergies with unique effects:
   competes with gameplay). Ambient ≤ ~30% contrast of gameplay layer.
 
 ### 11.2 Clementine — soft-body jellyfish
+- **Orientation:** seen from the side — dome-shaped bell on top, tentacles
+  hanging below. The bell **tilts toward the swim direction** (up to ~60°);
+  tentacles stream out behind/under her. Swimming up = classic jellyfish
+  pulse; swimming down = bell tips forward, tentacles lift and stream upward.
 - **Bell:** a deformable ring of ~16 control points. Each movement impulse
   plays a **pulse cycle**: bell contracts (narrow + taller), then relaxes
   (wide + flat). Propulsion force is applied on the contraction, so motion
@@ -408,24 +461,25 @@ simplified *Stable Fluids* (advect → diffuse → decay), updated each frame.
 **What the field drives**
 | Element | Behavior |
 |---|---|
-| **Bubbles** | Rise toward the camera (grow + wobble + fade, pop with a tiny ring); spawned from vents, Clementine's pulses, hits, sand. Pushed by currents. |
+| **Bubbles** | **Rise upward** with buoyancy, wobble, slightly grow, merge when touching, pop at the surface/ceiling (tiny ring, collect under rock overhangs as shimmering pockets). Spawned from floor vents, Clementine's pulses, hits, sand, dying enemies. Pushed sideways by currents. |
 | **Marine snow / plankton** | Hundreds of tiny particles drifting; swirl visibly in wakes — the main way currents become *visible*. |
 | **Current streaks** | Very faint, stretched light streaks along strong flow; fade fast. |
-| **Floating fish** | Background **boids** schools on a parallax layer: cohesion/alignment/separation, flee from Clementine, projectiles & explosions, reform afterwards. Non-interactive. |
+| **Floating fish** | Background **boids** schools on 2 parallax depth layers (smaller + bluer when farther): cohesion/alignment/separation, flee from Clementine, projectiles & explosions, reform afterwards. Non-interactive. |
 | **Kelp, sea grass, anemones** | Verlet chains / springs anchored to floor; sway with field, bend away when Clementine swims through, wobble after explosions. |
 | **Coral, shells, rocks** | Subtle squash-wobble (spring) on nearby impacts. |
-| **Sand** | Puffs of sediment on impacts and fast movement near floor. |
-| **Light** | Animated **caustics** on the floor + slanted **god rays** from above, slowly shifting; ray intensity dims with depth. |
+| **Sand** | Puffs of sediment on impacts and fast movement near the floor; settles back down slowly. Sinking pickups kick up a small puff when they land. |
+| **Light** | Slanted **god rays** from the surface, slowly swaying; animated **caustics** on the sea floor and rock faces; surface shimmer line in shallow rooms. Intensity drops with depth. |
 | **Refraction** | Full-screen shader distortion, driven by the velocity field — tiny heat-haze wobble in wakes and blast rings. |
 
 **Layer stack (back → front)**
-1. Deep background: depth fog gradient, far fish silhouettes (parallax).
-2. Floor: sand/rock texture + caustics + projectile light.
-3. Floor decorations: kelp, coral, anemones (simulated).
-4. Gameplay: pickups, enemies, Clementine, projectiles (comic outlines).
-5. Glow layer (bloom).
-6. Foreground: bubbles, marine snow, occasional out-of-focus kelp at edges.
-7. Post: refraction, color grade per biome, vignette, chromatic aberration on hit.
+1. Far background: vertical depth gradient (light top → dark bottom), fog, far reef/wreck silhouettes, far fish schools (parallax).
+2. Mid background: back rock wall, near fish schools, god rays.
+3. Terrain: sea floor, rocks, ceiling/surface + caustics + projectile light.
+4. Decorations: kelp, coral, anemones (simulated), mostly along the floor.
+5. Gameplay: pickups, enemies, Clementine, projectiles (comic outlines).
+6. Glow layer (bloom).
+7. Foreground: bubbles, marine snow, out-of-focus kelp/coral silhouettes at the bottom edge (in front of the glass).
+8. Post: refraction, color grade per biome, vignette, chromatic aberration on hit.
 
 **Rules**
 - **Cosmetic only.** The fluid never changes gameplay physics, so runs stay
@@ -449,21 +503,27 @@ simplified *Stable Fluids* (advect → diffuse → decay), updated each frame.
 ## 12. Enemies & Bosses
 
 ### 12.1 Enemy archetypes (~25 at launch)
-| Enemy | Behavior |
-|---|---|
-| Blubber Blob | Slow chase |
-| Sea Urchin | Stationary, shoots 8-way |
-| Crabby | Side-steps, charges when aligned |
-| Pufferling | Inflates when close, bursts into spikes |
-| Moray Pop-up | Hides in holes, lunges |
-| Barracuda | Dashes in straight lines |
-| Jelly Swarm | Tiny, erratic, in groups |
-| Lanternfish | Shoots homing light orbs (darkness levels) |
-| Cannon Crab | Galleon: lobbed cannonballs |
-| Clown Anemone | Carnival: spawns bouncing balls |
-| Ghost Shrimp | Invisible until close (Trench) |
-| Mimic Clam | Looks like a chest |
-| Splitter Slime | Splits into 2 smaller |
+The side view gives four **movement classes**, which makes rooms read clearly:
+**Swimmers** (free 2D), **Walkers** (floor/ledges only), **Clingers** (stuck
+to floor, walls or ceiling), **Burrowers** (hide in sand/holes).
+
+| Enemy | Class | Behavior |
+|---|---|---|
+| Blubber Blob | Swimmer | Slow chase |
+| Sea Urchin | Clinger | Stationary on any surface, shoots 8-way |
+| Crabby | Walker | Scuttles along the floor, leaps up when you're above it |
+| Pufferling | Swimmer | Inflates when close, bursts into spikes |
+| Moray Pop-up | Burrower | Hides in wall holes, lunges out |
+| Barracuda | Swimmer | Dashes in straight lines |
+| Jelly Swarm | Swimmer | Tiny, erratic, in groups |
+| Lanternfish | Swimmer | Shoots homing light orbs (darkness levels) |
+| Cannon Crab | Walker | Galleon: lobbed cannonballs that sink in arcs |
+| Clown Anemone | Clinger | Carnival: spawns bouncing balls |
+| Ghost Shrimp | Swimmer | Invisible until close (Trench) |
+| Mimic Clam | Walker | Sits on the floor, looks like a chest |
+| Splitter Slime | Swimmer | Splits into 2 smaller |
+| Sand Flounder | Burrower | Flat in the sand, bursts up when you pass over |
+
 Champion variants (colored, with modifier) from depth 2+.
 
 ### 12.2 Bosses (2 per depth, pick 1 by seed)
@@ -477,6 +537,8 @@ Champion variants (colored, with modifier) from depth 2+.
 | 6 | **The Hollow Maw** (3 phases, final) |
 
 Boss structure: 2–3 phases with telegraphed bullet patterns (colorful, readable).
+Every boss **guards The Crack** (§5.2) and its patterns use the side view:
+floor slams, sinking/rising projectiles, ceiling drops, sweeping from wall to wall.
 
 ## 13. Save System & Meta Progression
 
