@@ -4,7 +4,7 @@
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
 > orange jellyfish on a quest to the bottom of the ocean.
 
-Status: **v0.2 — questions answered, awaiting final approval. No code yet.**
+Status: **v0.3 — living-water & neon pass added, awaiting final approval. No code yet.**
 Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 ---
@@ -13,9 +13,15 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 | Topic | Decision |
 |---|---|
-| v1 scope | **Vertical slice**: Depths 1–3, ~30 items, 6 bosses, ~12 enemies, ~12 synergies, 2 transformations. All core systems complete. |
+| v1 scope | **Vertical slice**: Depths 1–3, ~28 items (no familiars/trinkets), 6 bosses, ~12 enemies, 10 synergies, 2 transformations. All core systems complete. |
 | Run length | **Progressive, Isaac-style.** First runs end after Depth 1. Each first boss kill / goal unlocks the next depth (§5.1). |
 | Resolution | **Smooth HD 960×540** logical, scaled to window. |
+| Camera | **Top-down** (slight Isaac-style 3/4 tilt for readability). |
+| Clementine | **Soft-body jellyfish**: pulsing bell + physically simulated trailing tentacles (§11.2). |
+| Glow | **Neon bloom** on shots, damage, pickups, synergies (§11.3). |
+| Water | **Living water**: cosmetic fluid sim drives bubbles, fish, plants, currents (§11.4). |
+| Renderer | **PixiJS v8 (WebGL2)** + custom shaders — needed for bloom, refraction, caustics at 60 FPS (§14). |
+| Familiars / trinkets | **Not in v1.** Post-v1. |
 | Audio | **Synth SFX only** (WebAudio). Music post-v1. |
 | Meta | **Pure unlocks** (achievements). No Pearls / hub currency. |
 | Characters | **Clementine only** in v1. Roster post-v1. |
@@ -203,7 +209,7 @@ Everything derived from a single **run seed** (see §10).
 | Cards/Runes | **Tarot Shells** | One-use effects |
 | Batteries | **Glow Jellies** | Recharge active item |
 | Chests | **Clams** (normal/golden/cursed) | Loot |
-| Trinkets | **Trinkets** (sea glass, bottle caps…) | Passive, one slot |
+| Trinkets | **Trinkets** (sea glass, bottle caps…) *(post-v1)* | Passive, one slot |
 
 Per-seed randomized **Sea Snack** identities (e.g. "Purple Krill" = +speed this
 run) — a nice seed-memory mechanic.
@@ -218,7 +224,8 @@ Items are **data + modifiers**, not bespoke code:
   explosive, poisoning, freezing, charm, burn, growing, wave-motion, trail,
   multishot(n), charge-shot, laser, bomb-shot`.
 - **Triggers** — `onHit, onKill, onRoomClear, onDamaged, onShoot, onPickup, onFloorStart`.
-- **Familiars** — orbiters & followers with their own simple AI.
+- **Familiars** *(post-v1)* — orbiters & followers with their own simple AI.
+  The modifier system keeps a `familiar` hook so they slot in later.
 - **Transform tags** — collecting 3 items with the same tag grants a
   **Transformation** (Isaac-style, e.g. "Guppy").
 
@@ -227,7 +234,7 @@ Because shot behaviors compose, most synergies emerge naturally. A small
 
 ### 9.2 Item pools
 Treasure · Shop · Boss · Secret · Mermaid (Siren) · Whale Song (Angel) · Curse ·
-Golden Clam · Beggar. Each item has `quality 0–4`, weight, pool list, unlock condition.
+Golden Clam · Beggar *(post-v1)*. Each item has `quality 0–4`, weight, pool list, unlock condition.
 
 ### 9.3 Item list (full target ~60, then 100+)
 
@@ -241,7 +248,7 @@ Golden Clam · Beggar. Each item has `quality 0–4`, weight, pool list, unlock 
 | ★ Whale Lung | +1 range, bubbles are bigger | Deep breath! |
 | ★ Pufferfish Pout | ×1.5 damage, −shot speed | Angry and proud of it |
 | ★ Lucky Sea Glass | +2 luck | Found only on moonlit tides |
-| Plankton Swarm | +0.5 fire rate ×3 small bubbles | Tiny friends |
+| ★ Plankton Swarm | +0.5 fire rate ×3 small bubbles | Tiny friends |
 | ★ Barnacle Armor | +2 Foam hearts, −0.1 speed | Clingy but protective |
 
 **Passive — bubble modifiers**
@@ -260,20 +267,20 @@ Golden Clam · Beggar. Each item has `quality 0–4`, weight, pool list, unlock 
 | ★ Boomerang Shrimp | Bubbles **return** to Clementine |
 | ★ Pearl Diver | **Charge shot** — hold to fire a large pearl |
 | ★ Sunbeam | Replaces bubbles with a **laser beam** (charge) |
-| Double Helix | **Wave motion** + 2 shots |
+| ★ Double Helix | **Wave motion** + 2 shots |
 | ★ Triple Tentacle | **Triple shot** (−damage) |
 | ★ Starfish Arm | Bubbles **grow** with distance |
 | ★ Ink Sac | Bubbles become **ink bombs** (explosive) |
-| Siren Song | Chance to **charm** enemies |
+| ★ Siren Song | Chance to **charm** enemies |
 
-**Familiars**
+**Familiars** *(post-v1)*
 | Item | Effect |
 |---|---|
-| ★ Baby Clementine | Mini jelly that copies your shots at 35% damage |
+| Baby Clementine | Mini jelly that copies your shots at 35% damage |
 | Remora Buddy | Follows, picks up coins |
-| ★ Orbiting Krill | 3 krill orbit, block shots, contact damage |
+| Orbiting Krill | 3 krill orbit, block shots, contact damage |
 | Hermit Guard | Blocks projectiles behind you |
-| ★ Clownfish Pal | Shoots when you shoot, gains damage per room cleared |
+| Clownfish Pal | Shoots when you shoot, gains damage per room cleared |
 
 **Active items (Space; charge by room clears)**
 | Item | Charge | Effect |
@@ -287,7 +294,7 @@ Golden Clam · Beggar. Each item has `quality 0–4`, weight, pool list, unlock 
 | Sea Dice | 3 | Re-roll pickups in room |
 | Kraken Summon | 6 | Tentacles slam random enemies |
 
-**Trinkets (v1: Bottle Cap, Rusty Hook, Message in a Bottle):** Bottle Cap (+coin drops), Rusty Hook (hit enemies bleed),
+**Trinkets** *(post-v1)*: Bottle Cap (+coin drops), Rusty Hook (hit enemies bleed),
 Message in a Bottle (reveal a special room each floor), Sailor's Tooth (+range), …
 
 ### 9.4 Synergies (explicit, with special visuals)
@@ -306,10 +313,10 @@ Emergent combos + named synergies with unique effects:
 | Siren Song + Baby Clementine | **Choir** *(post-v1)* | Charmed enemies become temporary familiars |
 | Sunbeam + Pearl Diver | **Prism Pearl** | Charged pearl fires lasers in 4 directions when it pops |
 | Tidal Wave + Ink Sac | **Black Tide** *(post-v1)* | Wave drags ink bombs along and detonates them |
-| Orbiting Krill + Electric Eel Tail | **Krill Coil** | Krill are electrified, zap enemies nearby |
+| Orbiting Krill + Electric Eel Tail | **Krill Coil** *(post-v1)* | Krill are electrified, zap enemies nearby |
 | Pufferfish Pout + Starfish Arm | **Big Mad Puff** | Bubbles inflate with spikes & shotgun burst on pop |
 | Ghost Jelly + Anglerfish Lure | **Will-o'-Wisp** | Spectral homing wisps; phase through everything |
-| Clownfish Pal + Coral Crown | **Royal Guard** | Clownfish gets a crown, doubles damage |
+| Clownfish Pal + Coral Crown | **Royal Guard** *(post-v1)* | Clownfish gets a crown, doubles damage |
 
 **Transformations (3 items with same tag; v1 ships Kraken Form + Neon Rave):**
 - **Kraken Form** (tag: tentacle) — 8-way shooting, ink trail.
@@ -334,25 +341,110 @@ Emergent combos + named synergies with unique effects:
 - **Daily Dive** *(post-v1)*: date-derived seed, one attempt per day, local best.
 - **Special seeds** (easter eggs): e.g. `BIGG JELL` = Clementine is huge.
 
-## 11. Visual Style — "Funky Comic Reef"
+## 11. Visual Style — "Funky Comic Reef, Living Water"
 
-- **Rendering:** HTML5 Canvas 2D, fixed logical resolution (e.g. 480×270 or
-  960×540) scaled to window with letterboxing.
-- **Look:** thick black ink outlines (3px), flat bold fills, halftone dot
+### 11.1 Look & camera
+- **Top-down camera**, slight 3/4 tilt (like Isaac) so faces and bells read well.
+  Fixed 960×540 logical resolution, scaled to window, letterboxed.
+- **Comic look:** thick ink outlines (3px), flat bold fills, halftone dot
   shading, 1 highlight per shape, saturated tropical palette.
-  All characters are **procedurally drawn vector shapes** (bezier bodies,
-  animated tentacles via verlet/sine), so no art pipeline is needed and items
-  can visually alter Clementine (e.g. Coral Crown literally appears on her head,
-  like Isaac costumes).
+- All characters are **procedurally drawn vector shapes**. No art pipeline.
+  Items visually alter Clementine (e.g. Coral Crown sits on her bell).
+- **Style rule:** comic outlines on gameplay objects (always readable);
+  soft, painterly, glowing treatment on the water/ambient layers (never
+  competes with gameplay). Ambient ≤ ~30% contrast of gameplay layer.
+
+### 11.2 Clementine — soft-body jellyfish
+- **Bell:** a deformable ring of ~16 control points. Each movement impulse
+  plays a **pulse cycle**: bell contracts (narrow + taller), then relaxes
+  (wide + flat). Propulsion force is applied on the contraction, so motion
+  matches animation — just like a real jellyfish.
+- **Tentacles:** 4 long oral arms + 8 thin marginal tentacles. Each is a
+  **verlet chain** (8–12 points) anchored to the bell rim, with:
+  - water drag + slight buoyancy → **delayed, fluid trailing** behind movement,
+  - distance & bending constraints → no stretching, soft curls,
+  - sampled by the water velocity field (§11.4) → they sway with currents
+    and ripple when she turns or stops,
+  - idle: slow sine drift so they never look frozen.
+- Rendered as tapered ribbons with translucent gradient + inner glow; the bell
+  is semi-translucent (tentacle bases visible through it).
+- **Shooting:** bell squeezes toward the shot direction, a small recoil pulse
+  and a neon flash at the bell rim.
+- **Hurt:** bell squashes, tentacles whip outward, magenta neon rim flash,
+  brief chromatic-aberration wobble.
+- Enemies reuse the same soft-body toolkit (jelly swarm, squid tentacles,
+  anemone fronds, the Siphonophore chain boss).
+
+### 11.3 Neon glow (bloom)
+A dedicated **glow layer**: anything drawn there is blurred and added on top
+(additive bloom). Glow is an event language, color-coded:
+
+| Event | Glow |
+|---|---|
+| Firing | Rim flash on Clementine, bubble core glow, short light trail |
+| Projectile hit / pop | Expanding neon ring + light burst lighting nearby floor |
+| Player damage | Magenta rim flash, screen-edge pulse, brief hit-stop |
+| Enemy damage | White-hot flash on the enemy outline |
+| Pickups / item pedestal | Slow breathing glow, color by rarity |
+| Synergy / transformation | Big chromatic ripple + unique color signature |
+| Explosions (Ink Bombs) | Bright core → dark ink cloud (inverse glow) |
+
+- Projectiles are **light sources**: they softly light the sand and
+  decorations as they pass (cheap 2D lighting via additive light sprites).
+- Twilight Trench: darkness layer where only glows reveal the room.
+- Reduced-flash option dims bloom intensity and removes screen pulses.
+
+### 11.4 Living water (cosmetic simulation)
+Goal: the water feels alive and physical but **ambient** — never distracting.
+
+**Water velocity field** — a low-res 2D fluid grid (~64×36 cells per room),
+simplified *Stable Fluids* (advect → diffuse → decay), updated each frame.
+- **Everything that moves injects impulses**: Clementine's bell pulse (a ring
+  push behind her), projectiles (thin wakes), enemies, explosions (radial
+  blast), doors opening, bosses (large swirls).
+- A gentle **biome base current** + slow curl-noise gives constant drift.
+- Everything ambient samples this field, so one push ripples through the scene.
+
+**What the field drives**
+| Element | Behavior |
+|---|---|
+| **Bubbles** | Rise toward the camera (grow + wobble + fade, pop with a tiny ring); spawned from vents, Clementine's pulses, hits, sand. Pushed by currents. |
+| **Marine snow / plankton** | Hundreds of tiny particles drifting; swirl visibly in wakes — the main way currents become *visible*. |
+| **Current streaks** | Very faint, stretched light streaks along strong flow; fade fast. |
+| **Floating fish** | Background **boids** schools on a parallax layer: cohesion/alignment/separation, flee from Clementine, projectiles & explosions, reform afterwards. Non-interactive. |
+| **Kelp, sea grass, anemones** | Verlet chains / springs anchored to floor; sway with field, bend away when Clementine swims through, wobble after explosions. |
+| **Coral, shells, rocks** | Subtle squash-wobble (spring) on nearby impacts. |
+| **Sand** | Puffs of sediment on impacts and fast movement near floor. |
+| **Light** | Animated **caustics** on the floor + slanted **god rays** from above, slowly shifting; ray intensity dims with depth. |
+| **Refraction** | Full-screen shader distortion, driven by the velocity field — tiny heat-haze wobble in wakes and blast rings. |
+
+**Layer stack (back → front)**
+1. Deep background: depth fog gradient, far fish silhouettes (parallax).
+2. Floor: sand/rock texture + caustics + projectile light.
+3. Floor decorations: kelp, coral, anemones (simulated).
+4. Gameplay: pickups, enemies, Clementine, projectiles (comic outlines).
+5. Glow layer (bloom).
+6. Foreground: bubbles, marine snow, occasional out-of-focus kelp at edges.
+7. Post: refraction, color grade per biome, vignette, chromatic aberration on hit.
+
+**Rules**
+- **Cosmetic only.** The fluid never changes gameplay physics, so runs stay
+  deterministic and fair for seeds. (Design-level hazard currents in the Abyss
+  are separate, deterministic gameplay forces — and they also push the fluid.)
+- Uses the `cosmetic` RNG stream only.
+- **Quality presets** (Low / Medium / High / Auto): fluid grid size, particle
+  counts, fish count, bloom resolution, refraction on/off. Auto drops quality
+  if frame time > 16.6 ms for a few seconds.
+
+### 11.5 Comic FX, UI, accessibility
 - **Comic FX:** onomatopoeia pop-ups ("BLUB!", "ZAP!", "SPLOOSH!", "POP!") on hits/kills,
   speed-line bursts, screen shake, hit-stop (2–3 frames) on heavy hits,
   panel-style room transitions (wipe with a comic panel border).
 - **Boss intros:** comic-cover splash screen ("ISSUE #3: THE RUSTY ADMIRAL!").
-- **Ambient:** parallax caustic light, floating particles, rising bubbles, sways.
 - **UI:** chunky rounded font (Google Font e.g. *Bangers* for titles, *Fredoka*
   for UI), speech-bubble tooltips for item pickups ("PUFFERFISH POUT — Big mad energy").
 - Accessibility: color-blind-safe projectile outlines, screen-shake toggle,
-  reduced-flash toggle.
+  reduced-flash toggle, ambient-motion toggle (reduces water motion).
 
 ## 12. Enemies & Bosses
 
@@ -413,9 +505,10 @@ Pure Isaac-style: **achievements → unlocks**. No currency. e.g.:
 |---|---|
 | Language | **TypeScript** |
 | Build | **Vite** (dev server + static build) |
-| Rendering | Canvas 2D (custom, no engine) — full control over comic look |
+| Rendering | **PixiJS v8 (WebGL2)** — batched vector/mesh drawing + custom GLSL filters: bloom, refraction, caustics, god rays, color grade. Tentacles/kelp as dynamic meshes. |
+| Water sim | Custom CPU stable-fluids grid (Float32Array), later optionally moved to a GPU shader |
 | Audio | WebAudio synth SFX (music post-v1) |
-| Physics | Custom AABB/circle collision, tile grid |
+| Physics | Gameplay: custom AABB/circle collision, tile grid (deterministic). Cosmetic: verlet chains, springs, boids, fluid field. |
 | Tests | **Vitest** for PRNG, generation determinism, item modifiers, save migration |
 | Deploy | Static site → GitHub Pages via Actions workflow |
 
@@ -424,28 +517,31 @@ src/
   core/       loop, input, rng, events, time
   gen/        floor layout, room templates, pools, seed
   world/      room, tiles, doors, hazards
-  entities/   player, enemies, bosses, projectiles, familiars, pickups
+  entities/   player, enemies, bosses, projectiles, pickups
   items/      item defs (data), modifiers, synergies, transformations
-  render/     draw primitives, comic FX, sprites (procedural), camera, UI
+  render/     draw primitives, comic FX, sprites (procedural), camera, UI, shaders
+  ambient/    fluid field, bubbles, particles, boids, softbody (verlet), plants
   audio/      synth, sfx, music
   meta/       save, unlocks, stats, hub
   scenes/     title, hub, run, pause, gameover, codex
 ```
 
-Performance target: 60 FPS with ~300 projectiles on mid-range laptops.
+Performance target: 60 FPS on mid-range laptops with ~300 projectiles, full
+water sim, ~600 particles and ~40 ambient fish on the High preset.
 
 ## 15. v1 Delivery Plan (after approval)
 
 1. **Skeleton** — Vite + TS, game loop, input, scaling canvas, scene manager, seeded RNG, Vitest, Pages workflow.
-2. **Clementine** — movement, 4-dir bubbles, stats, procedural jelly sprite with tentacles.
-3. **Floor gen** — layout, room templates + procedural rooms, doors, minimap, transitions.
-4. **Combat** — 12 enemies (Depths 1–3), hit/knockback, pickups, room-clear rewards.
-5. **Items** — modifier system, ~30 items, pools, pedestals, shop, actives, trinkets.
-6. **Synergies & transformations** — explicit table + FX.
-7. **Bosses** — 6 bosses with comic-cover intros.
-8. **Meta** — save/continue, unlocks, progressive dives, Sea-pedia, export code.
-9. **Juice** — comic FX, halftones, onomatopoeia, SFX, options (shake/flash).
-10. **Polish & balance** — seed determinism tests, perf pass, deploy.
+2. **Water & render core** — Pixi layers, bloom, caustics, god rays, refraction, fluid field, particles.
+3. **Clementine** — soft-body bell, verlet tentacles, pulse propulsion, 4-dir bubbles, neon feedback.
+4. **Floor gen** — layout, room templates + procedural rooms, doors, minimap, transitions.
+5. **Combat & ambience** — 12 enemies (Depths 1–3), hit/knockback, kelp/fish/decor per biome, pickups, room-clear rewards.
+6. **Items** — modifier system, ~28 items, pools, pedestals, shop, actives.
+7. **Synergies & transformations** — explicit table + FX.
+8. **Bosses** — 6 bosses with comic-cover intros.
+9. **Meta** — save/continue, unlocks, progressive dives, Sea-pedia, export code.
+10. **Juice** — comic FX, halftones, onomatopoeia, SFX, options, quality presets.
+11. **Polish & balance** — seed determinism tests, perf pass, deploy.
 
 ## 16. Remaining minor assumptions
 - Diagonal shooting off by default (toggle in Options).
