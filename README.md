@@ -19,6 +19,10 @@ Full design: [`docs/DESIGN.md`](docs/DESIGN.md).
 | Pause | **Esc** / **P** |
 | Restart run | hold **R** |
 
+**Touch (phones/tablets, landscape):** drag on the left half to swim, drag on the right
+half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, 🍬 snack,
+❚❚ pause, ▦ map.
+
 - Clear rooms to open doors. Find the treasure room, Barnaby's shop, secrets and the boss.
 - Every boss guards **The Crack**. Your first dives end at Depth 1; each new boss you
   defeat unlocks the next depth (Kelp Jungle, then the Sunken Galleon).
