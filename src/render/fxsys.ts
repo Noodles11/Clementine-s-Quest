@@ -159,6 +159,12 @@ export class FxSystem implements Fx {
         }
         this.onExplosion?.(x, y);
         break;
+      case 'wake':
+        // Displaced water: a faint expanding ring and a few expelled micro-bubbles.
+        W.spawn({ kind: 'ring', x, y, life: 0.6, size: 18, size1: 90, color, alpha: 0.18, fluid: 0 });
+        for (let i = 0; i < n; i++)
+          W.spawn({ kind: 'bubble', x: x + R.range(-8, 8), y: y + R.range(-8, 8), vx: R.range(-60, 60), vy: R.range(-40, 40), life: R.range(0.8, 1.6), size: R.range(2, 4), gravity: -40, wobble: 6, fluid: 0.9 });
+        break;
       case 'heal':
         for (let i = 0; i < n; i++)
           G.spawn({ kind: 'star', x: x + R.range(-14, 14), y: y + R.range(-8, 8), vy: R.range(-120, -60), life: 0.7, size: 12, size1: 3, color });

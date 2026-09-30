@@ -13,7 +13,8 @@ export type BurstKind =
   | 'sparkle'
   | 'blood'
   | 'explosion'
-  | 'heal';
+  | 'heal'
+  | 'wake';
 
 export interface Fx {
   burst(x: number, y: number, kind: BurstKind, color?: number, n?: number): void;

@@ -62,33 +62,51 @@ export class Player extends Entity {
     }
     const max = st.movePx;
     const moving = l > 0.05;
-    // Pulse on direction changes, quantized to 8 directions so analog input doesn't spam it.
-    const oct = moving ? Math.round(Math.atan2(iy, ix) / (Math.PI / 4)) : 99;
-    if (moving && oct !== this.lastMoveDir[0]) this.kick();
-    this.lastMoveDir = [oct, 0];
     this.moving = moving;
-    const accel = moving ? 9 : 5;
-    this.vx = approach(this.vx, ix * max, accel, dt);
+    this.lastMoveDir = [ix, iy];
+
+    // ── Jellyfish propulsion ────────────────────────────────
+    // No constant thrust: each bell contraction delivers one impulse, then she
+    // glides and slows in the water while the bell refills.
+    const PERIOD = 0.55 / Math.max(0.6, Math.sqrt(st.speed)); // faster jellies pulse faster
+    const THRUST = 0.2; // contraction phase (s)
+    const DRAG = 2.4;
+    this.pulseClock += dt;
+    if (moving) {
+      const a = Math.atan2(iy, ix);
+      const turned = Math.abs(Math.atan2(Math.sin(a - this.pulseAngle), Math.cos(a - this.pulseAngle))) > 1.0;
+      if (this.pulseClock >= PERIOD || (turned && this.pulseClock > THRUST) || !this.wasMoving) this.startPulse(w, a, Math.min(1, l));
+    }
+    this.wasMoving = moving;
+    if (this.pulseClock < THRUST) {
+      // Impulse chosen so the average swim speed matches the speed stat.
+      const J = max * DRAG * PERIOD * this.pulseStrength;
+      const acc = J * (Math.PI / (2 * THRUST)) * Math.sin((Math.PI * this.pulseClock) / THRUST);
+      this.vx += Math.cos(this.pulseAngle) * acc * dt;
+      this.vy += Math.sin(this.pulseAngle) * acc * dt;
+    }
+    const drag = Math.exp(-(moving ? DRAG : 3.2) * dt);
+    this.vx *= drag;
+    this.vy *= drag;
     // Slow idle sink: eased in so it never fights the player.
-    this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.5);
+    this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.8);
     const sinkV = st.noSink ? 0 : 6 * this.sinkBlend;
-    this.vy = approach(this.vy, moving ? iy * max : sinkV, accel, dt);
-    // Jellyfish pulses: rhythmic while swimming.
-    this.pulse += dt * (moving ? 2.4 : 0.9);
-    if (moving && this.pulse > 1) {
-      this.pulse = 0;
+    if (!moving) this.vy += (sinkV - this.vy) * Math.min(1, dt * 1.5) * this.sinkBlend;
+    // Idle: a slow, gentle resting pulse (visual only).
+    if (!moving && this.pulseClock > 2.2) {
+      this.pulseClock = THRUST;
       this.kick();
     }
-    if (this.pulse > 1) this.pulse -= 1;
-    this.pulseKick = Math.max(0, this.pulseKick - dt * 3);
+    this.pulseKick = Math.max(0, this.pulseKick - dt * 2.2);
 
     moveBox(this, this.vx * dt, this.vy * dt, this.solidity);
     this.x = clamp(this.x, -30, w.widthPx + 30);
     this.y = clamp(this.y, -30, w.heightPx + 30);
 
-    // Water pushed by the bell: a ring behind her.
-    if (moving && ((this.age * 60) | 0) % 2 === 0) {
-      w.fluid.splat(this.x - ix * 16, this.y - iy * 16 + 10, -ix * 110 + this.vx * 0.4, -iy * 110 + this.vy * 0.4, 30);
+    // While the bell contracts it keeps expelling water backwards.
+    if (this.pulseClock < THRUST && moving && ((this.age * 60) | 0) % 2 === 0) {
+      const bx = this.x - Math.cos(this.pulseAngle) * 18, by = this.y - Math.sin(this.pulseAngle) * 18;
+      w.fluid.splat(bx, by, -Math.cos(this.pulseAngle) * 160, -Math.sin(this.pulseAngle) * 160, 26);
     }
 
     // Kraken form: ink trail that slows enemies.
@@ -132,6 +150,30 @@ export class Player extends Entity {
     if (input.wasPressed('KeyE')) w.dropBomb();
     if (input.wasPressed('Space')) w.useActive();
     if (input.wasPressed('KeyQ')) w.eatSnack();
+  }
+
+  pulseClock = 9;
+  pulseAngle = 0;
+  pulseStrength = 1;
+  wasMoving = false;
+
+  /** One bell contraction: thrust along `angle`, water pushed out from the bell margin. */
+  private startPulse(w: RoomWorld, angle: number, strength: number) {
+    this.pulseClock = 0;
+    this.pulseAngle = angle;
+    this.pulseStrength = strength;
+    this.kick();
+    const cx = Math.cos(angle), cy = Math.sin(angle);
+    // The margin snaps inward and outward: a ring of water pushed away from the cap,
+    // strongest behind her, plus the jet that actually moves her.
+    const bx = this.x - cx * 14, by = this.y - cy * 14;
+    w.fluid.blast(bx, by, 220, 70);
+    w.fluid.splat(bx - cx * 10, by - cy * 10, -cx * 320, -cy * 320, 34);
+    for (const side of [-1, 1]) {
+      const px = -cy * side, py = cx * side;
+      w.fluid.splat(this.x + px * 22 - cx * 6, this.y + py * 22 - cy * 6, px * 170 - cx * 90, py * 170 - cy * 90, 22);
+    }
+    w.fx.burst(bx, by, 'wake', 0xdff6ff, 4);
   }
 
   kick() {
