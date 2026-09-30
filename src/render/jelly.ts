@@ -286,9 +286,9 @@ export class JellyView {
     const hurt = p.hurtFlash;
     const glowCol = hurt > 0 ? 0xff2d6a : col;
     // Wide scattering halo in the water plus a hot core.
-    gg.circle(p.x, p.y - 2, 64 * this.size).fill(glowFill(glowCol));
-    gg.circle(p.x, p.y - 6, 18 * this.size).fill({ color: 0xff9a3a, alpha: 0.3 * breathe + p.shootFlash * 0.35 });
-    gg.circle(p.x, p.y - 8, 5 * this.size).fill({ color: 0xffd9a0, alpha: 0.6 * breathe });
+    gg.circle(p.x, p.y - 2, 42 * this.size).fill({ color: glowCol, alpha: 0.14 * breathe });
+    gg.circle(p.x, p.y - 6, 14 * this.size).fill({ color: 0xff9a3a, alpha: 0.18 * breathe + p.shootFlash * 0.25 });
+    gg.circle(p.x, p.y - 8, 4 * this.size).fill({ color: 0xffd9a0, alpha: 0.4 * breathe });
     if (p.shootFlash > 0) gg.circle(p.x + p.lastShootDir[0] * 16, p.y + p.lastShootDir[1] * 16, 20).fill({ color: 0xffe0a0, alpha: p.shootFlash * 0.8 });
     if (hurt > 0) gg.circle(p.x, p.y, 44).fill({ color: 0xff2d6a, alpha: hurt * 0.5 });
     if (p.glowBurst > 0) gg.circle(p.x, p.y, 54 + Math.sin(t * 20) * 4).fill({ color: 0xfff27a, alpha: 0.35 });
@@ -303,7 +303,7 @@ export class JellyView {
         const f = i / n;
         const lit = this.pulseAt(t, f);
         const idle = 0.12 + 0.08 * Math.sin(t * 2 + tc.phase + i * 0.5);
-        const a = Math.min(1, idle + lit);
+        const a = Math.min(0.7, (idle + lit) * 0.6);
         if (a < 0.1) continue;
         const q = tc.pts[i];
         gg.circle(q.x, q.y, (tc.kind === 'oral' ? 3.2 : 2) * this.size).fill({ color: lit > 0.3 ? 0xfff0c0 : 0xffb060, alpha: a });

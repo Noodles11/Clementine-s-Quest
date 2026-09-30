@@ -71,7 +71,7 @@ export class Player extends Entity {
     this.vx = approach(this.vx, ix * max, accel, dt);
     // Slow idle sink: eased in so it never fights the player.
     this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.5);
-    const sinkV = st.noSink ? 0 : 12 * this.sinkBlend;
+    const sinkV = st.noSink ? 0 : 6 * this.sinkBlend;
     this.vy = approach(this.vy, moving ? iy * max : sinkV, accel, dt);
     // Jellyfish pulses: rhythmic while swimming.
     this.pulse += dt * (moving ? 2.4 : 0.9);

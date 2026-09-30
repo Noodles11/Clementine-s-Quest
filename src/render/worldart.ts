@@ -20,54 +20,41 @@ const DOOR_COL: Record<string, number> = {
   grotto: 0x8a5a7a,
 };
 
-export function drawDoor(g: Graphics, d: DoorState, w: RoomWorld, t: number) {
+export function drawDoor(g: Graphics, d: DoorState, w: RoomWorld, t: number, glow?: Graphics) {
   if (d.hidden) return;
   const m = d.mouth;
   const side = d.spec.side;
-  const col = DOOR_COL[d.spec.kind] ?? 0xff8a6f;
   const horiz = side === 'L' || side === 'R';
-  const closed = 1 - d.anim;
-  if (horiz) {
-    const x = side === 'L' ? 0 : w.widthPx;
-    const dir = side === 'L' ? 1 : -1;
-    const y0 = m.y - TILE * 1.5, y1 = m.y + TILE * 1.5;
-    // Frame arch.
-    for (const yy of [y0, y1]) {
-      g.roundRect(x + (dir > 0 ? 0 : -TILE * 1.1), yy - 12, TILE * 1.1, 24, 10).fill(shade(col)).stroke({ width: (3) * EW, color: INK, alpha: EA });
-      if (d.spec.kind === 'boss') for (let i = 0; i < 3; i++) g.poly([x + dir * (8 + i * 14), yy + (yy === y0 ? 10 : -10), x + dir * (14 + i * 14), yy + (yy === y0 ? 26 : -26), x + dir * (20 + i * 14), yy + (yy === y0 ? 10 : -10)]).fill(0xffffff).stroke({ width: (2) * EW, color: INK, alpha: EA });
-      if (d.spec.kind === 'treasure') g.circle(x + dir * TILE * 0.55, yy, 5).fill(0xff6fa8).stroke({ width: (2) * EW, color: INK, alpha: EA });
-      if (d.spec.kind === 'curse') for (let i = 0; i < 4; i++) g.poly([x + dir * (6 + i * 12), yy - 10, x + dir * (12 + i * 12), yy - 22, x + dir * (18 + i * 12), yy - 10]).fill(0x8a1a2a).stroke({ width: (1.5) * EW, color: INK, alpha: EA });
-    }
-    if (closed > 0.02) {
-      // Kelp-bar gate slides shut.
-      const h = (y1 - y0 - 20) * closed;
-      for (let i = 0; i < 3; i++) {
-        const bx = x + dir * (10 + i * 14);
-        g.moveTo(bx, y0 + 12).lineTo(bx + Math.sin(t * 2 + i) * 2, y0 + 12 + h / 2).lineTo(bx, y0 + 12 + h).stroke({ width: (9) * EW, color: INK, alpha: EA, cap: 'round' });
-        g.moveTo(bx, y0 + 12).lineTo(bx + Math.sin(t * 2 + i) * 2, y0 + 12 + h / 2).lineTo(bx, y0 + 12 + h).stroke({ width: 5, color: lighten(col, 0.1), cap: 'round' });
-      }
-    }
-  } else {
-    const y = side === 'U' ? 0 : w.heightPx;
-    const dir = side === 'U' ? 1 : -1;
-    const x0 = m.x - TILE, x1 = m.x + TILE;
-    for (const xx of [x0, x1]) {
-      g.roundRect(xx - 12, y + (dir > 0 ? 0 : -TILE * 1.1), 24, TILE * 1.1, 10).fill(shade(col)).stroke({ width: (3) * EW, color: INK, alpha: EA });
-    }
-    if (closed > 0.02) {
-      const wdt = (x1 - x0 - 20) * closed;
-      for (let i = 0; i < 3; i++) {
-        const by = y + dir * (10 + i * 14);
-        g.moveTo(x0 + 12, by).lineTo(x0 + 12 + wdt, by).stroke({ width: (9) * EW, color: INK, alpha: EA, cap: 'round' });
-        g.moveTo(x0 + 12, by).lineTo(x0 + 12 + wdt, by).stroke({ width: 5, color: lighten(col, 0.1), cap: 'round' });
-      }
+  const nx = side === 'L' ? 1 : side === 'R' ? -1 : 0;
+  const ny = side === 'U' ? 1 : side === 'D' ? -1 : 0;
+  const span = TILE * 1.1; // half-height of the opening
+  // Tunnel darkness receding beyond the opening.
+  for (let i = 0; i < 4; i++) {
+    const depth = 10 + i * 12;
+    const cx = m.x - nx * depth, cy = m.y - ny * depth;
+    const ww = horiz ? 22 : span * 2 - i * 8, hh = horiz ? span * 2 - i * 8 : 22;
+    g.ellipse(cx, cy, ww / 2, hh / 2).fill({ color: 0x02060a, alpha: 0.28 });
+  }
+  // Special rooms spill a hint of their light through the hole.
+  const spill: Record<string, number> = { treasure: 0xffd27a, shop: 0x7ae0c8, boss: 0xff5a4a, curse: 0xb03040, grotto: 0xff9ae0 };
+  const c = spill[d.spec.kind];
+  if (c && glow) glow.circle(m.x + nx * 20, m.y + ny * 20, TILE * 1.3).fill({ color: c, alpha: 0.12 + Math.sin(t * 2) * 0.04 });
+  // Closed: the inflowing current shows as bright moving streaks.
+  if (!d.open) {
+    for (let i = 0; i < 6; i++) {
+      const phase = ((t * 1.8 + i / 6) % 1);
+      const off = (i / 5 - 0.5) * span * 1.6;
+      const x0 = m.x + nx * phase * TILE * 2.6 + (horiz ? 0 : off);
+      const y0 = m.y + ny * phase * TILE * 2.6 + (horiz ? off : 0);
+      const len = 26;
+      g.moveTo(x0, y0).lineTo(x0 + nx * len, y0 + ny * len).stroke({ width: 1.4, color: 0xdff6ff, alpha: 0.35 * Math.sin(phase * Math.PI) });
     }
   }
   if (d.locked) {
     const lx = m.ix, ly = m.iy;
-    g.roundRect(lx - 11, ly - 4, 22, 18, 4).fill(0xffd23d).stroke({ width: (2.5) * EW, color: INK, alpha: EA });
-    g.moveTo(lx - 6, ly - 4).lineTo(lx - 6, ly - 11).arc(lx, ly - 11, 6, Math.PI, 0).lineTo(lx + 6, ly - 4).stroke({ width: (3) * EW, color: INK, alpha: EA });
-    g.circle(lx, ly + 5, 2.5).fill(INK);
+    g.roundRect(lx - 9, ly - 3, 18, 14, 3).fill(shade(0xc8a04a)).stroke({ width: 1, color: 0x000000, alpha: 0.4 });
+    g.moveTo(lx - 5, ly - 3).lineTo(lx - 5, ly - 9).arc(lx, ly - 9, 5, Math.PI, 0).lineTo(lx + 5, ly - 3).stroke({ width: 2, color: 0xc8a04a });
+    g.circle(lx, ly + 4, 2).fill(0x1a1208);
   }
 }
 

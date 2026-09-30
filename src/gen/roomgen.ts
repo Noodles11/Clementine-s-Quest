@@ -1,6 +1,6 @@
 // Room interior generation for the side-view "fish tank" rooms.
 
-import { CELL_H, CELL_W, TILE } from '../config';
+import { CELL_H, CELL_W, DOOR_COL, DOOR_ROW, TILE } from '../config';
 import { Rng } from '../core/rng';
 import { valueNoise1, valueNoise2 } from '../core/math';
 import { biomeFor, type EnemyKind } from './biomes';
@@ -88,13 +88,13 @@ export function doorMouthTiles(door: DoorSpec, tw: number, th: number) {
   const ox = door.lx * CELL_W, oy = door.ly * CELL_H;
   switch (door.side) {
     case 'L':
-      return { cols: [0, 1, 2], rows: [oy + 4, oy + 5, oy + 6] };
+      return { cols: [0, 1, 2], rows: [oy + DOOR_ROW - 1, oy + DOOR_ROW] };
     case 'R':
-      return { cols: [tw - 1, tw - 2, tw - 3], rows: [oy + 4, oy + 5, oy + 6] };
+      return { cols: [tw - 1, tw - 2, tw - 3], rows: [oy + DOOR_ROW - 1, oy + DOOR_ROW] };
     case 'U':
-      return { cols: [ox + 9, ox + 10], rows: [0, 1, 2, 3] };
+      return { cols: [ox + DOOR_COL - 1, ox + DOOR_COL], rows: [0, 1, 2, 3] };
     case 'D':
-      return { cols: [ox + 9, ox + 10], rows: [th - 1, th - 2, th - 3, th - 4] };
+      return { cols: [ox + DOOR_COL - 1, ox + DOOR_COL], rows: [th - 1, th - 2, th - 3, th - 4] };
   }
 }
 
@@ -154,10 +154,10 @@ export function buildRoom(room: FloorRoom, depth: number): RoomLayout {
     }
     const ox = door.lx * CELL_W, oy = door.ly * CELL_H;
     let x = 0, y = 0, ix = 0, iy = 0;
-    if (door.side === 'L') { x = 0; y = (oy + 5.5) * TILE; ix = 1.6 * TILE; iy = y; reserve(2, oy + 5, 3); }
-    if (door.side === 'R') { x = tw * TILE; y = (oy + 5.5) * TILE; ix = (tw - 1.6) * TILE; iy = y; reserve(tw - 3, oy + 5, 3); }
-    if (door.side === 'U') { x = (ox + 10) * TILE; y = 0; ix = x; iy = 2.4 * TILE; reserve(ox + 10, 2, 3); }
-    if (door.side === 'D') { x = (ox + 10) * TILE; y = th * TILE; ix = x; iy = (th - 3.2) * TILE; reserve(ox + 10, th - 3, 3); }
+    if (door.side === 'L') { x = 0; y = (oy + DOOR_ROW) * TILE; ix = 1.8 * TILE; iy = y; reserve(2, oy + DOOR_ROW, 3); }
+    if (door.side === 'R') { x = tw * TILE; y = (oy + DOOR_ROW) * TILE; ix = (tw - 1.8) * TILE; iy = y; reserve(tw - 3, oy + DOOR_ROW, 3); }
+    if (door.side === 'U') { x = (ox + DOOR_COL) * TILE; y = 0; ix = x; iy = 2.6 * TILE; reserve(ox + DOOR_COL, 2, 3); }
+    if (door.side === 'D') { x = (ox + DOOR_COL) * TILE; y = th * TILE; ix = x; iy = (th - 3.4) * TILE; reserve(ox + DOOR_COL, th - 3, 3); }
     mouths.push({ door, x, y, ix, iy });
   }
 
@@ -169,7 +169,7 @@ export function buildRoom(room: FloorRoom, depth: number): RoomLayout {
   const center = { x: (tw * TILE) / 2, y: (th * TILE) / 2 };
   // Columns occupied by downward shafts (no pedestals, cracks or spikes there).
   const shaftCols = new Set<number>();
-  for (const d of room.doors) if (d.side === 'D') for (let c = d.lx * CELL_W + 7; c <= d.lx * CELL_W + 12; c++) shaftCols.add(c);
+  for (const d of room.doors) if (d.side === 'D') for (let c = d.lx * CELL_W + DOOR_COL - 3; c <= d.lx * CELL_W + DOOR_COL + 2; c++) shaftCols.add(c);
   const nearestFreeCol = (c: number) => {
     for (let o = 0; o < tw; o++) {
       for (const cc of [c + o, c - o]) if (cc > 2 && cc < tw - 3 && !shaftCols.has(cc) && !shaftCols.has(cc - 1)) return cc;
@@ -195,7 +195,7 @@ export function buildRoom(room: FloorRoom, depth: number): RoomLayout {
       for (let x = 3; x < tw - 3; x++) if ((x < cx - 3 || x > cx + 2) && !shaftCols.has(x)) set(x, floorTop(x) - 1, T_SPIKE);
     }
   } else if (room.type === 'shop' || room.type === 'grotto') {
-    const cols = room.type === 'grotto' ? [6, 14] : [4, 7, 13, 16];
+    const cols = room.type === 'grotto' ? [9, 19] : [6, 10, 18, 22];
     const n = room.type === 'grotto' ? 2 : Math.min(4, room.shop?.length ?? 3);
     for (let i = 0; i < n; i++) {
       const tx = nearestFreeCol(cols[i]);
@@ -242,7 +242,7 @@ function placeObstacles(rng: Rng, tiles: Uint8Array, tw: number, th: number, res
         if (Math.max(n, sym) > 0.78 && canPlace(x, y)) tiles[y * tw + x] = rng.chance(0.12) ? T_BREAK : T_ROCK;
       }
   }
-  const count = Math.round(rng.int(2, 4) * cells);
+  const count = Math.round(rng.int(4, 7) * cells);
   for (let i = 0; i < count; i++) {
     const tpl = rng.pick(TEMPLATES);
     if (surface && tpl.anchor === 'ceil') continue;
@@ -339,7 +339,7 @@ function placeEnemies(rng: Rng, tiles: Uint8Array, tw: number, th: number, reser
   const biome = biomeFor(depth);
   const at = (x: number, y: number) => (x < 0 || y < 0 || x >= tw || y >= th ? T_ROCK : tiles[y * tw + x]);
   const cells = room.w * room.h;
-  let budget = (2 + depth * 1.1 + rng.range(0, 1.5)) * (1 + biome.menace * 0.8) * (cells > 1 ? 1.7 : 1);
+  let budget = (2 + depth * 1.1 + rng.range(0, 1.5)) * 1.35 * (1 + biome.menace * 0.8) * (cells > 1 ? 1.7 : 1);
   const spawns: Spawn[] = [];
   const used = new Set<number>();
   const free = (x: number, y: number) => at(x, y) === T_EMPTY && !reserved[y * tw + x] && !used.has(y * tw + x);

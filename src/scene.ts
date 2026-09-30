@@ -14,7 +14,11 @@ import {
   Texture,
   TilingSprite,
 } from 'pixi.js';
-import { DT, FONT_UI, VIEW_H, VIEW_W } from './config';
+import { DT, FONT_UI, VIEW_H, VIEW_W, ZOOM } from './config';
+
+/** Visible world area at the zoomed-out camera. */
+const VW = VIEW_W / ZOOM;
+const VH = VIEW_H / ZOOM;
 import { clamp, darken, hsl, lighten, mixColor } from './core/math';
 import { cosmetic as R } from './core/rng';
 import { input } from './core/input';
@@ -734,8 +738,8 @@ export class GameScene {
   private updateCamera(snap = false) {
     const w = this.world!;
     const p = w.player;
-    const tx = w.widthPx <= VIEW_W ? (w.widthPx - VIEW_W) / 2 : clamp(p.x - VIEW_W / 2, 0, w.widthPx - VIEW_W);
-    const ty = w.heightPx <= VIEW_H ? (w.heightPx - VIEW_H) / 2 : clamp(p.y - VIEW_H / 2, 0, w.heightPx - VIEW_H);
+    const tx = w.widthPx <= VW ? (w.widthPx - VW) / 2 : clamp(p.x - VW / 2, 0, w.widthPx - VW);
+    const ty = w.heightPx <= VH ? (w.heightPx - VH) / 2 : clamp(p.y - VH / 2, 0, w.heightPx - VH);
     if (snap) {
       this.camX = tx;
       this.camY = ty;
@@ -762,14 +766,16 @@ export class GameScene {
     this.root.position.set(VIEW_W / 2 + swayX + (sh ? R.range(-sh, sh) : 0), VIEW_H / 2 + swayY + (sh ? R.range(-sh, sh) : 0));
     this.root.rotation = Math.sin(t * 0.21) * 0.0025 * calm;
     this.camera.time = t;
-    this.cam.x = -Math.round(this.camX);
-    this.cam.y = -Math.round(this.camY);
+    this.cam.scale.set(ZOOM);
+    this.glowCam.scale.set(ZOOM);
+    this.cam.x = -Math.round(this.camX * ZOOM);
+    this.cam.y = -Math.round(this.camY * ZOOM);
     this.glowCam.position.copyFrom(this.cam.position);
     // Parallax.
-    this.fishFar.x = -this.camX * 0.3;
-    this.fishNear.x = -this.camX * 0.6;
-    this.bgSil.x = -this.camX * 0.15;
-    this.fgLayer.x = -this.camX * 0.2;
+    this.fishFar.x = -this.camX * ZOOM * 0.3;
+    this.fishNear.x = -this.camX * ZOOM * 0.6;
+    this.bgSil.x = -this.camX * ZOOM * 0.15;
+    this.fgLayer.x = -this.camX * ZOOM * 0.2;
 
     const neon = run.stats.transformations.has('neonrave') || run.data.seedCode === 'PARTYFSH';
     const p = w.player;
@@ -779,7 +785,7 @@ export class GameScene {
     const adt = live ? dt : 0;
     const pushers = [{ x: p.x, y: p.y, r: 34 }, ...w.enemies.filter((e) => !e.hidden).map((e) => ({ x: e.x, y: e.y, r: e.r + 10 }))];
     this.plants?.update(adt, w.fluid, pushers, t);
-    for (const s of this.schools) s.update(adt, p.x - this.camX * (1 - s.depthFactor), p.y, t);
+    for (const s of this.schools) s.update(adt, (p.x - this.camX) * ZOOM, (p.y - this.camY) * ZOOM, t);
     if (run.data.seedCode === 'PARTYFSH') for (const s of this.schools) for (const f of s.fish) f.s.tint = hsl(t * 0.5 + f.school * 0.2, 0.9, 0.6);
     const solid = (x: number, y: number) => w.solidAt(x, y);
     this.snow.update(adt, w.fluid, solid);
@@ -800,7 +806,7 @@ export class GameScene {
       const f = w.fluid;
       const tmp = { x: 0, y: 0 };
       for (let i = 0; i < 6; i++) {
-        const sx = this.camX + R.range(0, VIEW_W), sy = this.camY + R.range(0, VIEW_H);
+        const sx = this.camX + R.range(0, VW), sy = this.camY + R.range(0, VH);
         f.sample(sx, sy, tmp);
         const sp = Math.hypot(tmp.x, tmp.y);
         if (sp > 70 && !w.solidAt(sx, sy))
@@ -837,7 +843,7 @@ export class GameScene {
     this.jelly?.drawGlow(glow, p, t, neon);
     const dg = this.doorsG;
     dg.clear();
-    for (const d of w.doors) drawDoor(dg, d, w, t);
+    for (const d of w.doors) drawDoor(dg, d, w, t, glow);
     const pg = this.propsG;
     pg.clear();
     for (const pr of w.props) drawProp(pg, glow, pr, w, t);
@@ -914,7 +920,7 @@ export class GameScene {
     const m = w.menace;
     // Clementine is the key practical light: warm, breathing bioluminescence.
     const breathe = 0.85 + Math.sin(this.time * 2.2) * 0.15 + p.shootFlash * 0.25;
-    lights.push({ x: p.x, y: p.y, r: (340 + m * 160) * breathe, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.75 + m * 0.5) });
+    lights.push({ x: p.x, y: p.y, r: (230 + m * 120) * breathe, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.5 + m * 0.5) });
     for (const b of w.bubbles) if (lights.length < 70) lights.push({ x: b.x, y: b.y, r: 60 + b.r * 3, c: b.color, a: 0.4 });
     for (const s of w.shots) if (lights.length < 110) lights.push({ x: s.x, y: s.y, r: 44, c: s.color, a: 0.3 });
     for (const pd of w.pedestals) if (pd.itemId) lights.push({ x: pd.x, y: pd.y, r: 150, c: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, a: 0.5 });
@@ -937,9 +943,9 @@ export class GameScene {
         continue;
       }
       s.visible = true;
-      s.x = l.x - this.camX;
-      s.y = l.y - this.camY;
-      s.scale.set((l.r * 2) / 128);
+      s.x = (l.x - this.camX) * ZOOM;
+      s.y = (l.y - this.camY) * ZOOM;
+      s.scale.set((l.r * 2 * ZOOM) / 128);
       s.tint = l.c;
       s.alpha = l.a;
     }

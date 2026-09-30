@@ -250,6 +250,12 @@ export class RoomWorld implements Solidity {
       ty = Math.max(0, Math.min(this.th - 1, ty));
     }
     const i = ty * this.tw + tx;
+    if (outside) {
+      // Beyond the edge only through an open doorway.
+      const side = x < 0 ? 'L' : x >= this.widthPx ? 'R' : y < 0 ? 'U' : 'D';
+      const open = this.doors.some((d) => d.open && d.spec.side === side && Math.abs(side === 'L' || side === 'R' ? y - d.mouth.y : x - d.mouth.x) < TILE * 1.2);
+      if (!open) return true;
+    }
     return isSolidTile(this.tiles[i]) || this.blocked[i] === 1;
   }
 
@@ -316,15 +322,38 @@ export class RoomWorld implements Solidity {
         if (!instant) sfx.door();
       }
       if (instant) d.anim = d.open ? 1 : 0;
-      if (d.open) continue;
-      const { mouth } = d;
-      const tx = Math.floor(Math.min(mouth.x, this.widthPx - 1) / TILE), ty = Math.floor(Math.min(mouth.y, this.heightPx - 1) / TILE);
-      // Block the outer mouth tiles.
-      if (d.spec.side === 'L' || d.spec.side === 'R') {
-        for (let yy = ty - 1; yy <= ty + 1; yy++) this.blocked[yy * this.tw + tx] = 1;
-      } else {
-        for (let xx = tx - 1; xx <= tx; xx++) this.blocked[ty * this.tw + xx] = 1;
+      // Openings stay physically open; closed ones are held shut by a water current (see step()).
+    }
+  }
+
+  /** Inward normal of a door opening. */
+  static inward(side: string): [number, number] {
+    return side === 'L' ? [1, 0] : side === 'R' ? [-1, 0] : side === 'U' ? [0, 1] : [0, -1];
+  }
+
+  /**
+   * Doorway currents: while a room is uncleared (or a door is locked) a strong
+   * current pours in through the opening and pushes Clementine back inside.
+   */
+  private applyDoorCurrents(dt: number) {
+    const p = this.player;
+    const range = TILE * 3.2;
+    for (const d of this.doors) {
+      if (d.open || d.hidden) continue;
+      const [nx, ny] = RoomWorld.inward(d.spec.side);
+      const m = d.mouth;
+      const along = (p.x - m.x) * nx + (p.y - m.y) * ny; // distance inward from the edge
+      const lateral = Math.abs((p.x - m.x) * ny + (p.y - m.y) * nx);
+      if (along < range && lateral < TILE * 2.2) {
+        const k = Math.max(0, 1 - Math.max(0, along) / range);
+        const push = 520 * k * (1 - lateral / (TILE * 2.2));
+        p.x += nx * push * dt;
+        p.y += ny * push * dt;
+        p.vx += nx * push * dt * 4;
+        p.vy += ny * push * dt * 4;
       }
+      // The current is visible in the water itself.
+      if (((this.time * 60) | 0) % 3 === 0) this.fluid.splat(m.x + nx * 20, m.y + ny * 20, nx * 260, ny * 260, TILE * 1.6);
     }
   }
 
@@ -801,6 +830,7 @@ export class RoomWorld implements Solidity {
     const p = this.player;
     p.stats = this.run.stats;
     p.update(this, dt);
+    this.applyDoorCurrents(dt);
 
     // Spikes.
     if (this.spikeAt(p.x, p.y + p.hh)) this.hurtPlayer(1, 'Urchin Spikes');

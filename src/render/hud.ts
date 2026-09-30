@@ -142,7 +142,6 @@ export class Hud {
     } else this.bossName.text = '';
 
     this.depthLabel.text = world.biome.name.toUpperCase();
-    this.drawOSD(run, world, t);
     this.drawMap(run, world, t);
     // Hold Tab for a big map.
     const k = this.bigMap ? 2.2 : 1;
