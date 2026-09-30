@@ -4,7 +4,7 @@
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
 > orange jellyfish on a quest to the bottom of the ocean.
 
-Status: **v0.5 — slow sink, darkening descent, Tank twist finale. Awaiting final approval. No code yet.**
+Status: **v1 vertical slice implemented** (see §17 for what shipped and what differs).
 Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 ---
@@ -718,3 +718,23 @@ water sim, ~600 particles and ~40 ambient fish on the High preset.
 - Diagonal shooting off by default (toggle in Options).
 - No mobile/touch support.
 - Difficulty: Normal only in v1; "Riptide" hard mode post-v1.
+
+## 17. v1 Implementation Notes
+
+**Shipped:** Depths 1–3 with progressive unlocks and the Crack; 12 enemies with
+Menace-driven looks/behavior and champion variants (Depth 2+); 6 bosses with comic-cover
+intros; 29 items (7 stat, 17 bubble modifiers, 5 actives); 10 synergies; 2
+transformations; treasure, shop, boss, secret, curse (spiked door) and Mermaid Grotto
+rooms; big rooms (2×1, 1×2); sea snacks with per-seed identities; clams, glow jellies,
+foam hearts; seeded runs + special seeds (`HUGEJELL`, `TEENYJEL`, `DARKDEEP`,
+`PARTYFSH`); autosave/continue, export/import codes; achievements, Sea-pedia, stats;
+title screen shows rescued bosses as restored-color trophies; living water (fluid
+field, refraction, caustics, god rays, bubbles, marine snow, current streaks, fish
+boids, verlet kelp/chains, wobbling decor); neon bloom and lightmap; synth SFX;
+quality presets with auto-downgrade; accessibility toggles; GitHub Pages deploy.
+
+**Changed from the draft:**
+- Golden Scale hearts are not in v1; the *Untouchable* achievement unlocks Lucky Sea Glass instead.
+- Challenge, Sacrifice and Shipwreck Archive rooms, Tarot Shells, enemy flanking tactics,
+  torn panel borders and Daily Dive are deferred.
+- Beams (Sunbeam) pass through rocks; Ink Sac explosions do not hurt Clementine.
