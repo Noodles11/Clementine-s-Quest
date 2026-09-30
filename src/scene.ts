@@ -14,7 +14,7 @@ import {
   TilingSprite,
 } from 'pixi.js';
 import { DT, FONT_UI, VIEW_H, VIEW_W } from './config';
-import { clamp, darken, lighten, mixColor } from './core/math';
+import { clamp, darken, hsl, lighten, mixColor } from './core/math';
 import { cosmetic as R } from './core/rng';
 import { input } from './core/input';
 import { setPitchShift, sfx } from './core/audio';
@@ -220,6 +220,8 @@ export class GameScene {
     // Bloom.
     this.blur = new BlurFilter({ strength: 10, quality: 3 });
     this.blur.blendMode = 'add';
+    // Bloom doesn't need full resolution; half-res is cheaper and softer.
+    this.blur.resolution = 0.5;
     this.glowRoot.filters = [this.blur];
     this.glowCam.addChild(this.glowG, this.fx.glow.container);
     this.glowRoot.addChild(this.glowCam);
@@ -360,7 +362,7 @@ export class GameScene {
     this.bgWater.texture = waterTexture(b);
     this.bgWater.width = VIEW_W;
     this.bgWater.height = VIEW_H;
-    this.ambient.texture = ambientTexture(b);
+    this.ambient.texture = run.data.seedCode === 'DARKDEEP' ? ambientTexture({ ...b, depth: 99, lightTop: 0.28, lightBottom: 0.12 }) : ambientTexture(b);
     this.ambient.width = VIEW_W;
     this.ambient.height = VIEW_H;
     this.drawSilhouettes(b, room.seed);
@@ -502,9 +504,9 @@ export class GameScene {
     this.dispCanvas.width = f.nx;
     this.dispCanvas.height = f.ny;
     this.dispCtx = this.dispCanvas.getContext('2d')!;
-    const oldTex = this.dispTex;
+    // Old maps are tiny; they are left to GC rather than destroyed while a
+    // filter may still have them bound.
     this.dispTex = Texture.from(this.dispCanvas);
-    if (oldTex) setTimeout(() => oldTex.destroy(true), 500);
     if (!this.dispSprite) {
       this.dispSprite = new Sprite(this.dispTex);
       this.dispSprite.renderable = false;
@@ -729,7 +731,7 @@ export class GameScene {
     this.bgSil.x = -this.camX * 0.15;
     this.fgLayer.x = -this.camX * 0.2;
 
-    const neon = run.stats.transformations.has('neonrave');
+    const neon = run.stats.transformations.has('neonrave') || run.data.seedCode === 'PARTYFSH';
     const p = w.player;
 
     // Ambient systems.
@@ -738,6 +740,7 @@ export class GameScene {
     const pushers = [{ x: p.x, y: p.y, r: 34 }, ...w.enemies.filter((e) => !e.hidden).map((e) => ({ x: e.x, y: e.y, r: e.r + 10 }))];
     this.plants?.update(adt, w.fluid, pushers, t);
     for (const s of this.schools) s.update(adt, p.x - this.camX * (1 - s.depthFactor), p.y, t);
+    if (run.data.seedCode === 'PARTYFSH') for (const s of this.schools) for (const f of s.fish) f.s.tint = hsl(t * 0.5 + f.school * 0.2, 0.9, 0.6);
     const solid = (x: number, y: number) => w.solidAt(x, y);
     this.snow.update(adt, w.fluid, solid);
     this.fgSnow.update(adt, null, () => false);
@@ -840,7 +843,10 @@ export class GameScene {
     this.renderLights(w, neon);
     if (live && Math.floor(t * 60) % 2 === 0) this.updateRefractionMap(w);
     this.renderTransition();
-    if (this.mode !== 'attract') this.hud.update(run, w, t);
+    if (this.mode !== 'attract') {
+      this.hud.bigMap = input.isDown('Tab');
+      this.hud.update(run, w, t);
+    }
   }
 
   private renderLights(w: RoomWorld, neon: boolean) {

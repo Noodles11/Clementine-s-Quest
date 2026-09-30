@@ -89,7 +89,7 @@ class Game {
     stage.style.left = `${(window.innerWidth - VIEW_W * s) / 2}px`;
     stage.style.top = `${(window.innerHeight - VIEW_H * s) / 2}px`;
     if (this.app) {
-      const res = Math.min(2.5, Math.max(1, s * (window.devicePixelRatio || 1)));
+      const res = Math.min(2, Math.max(1, s * (window.devicePixelRatio || 1)));
       this.app.renderer.resolution = res;
       this.app.renderer.resize(VIEW_W, VIEW_H);
       this.app.canvas.style.width = `${VIEW_W}px`;

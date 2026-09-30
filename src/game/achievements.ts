@@ -21,7 +21,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'first_synergy', name: 'Better Together', desc: 'Discover your first synergy', reward: 'Mitosis' },
   { id: 'transformation', name: 'Metamorphosis', desc: 'Transform for the first time', reward: 'Double Helix' },
   { id: 'die_5', name: 'Lights Out', desc: 'Lose 5 runs', reward: 'Glow Burst' },
-  { id: 'flawless_floor', name: 'Untouchable', desc: 'Clear a whole depth without taking damage', reward: 'Golden Scales can appear' },
+  { id: 'flawless_floor', name: 'Untouchable', desc: 'Clear a whole depth without taking damage', reward: 'Lucky Sea Glass' },
   { id: 'win', name: 'Back to the Surface', desc: 'Win a run', reward: 'Bragging rights' },
 ];
 

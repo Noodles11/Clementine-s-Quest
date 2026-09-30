@@ -53,6 +53,8 @@ export class Hud {
     this.depthLabel.position.set(16, VIEW_H - 12);
   }
 
+  bigMap = false;
+
   update(run: Run, world: RoomWorld, t: number) {
     const g = this.g;
     g.clear();
@@ -131,6 +133,12 @@ export class Hud {
 
     this.depthLabel.text = `Depth ${run.data.depth} · ${world.biome.name}`;
     this.drawMap(run, world, t);
+    // Hold Tab for a big map.
+    const k = this.bigMap ? 2.2 : 1;
+    this.map.scale.set(k);
+    this.map.pivot.set(VIEW_W - 12, 12);
+    this.map.position.set(this.bigMap ? VIEW_W - 40 : VIEW_W - 12, this.bigMap ? 50 : 12);
+    this.map.alpha = this.bigMap ? 0.95 : 1;
   }
 
   private drawMap(run: Run, world: RoomWorld, t: number) {

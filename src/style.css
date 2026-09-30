@@ -237,8 +237,9 @@ textarea {
 }
 .logo {
   font-family: Bangers, Impact, sans-serif;
-  font-size: 84px;
+  font-size: 76px;
   line-height: 0.9;
+  white-space: nowrap;
   color: var(--orange);
   -webkit-text-stroke: 3.5px var(--ink);
   text-shadow: 6px 6px 0 var(--ink), 0 0 30px rgba(255, 154, 46, 0.6);
@@ -658,6 +659,9 @@ kbd {
 .toggle input[type='checkbox'] {
   width: 26px;
   height: 26px;
+  accent-color: var(--pink);
+}
+.toggle input[type='range'] {
   accent-color: var(--pink);
 }
 .toggle select,

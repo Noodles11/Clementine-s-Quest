@@ -159,8 +159,11 @@ export class RoomWorld implements Solidity {
       this.pedestals.push(ped);
     }
     if (!this.cleared && room.type === 'normal') {
+      const crng = run.roomRng(room.id, 'champions');
       for (const s of this.layout.spawns) {
         const e = createEnemy(s.kind, s.x, s.y, this.menace, s.attach);
+        // Descent Curve: champions appear from Depth 2 on.
+        if (crng.chance(this.menace * 0.6)) e.makeChampion(crng.pick([0xff3d5a, 0x5cf2ff, 0xffe14d, 0xb06bff]));
         this.addEnemy(e);
       }
     }
@@ -180,6 +183,14 @@ export class RoomWorld implements Solidity {
       }
     }
     if (this.enemies.length === 0 && !this.bossPending) this.cleared = true;
+    // The Urchin Den's spiked door stings on the way in.
+    if (room.type === 'curse' && entry.door && !persist.visited) {
+      const died = run.damage(1);
+      this.player.invuln = 1;
+      this.player.hurtFlash = 1;
+      this.fx.text(this.player.x, this.player.y - 40, 'PRICKLY!', 0xd93b3b, 22);
+      if (died) this.events.push({ type: 'died', by: 'the Urchin Den door' });
+    }
     persist.visited = true;
     persist.cleared = this.cleared;
     this.updateDoorBlocks(true);
@@ -592,40 +603,46 @@ export class RoomWorld implements Solidity {
     const p = this.player;
     if (pd.cooldown > 0) return;
     if (!pd.itemId && !pd.pickup) return;
-    if (pd.price !== undefined) {
-      if (d.coins < pd.price) {
+    if (pd.price !== undefined && d.coins < pd.price) {
+      pd.cooldown = 0.8;
+      this.fx.text(pd.x, pd.y - 50, `NEED ${pd.price}¢`, 0xffe14d, 18);
+      sfx.deny();
+      return;
+    }
+    if (pd.pickup) {
+      // Shop pickups: only charge if the pickup is actually usable now.
+      const pk = new Pickup(pd.pickup, pd.x, pd.y);
+      if (pd.pickup === 'snack') pk.snack = this.randomSnack();
+      if (!this.collectPickup(pk)) {
         pd.cooldown = 0.8;
-        this.fx.text(pd.x, pd.y - 50, `NEED ${pd.price}¢`, 0xffe14d, 18);
+        this.fx.text(pd.x, pd.y - 50, 'FULL!', 0xffffff, 18);
         sfx.deny();
         return;
       }
+      if (pd.price !== undefined) d.coins -= pd.price;
+      sfx.coin();
+      pd.dead = true;
+      return;
+    }
+    if (pd.price !== undefined) {
       d.coins -= pd.price;
       sfx.coin();
     }
     if (pd.hearts !== undefined) {
       const cost = pd.hearts * 2;
-      if (d.maxHp < cost && d.foam < cost * 1.5) {
+      const payContainers = d.maxHp >= cost && (d.maxHp > cost || d.foam > 0);
+      const payFoam = !payContainers && d.foam >= cost * 1.5 && (d.foam > cost * 1.5 || d.maxHp > 0);
+      if (!payContainers && !payFoam) {
         pd.cooldown = 0.8;
         this.fx.text(pd.x, pd.y - 50, 'NOT ENOUGH HEART', 0xff4d6d, 18);
         sfx.deny();
         return;
       }
-      if (d.maxHp >= cost) {
+      if (payContainers) {
         d.maxHp -= cost;
         d.hp = Math.min(d.hp, d.maxHp);
       } else d.foam -= cost * 1.5;
-      if (d.hp <= 0 && d.foam <= 0) d.hp = 1;
       this.fx.text(p.x, p.y - 50, 'A SIREN DEAL...', 0xff5cae, 20);
-    }
-    if (pd.pickup) {
-      const pk = new Pickup(pd.pickup, pd.x, pd.y);
-      if (pd.pickup === 'snack') pk.snack = this.randomSnack();
-      if (!this.collectPickup(pk) && pd.pickup !== 'heart') {
-        /* shop pickups always consumed */
-      }
-      if (pd.pickup === 'heart' && d.hp < d.maxHp) this.run.heal(2);
-      pd.dead = true;
-      return;
     }
     const id = pd.itemId!;
     pd.cooldown = 1;
@@ -694,6 +711,10 @@ export class RoomWorld implements Solidity {
       this.fx.text(e.x, e.y - 40, 'SHATTER!', 0x9ef0ff, 22);
     }
     if (!e.boss && R.chance(0.05 + this.run.stats.luck * 0.01)) this.spawnPickup('coin', e.x, e.y, 0, -60);
+    if (e.champion) {
+      const rng = stream(this.run.seed, 'champ', this.depth, this.room.id, this.run.data.kills);
+      this.spawnPickup(rng.pick<PickupKind>(['heart', 'coin', 'bomb', 'key', 'foam', 'halfheart']), e.x, e.y, 0, -80);
+    }
   }
 
   onBossKilled(b: Boss) {

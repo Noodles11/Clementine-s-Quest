@@ -94,7 +94,7 @@ export const ITEMS: ItemDef[] = [
     id: 'seaglass', name: 'Lucky Sea Glass', tagline: 'Luck up',
     lore: 'Found only on moonlit tides. Rub it for fortune.',
     kind: 'passive', quality: 1, pools: ['treasure', 'shop'], tags: ['glow'], add: { luck: 2 },
-    color: 0x5cf2c0,
+    unlock: 'flawless_floor', color: 0x5cf2c0,
   },
   {
     id: 'barnacle', name: 'Barnacle Armor', tagline: 'Clingy but cozy',

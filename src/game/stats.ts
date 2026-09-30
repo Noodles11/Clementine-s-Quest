@@ -65,6 +65,6 @@ export function computeStats(items: readonly string[], temp: Partial<StatBlock> 
     fireDelay: 1 / s.fireRate,
     shotPx: 430 * s.shotSpeed,
     rangePx: s.range * 48 * 1.15,
-    movePx: 230 * s.speed,
+    movePx: 250 * s.speed,
   };
 }

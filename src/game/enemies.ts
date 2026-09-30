@@ -58,6 +58,14 @@ export class Enemy extends Entity {
   display: string;
   lastHitBy: Bubble | null = null;
   spawnGrace = 0.6;
+  /** Champion variant: tougher, tinted, drops a bonus pickup. */
+  champion = 0;
+
+  makeChampion(color: number) {
+    this.champion = color;
+    this.hp = this.maxHp = this.maxHp * 1.8;
+    this.r *= 1.12;
+  }
 
   constructor(kind: EnemyKind | string, x: number, y: number, menace: number, attach: Attach = 'none') {
     super();

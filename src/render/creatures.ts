@@ -13,6 +13,7 @@ function tone(e: Enemy, col: number) {
   let c = col;
   if (e.boss) c = desaturate(c, 0.45); // drained by the Hollow Maw
   c = desaturate(darken(c, e.menace * 0.35), e.menace * 0.4);
+  if (e.champion) c = mixColor(c, e.champion, 0.45);
   if (e.frozen > 0) c = mixColor(c, 0x9ef0ff, 0.6);
   if (e.burn > 0) c = mixColor(c, 0xff7a3d, 0.25 + Math.sin(e.anim * 20) * 0.1);
   if (e.flash > 0) c = mixColor(c, 0xffffff, 0.75);
@@ -413,6 +414,7 @@ export function drawBoss(g: Graphics, b: Boss, t: number) {
 
 /** Telegraph glows for the bloom layer. */
 export function drawEnemyGlow(g: Graphics, e: Enemy, t: number) {
+  if (e.champion && !e.hidden) g.circle(e.x, e.y, e.r + 12 + Math.sin(t * 5) * 3).fill({ color: e.champion, alpha: 0.35 });
   if (e.tele > 0) g.circle(e.x, e.y, e.r + 10 + e.tele * 10).fill({ color: 0xff3d5a, alpha: 0.25 + e.tele * 0.4 * (0.6 + Math.sin(t * 30) * 0.4) });
   if (e.flash > 0) g.circle(e.x, e.y, e.r + 6).fill({ color: 0xffffff, alpha: e.flash * 4 });
   if (e.burn > 0) g.circle(e.x, e.y - 4, e.r + 4).fill({ color: 0xff7a3d, alpha: 0.35 });

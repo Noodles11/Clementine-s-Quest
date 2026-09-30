@@ -404,7 +404,11 @@ function placeDecor(rng: Rng, tiles: Uint8Array, tw: number, th: number, blocked
       const py = (y + 1) * TILE;
       const r = rng.next();
       const deep = y > th * 0.55;
-      if (r < 0.28) out.push({ kind: 'kelp', x: px, y: py, size: rng.range(0.9, deep ? 3.6 : 2.4), color: biome.plantColor, seed: rng.nextU32(), attach: 'floor' });
+      // Kelp may only grow as tall as the open water above it.
+      let free = 0;
+      while (y - free >= 0 && at(x, y - free) === T_EMPTY) free++;
+      const maxKelp = Math.max(0.6, (free * TILE - 20) / 60);
+      if (r < 0.28) out.push({ kind: 'kelp', x: px, y: py, size: Math.min(maxKelp, rng.range(0.9, deep ? 3.6 : 2.4)), color: biome.plantColor, seed: rng.nextU32(), attach: 'floor' });
       else if (r < 0.55) out.push({ kind: 'grass', x: px, y: py, size: rng.range(0.5, 1), color: biome.plantColor, seed: rng.nextU32(), attach: 'floor' });
       else if (r < 0.66) out.push({ kind: 'coral', x: px, y: py, size: rng.range(0.6, 1.2), color: rng.pick(biome.decoColors), seed: rng.nextU32(), attach: 'floor' });
       else if (r < 0.72) out.push({ kind: 'fan', x: px, y: py, size: rng.range(0.7, 1.2), color: rng.pick(biome.decoColors), seed: rng.nextU32(), attach: 'floor' });
@@ -421,9 +425,12 @@ function placeDecor(rng: Rng, tiles: Uint8Array, tw: number, th: number, blocked
       if (at(x, y) !== T_EMPTY || at(x, y - 1) !== T_ROCK || surface) continue;
       if (blocked[y * tw + x]) continue;
       if (rng.chance(depth === 3 ? 0.08 : 0.05)) {
+        let free = 0;
+        while (y + free < th && at(x, y + free) === T_EMPTY) free++;
+        const maxLen = Math.max(0.5, (free * TILE - 30) / 60);
         out.push({
           kind: depth === 3 ? 'chain' : 'kelp',
-          x: (x + 0.5) * TILE, y: y * TILE, size: rng.range(0.8, 1.6), color: depth === 3 ? 0x6a5a4a : biome.plantColor,
+          x: (x + 0.5) * TILE, y: y * TILE, size: Math.min(maxLen, rng.range(0.8, 1.6)), color: depth === 3 ? 0x6a5a4a : biome.plantColor,
           seed: rng.nextU32(), attach: 'ceil',
         });
       }
