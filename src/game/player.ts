@@ -55,14 +55,17 @@ export class Player extends Entity {
     // ── Movement ─────────────────────────────────────────────
     let [ix, iy] = input.moveAxis();
     const l = Math.hypot(ix, iy);
-    if (l > 0) {
+    // Keyboard diagonals normalize to 1; analog (touch) input keeps its strength.
+    if (l > 1) {
       ix /= l;
       iy /= l;
     }
     const max = st.movePx;
-    const moving = l > 0;
-    if (moving && (ix !== this.lastMoveDir[0] || iy !== this.lastMoveDir[1])) this.kick();
-    this.lastMoveDir = [ix, iy];
+    const moving = l > 0.05;
+    // Pulse on direction changes, quantized to 8 directions so analog input doesn't spam it.
+    const oct = moving ? Math.round(Math.atan2(iy, ix) / (Math.PI / 4)) : 99;
+    if (moving && oct !== this.lastMoveDir[0]) this.kick();
+    this.lastMoveDir = [oct, 0];
     this.moving = moving;
     const accel = moving ? 9 : 5;
     this.vx = approach(this.vx, ix * max, accel, dt);

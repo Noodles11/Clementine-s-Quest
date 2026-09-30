@@ -3,6 +3,7 @@
 import { Application } from 'pixi.js';
 import { VIEW_H, VIEW_W } from './config';
 import { initInput, input } from './core/input';
+import { TouchControls } from './core/touch';
 import { setVolume, sfx, unlockAudio } from './core/audio';
 import {
   clearRun, exportProfile, importProfile, loadProfile, loadRun, saveProfile, saveRun, type Options, type Profile,
@@ -25,6 +26,7 @@ class Game {
   app!: Application;
   run: Run | null = null;
   pendingUnlocks: string[] = [];
+  touch!: TouchControls;
 
   constructor() {
     this.profile = loadProfile();
@@ -65,7 +67,12 @@ class Game {
     }, this.profile.options);
     this.ui.iconFor = (id) => this.scene.itemIcon(id);
     this.ui.enemyIconFor = (k) => this.scene.enemyIcon(k);
-    app.ticker.add((tk) => this.scene.update(tk.deltaMS / 1000));
+    this.touch = new TouchControls();
+    this.ui.touch = this.touch.enabled;
+    app.ticker.add((tk) => {
+      this.scene.update(tk.deltaMS / 1000);
+      this.touch.setVisible(this.scene.mode === 'play' && !this.ui.open);
+    });
     window.addEventListener('pointerdown', unlockAudio);
     window.addEventListener('keydown', unlockAudio);
     window.addEventListener('beforeunload', () => this.autosave());
