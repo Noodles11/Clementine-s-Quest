@@ -4,7 +4,7 @@
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
 > orange jellyfish on a quest to the bottom of the ocean.
 
-Status: **v0.4 — side view ("fish tank") pass, awaiting final approval. No code yet.**
+Status: **v0.5 — slow sink, darkening descent, Tank twist finale. Awaiting final approval. No code yet.**
 Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 ---
@@ -17,6 +17,9 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 | Run length | **Progressive, Isaac-style.** First runs end after Depth 1. Each first boss kill / goal unlocks the next depth (§5.1). |
 | Resolution | **Smooth HD 960×540** logical, scaled to window. |
 | Camera | **Side view — "fish tank"** (§11.1). Free 8-direction swimming, no platforming. Floor at the bottom, water surface/ceiling at the top. |
+| Buoyancy | Clementine **very slowly sinks** when no input is held (§4). |
+| Descent mood | The deeper she dives, the **darker the world and the more ruthless the mobs** (§5.3). |
+| Finale twist | Below the Abyss, a **pipe** in the Crack sucks Clementine into a **human's fish tank**. Final boss: **The Hand** (§5.4, §12.3). |
 | Descending | The next depth is reached through **The Crack** — a fissure in the boss room floor, guarded by the boss (§5.2). |
 | Clementine | **Soft-body jellyfish**: pulsing bell + physically simulated trailing tentacles (§11.2). |
 | Glow | **Neon bloom** on shots, damage, pickups, synergies (§11.3). |
@@ -40,11 +43,21 @@ silent. Something at the bottom of the Abyss is swallowing it. The grown-up sea
 creatures are too scared to dive. Clementine, a tiny tangerine-colored jellyfish
 who "glows a little too much," drifts down to find out why.
 
-- **Tone:** upbeat, cheeky, Saturday-morning cartoon. Danger is silly-scary, not grim.
-  (Deliberate contrast to Isaac's dark tone.)
-- **The villain:** **The Hollow Maw**, an ancient anglerfish-thing that eats sound
-  and color. Every boss is a creature it has "drained" (washed-out palette), and
-  defeating them restores their color — a visual reward.
+- **Tone arc:** starts upbeat, cheeky, Saturday-morning cartoon in the
+  shallows, then **gets darker and eerier with every depth** (§5.3) — and
+  snaps into absurd, bright, *artificial* comedy-horror for the finale.
+- **The villain (apparent):** **The Hollow Maw**, an ancient anglerfish-thing
+  that eats sound and color. Every boss is a creature it has "drained"
+  (washed-out palette), and defeating them restores their color.
+- **The twist (truth):** the Maw was guarding — and feeding — a **pipe**. Deep
+  in the Abyss Crack sits a rusty **intake pipe** that has been sucking sea
+  creatures (and the Great Current with them) up into a **human's home
+  aquarium**. The "drained" creatures were the ones that almost got taken.
+  Clementine is pulled in too and must face **The Hand** (§5.4).
+- **Foreshadowing:** the game has always been framed like a fish tank (the
+  comic border *is* an aquarium frame, §11.1). From Depth 4 on, odd things
+  appear: straight pipes in the far background, a plastic castle shard, a
+  fish-food flake, muffled *thump… thump…* (glass tapping) in the Abyss.
 - **Clementine's power:** she fires **Glow Bubbles** — little pulses of bioluminescence.
   Items are "gifts of the sea" that change her glow, body, and tentacles.
 - **Meta-lore:** the **Tide Pool Hub** between runs fills with rescued friends
@@ -94,10 +107,15 @@ Isaac-style stat block (all modified by items):
 | Speed | 1.0 | Floaty acceleration — she's a jellyfish |
 | Luck | 0 | Proc chances |
 
-**Movement feel:** free swimming in all 8 directions with **neutral buoyancy**
-(no gravity, she doesn't sink). Slight inertia and a "pulse" squash-and-stretch
-on every direction change (jellyfish propulsion). Not slippery — responsive first.
-Idle: a tiny bob in place. The floor and rock surfaces are solid collision.
+**Movement feel:** free swimming in all 8 directions. Slight inertia and a
+"pulse" squash-and-stretch on every direction change (jellyfish propulsion).
+Not slippery — responsive first. Floor and rock surfaces are solid collision.
+
+**Slow sink:** with no movement input, Clementine **drifts down very slowly**
+(~0.15 tiles/s, eased in over ~0.5 s so it never fights the player), bell
+relaxed and tentacles floating up around her like a real resting jellyfish.
+She settles softly on the floor with a tiny sand puff. Any input cancels the
+sink instantly. Items can change it (e.g. Whale Lung = floaty, zero sink).
 
 **Side-view physics for objects (gameplay, deterministic):**
 - **Pickups sink** slowly and rest on the floor/ledges (hearts, coins, keys);
@@ -120,8 +138,9 @@ Idle: a tiny bob in place. The floor and rock surfaces are solid collision.
 
 ## 5. World Structure
 
-6 **Depths** (floors), each with a biome, palette, enemy pool, and boss pool.
-Each depth is **one** generated floor. v1 ships Depths 1–3; 4–6 are post-v1.
+6 **Depths** (floors) plus the secret finale **The Tank**, each with a biome,
+palette, enemy pool, and boss pool. Each depth is **one** generated floor.
+v1 ships Depths 1–3; 4–6 and The Tank are post-v1.
 
 | # | Depth | Palette / vibe | Hazards |
 |---|---|---|---|
@@ -131,9 +150,11 @@ Each depth is **one** generated floor. v1 ships Depths 1–3; 4–6 are post-v1.
 | 4 | **Coral Carnival** | Hot pink, purple, neon | Bounce anemones |
 | 5 | **Twilight Trench** | Deep blue, glowing dots | Darkness (limited light radius around Clementine) |
 | 6 | **The Abyss** | Black + neon outlines | Currents that push you |
+| 7 | **The Tank** *(twist)* | Fluorescent LED white, neon-blue gravel, plastic colors | The Hand, net, glass taps, filter suction |
 
-Beating Depth 6 boss (**The Hollow Maw**) = true ending. Post-win unlock:
-**Alt path / "Volcanic Vents"** loop for harder runs (post-v1).
+Beating **The Hollow Maw** (Depth 6) reveals the pipe → **The Tank** (§5.4).
+Beating **The Hand** = true ending. Post-win unlock: **Alt path /
+"Volcanic Vents"** loop for harder runs (post-v1).
 
 ### 5.1 Progressive depth unlocks ("The Dive Gets Deeper")
 
@@ -147,6 +168,7 @@ deeper as the player proves themselves:
 | **Dive 3** | Beat any Depth 2 boss once | Crack opens to Sunken Galleon. Run ends at Depth 3 boss. |
 | **The Admiral's Key** | Beat Rusty Admiral 3× | Adds a Key item; post-v1 it opens Depth 4. |
 | *Dive 4–6 (post-v1)* | Boss kills + item gates | e.g. carry **The Lantern Pearl** into Depth 5 to light the Trench. |
+| *The Tank (post-v1)* | Beat The Hollow Maw once | First kill: the pipe appears and the run ends on a cliffhanger panel. From then on the pipe pulls you into The Tank. |
 
 After each new unlock: a short comic-panel cutscene (3–4 panels, procedurally
 composed from existing sprites + captions) — "The current pulls deeper…".
@@ -170,6 +192,61 @@ sealed with a glowing "?" rune — a visible promise of what's below.
   through a dark tunnel → next depth's start room (she enters from the top).
 - Each depth start room has a light shaft from the crack above her, so the
   descent reads visually across floors.
+
+### 5.3 The Descent Curve — darker and more ruthless
+
+One global parameter, **Menace** (0.0 at Depth 1 → 1.0 at Depth 6), drives
+mood, visuals and enemy behavior, so the tone shift is systemic, not just
+new art.
+
+| Depth | Light & mood | Ambient life | Mobs |
+|---|---|---|---|
+| 1 Shallows | Bright sun, god rays, saturated, surface shimmer | Big friendly fish schools, lots of bubbles | Cute, round eyes, wander a lot, slow, long telegraphs |
+| 2 Kelp | Dappled green, fewer rays | Fish shyer | Chase more, small groups |
+| 3 Galleon | Amber, dusty, rays only through holes | Few fish, drifting debris | Ambushes, projectiles faster |
+| 4 Carnival | Neon but "off" — flickering lights | Fish hide in coral | Grins with teeth, coordinated flanking |
+| 5 Trench | Dark; light only from glows (radius around Clementine) | Bioluminescent specks, no schools | Stalkers, strike from darkness |
+| 6 Abyss | Near-black, neon outlines, heavy marine snow | Only distant glowing eyes | Ruthless: relentless chase, fast, minimal telegraphs |
+
+**Visual menace (procedural, per enemy):** the same archetype is drawn with
+parameters that shift with Menace — round eyes → slit pupils with glowing
+irises, smile → teeth (count scales), smooth outline → spiky/jagged,
+saturation ↓, darker body with bright rim-light. A Depth 1 Blubber Blob is a
+grinning gumdrop; a Depth 6 one is a toothy shadow with red eyes.
+
+**Behavioral menace:**
+| Parameter | Depth 1 → Depth 6 |
+|---|---|
+| Aggression (chase vs wander) | 40% → 100% |
+| Move speed | ×1.0 → ×1.5 |
+| Projectile speed / count | ×1.0 → ×1.4 / +0–2 per volley |
+| Telegraph time | 0.8 s → 0.35 s (never lower — stays fair) |
+| Group tactics | none → flanking, surrounding, baiting |
+| Champion chance | 0% → 25% |
+| Room enemy budget | ×1.0 → ×1.8 |
+
+**Presentation shifts:** comic panel borders go from clean to torn/inked;
+onomatopoeia turns from bubbly ("BLUB!") to jagged ("KRSSH!"); SFX pitch
+lowers; Clementine's own glow becomes the main light source, making glow
+items feel precious. Clementine herself never gets scary — she's the
+warm spot of color in the dark.
+
+### 5.4 The Twist — The Tank
+
+1. **The Hollow Maw** (Depth 6) is fought over the Crack as usual. When it
+   dies it spits out a **rusty metal grate** — the Crack is a pipe.
+2. Cutscene (comic panels): the grate rattles, a **roar of suction**, all
+   particles, fish and bubbles stream toward it, Clementine is pulled in —
+   *"SHLUUUURP!"* — tumbling through a pipe with light at the end.
+3. **The Tank:** a short final floor (boss room + 2–4 small rooms, fixed
+   layout variants). The look **flips**: flat fluorescent LED light, blue
+   neon gravel, fake plastic plants that **don't sway** (deliberately
+   uncanny against the living-water sim), a bubbling treasure-chest
+   ornament, a plastic diver, a castle. Behind the glass: a giant blurry
+   living room — lamp, TV glow, a cat's eye passing by.
+4. Other captured creatures (earlier bosses' kin) float listlessly here —
+   rescued on victory.
+5. **Final boss: The Hand** (§12.3). Afterwards, the true ending (§12.3).
 
 ## 6. Procedural Generation
 
@@ -287,7 +364,7 @@ Golden Clam · Beggar *(post-v1)*. Each item has `quality 0–4`, weight, pool l
 |---|---|---|
 | ★ Coral Crown | +1 heart, +0.3 dmg | A reef princess's lost tiara |
 | ★ Squid Ink Espresso | +0.3 speed, +fire rate | "The Galleon's cook swore by it" |
-| ★ Whale Lung | +1 range, bubbles are bigger | Deep breath! |
+| ★ Whale Lung | +1 range, bubbles are bigger, no idle sink | Deep breath! |
 | ★ Pufferfish Pout | ×1.5 damage, −shot speed | Angry and proud of it |
 | ★ Lucky Sea Glass | +2 luck | Found only on moonlit tides |
 | ★ Plankton Swarm | +0.5 fire rate ×3 small bubbles | Tiny friends |
@@ -534,11 +611,43 @@ Champion variants (colored, with modifier) from depth 2+.
 | 3 | **The Rusty Admiral** (crab in a cannon hat) · **Treasure Mimic** |
 | 4 | **Ringmaster Octo** (juggles enemies) · **Jester Jellies** (trio) |
 | 5 | **Mother Angler** (light/dark phases) · **The Siphonophore** (long chain enemy) |
-| 6 | **The Hollow Maw** (3 phases, final) |
+| 6 | **The Hollow Maw** (3 phases; guards the pipe) |
+| 7 | **The Hand** (final, 3 phases) — §12.3 |
 
 Boss structure: 2–3 phases with telegraphed bullet patterns (colorful, readable).
 Every boss **guards The Crack** (§5.2) and its patterns use the side view:
 floor slams, sinking/rising projectiles, ceiling drops, sweeping from wall to wall.
+Boss designs also follow the Descent Curve: Depth 1 bosses are goofy,
+Depth 6 is genuinely menacing.
+
+### 12.3 Final boss — The Hand
+
+A giant human hand (comic style, huge, fills the top of the screen), reaching
+down from the water surface. Slightly silly details keep the tone:
+a cartoon bandage, a smiley sticker, chewed nails. **Fingertips and the
+wrist glow red when vulnerable**; Clementine's stings hurt it (*"OUCH!"*).
+
+| Phase | Mood | Attacks |
+|---|---|---|
+| 1 — **Curious** | Pokes and plays | **Finger poke** (shadow + ripple telegraph, fast jab); **Glass tap** (shockwave rings cross the tank, bubbles and gravel jump); **Fish-food sprinkle** (flakes rain down and sink — eating one heals ½ heart but a grab follows) |
+| 2 — **Catch!** | Tries to take her | **Green fish net** sweeps in arcs (caught = mash to escape, lose ½ heart); **Grab** (hand closes on her position, shadow warning); **Gravel vacuum** (siphon tube pulls everything toward it) |
+| 3 — **Frustrated** | Throws everything in | Pokes with **pencil, chopstick, toy shark, rubber duck**; drops **ice cubes** (sink, freeze on touch); tips the **plastic castle** over; **slaps the glass** so the whole tank sloshes — a strong gameplay current swings left↔right |
+
+**Arena:** tank interior, gravel floor, ornaments act as cover (and get
+destroyed), the filter intake pipe on one side (hazard + suction), LED strip
+at the top. The glass walls show the giant room outside; in phase 3 a
+huge blurry face leans in.
+
+**Defeat:** Clementine delivers a final big sting — the Hand jerks back,
+the net falls in, a panicked voice (*"OW! It stings!"*). Ending panels:
+the aquarium is carried to the shore and **tipped back into the sea**;
+Clementine and every rescued creature pour out; the intake pipe is sealed;
+the **Great Current sings again** and color floods the reef. Credits over
+the Tide Pool, now full of friends.
+
+**Why it works:** after six depths of creeping darkness, the finale is a
+sudden bright, artificial, absurd-scary scale shift — the player realizes
+the "fish tank" framing was literal all along.
 
 ## 13. Save System & Meta Progression
 
