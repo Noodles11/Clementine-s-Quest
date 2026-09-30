@@ -4,8 +4,25 @@
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
 > orange jellyfish on a quest to the bottom of the ocean.
 
-Status: **DRAFT — awaiting approval. No code yet.**
-Items marked **[Q]** are open questions (see §15).
+Status: **v0.2 — questions answered, awaiting final approval. No code yet.**
+Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
+
+---
+
+## 0. Decisions (from Q&A)
+
+| Topic | Decision |
+|---|---|
+| v1 scope | **Vertical slice**: Depths 1–3, ~30 items, 6 bosses, ~12 enemies, ~12 synergies, 2 transformations. All core systems complete. |
+| Run length | **Progressive, Isaac-style.** First runs end after Depth 1. Each first boss kill / goal unlocks the next depth (§5.1). |
+| Resolution | **Smooth HD 960×540** logical, scaled to window. |
+| Audio | **Synth SFX only** (WebAudio). Music post-v1. |
+| Meta | **Pure unlocks** (achievements). No Pearls / hub currency. |
+| Characters | **Clementine only** in v1. Roster post-v1. |
+| Seeded runs | Custom seeds **do not** grant unlocks (Isaac rule). |
+| Saves | **1 profile** + copyable export/import code. |
+| Input | **Keyboard only.** |
+| Deploy | **GitHub Pages** via GitHub Actions. |
 
 ---
 
@@ -29,9 +46,9 @@ who "glows a little too much," drifts down to find out why.
 ## 2. Core Loop
 
 ```
-Hub (Tide Pool) ──> pick seed/character ──> Run: 6 depth layers (floors)
-      ^                                           │
-      │    earn Pearls + unlocks (meta)           │ die or win
+Title / Tide Pool ──> new run (random or seed) ──> Run: unlocked depths only
+      ^                                               │
+      │      achievements → unlocks (meta)            │ die or win
       └───────────────────────────────────────────┘
 ```
 
@@ -42,14 +59,16 @@ descend. Death is permanent for the run; meta progress persists.
 
 | Action | Keyboard | Gamepad (stretch) |
 |---|---|---|
-| Move | **W A S D** | Left stick |
-| Shoot (4-dir, like Isaac) | **Arrow keys** | Right stick / face buttons |
-| Use active item | **Space** | RB |
-| Drop Ink Bomb | **E** | LB |
-| Use consumable (Shell card/pill) | **Q** | LT |
-| Map (hold) | **Tab** | Select |
-| Pause | **Esc / P** | Start |
+| Move | **W A S D** | — |
+| Shoot (4-dir, like Isaac) | **Arrow keys** | — |
+| Use active item | **Space** | — |
+| Drop Ink Bomb | **E** | — |
+| Use consumable (Shell card/pill) | **Q** | — |
+| Map (hold) | **Tab** | — |
+| Pause | **Esc / P** | — |
 | Restart run (hold) | **R** | — |
+
+Gamepad column intentionally empty: keyboard only in v1.
 
 Shots inherit a portion of movement velocity (Isaac-style). Diagonal shooting via
 two arrows is **off by default** (faithful to Isaac) — toggle in options.
@@ -77,7 +96,7 @@ every direction change (jellyfish propulsion). Not slippery — responsive first
 - **Abyss Hearts** (black/purple) — temporary; on loss, deal damage to all enemies in room.
 - **Golden Scale** — overlays a heart; drops coins on hit.
 
-### Unlockable characters [Q]
+### Unlockable characters *(post-v1)*
 1. **Clementine** — balanced.
 2. **Barnaby the Hermit Crab** — low speed, high HP, starts with a shell-shield active.
 3. **Pip the Seahorse** — fast, fragile, shots curve.
@@ -87,7 +106,7 @@ every direction change (jellyfish propulsion). Not slippery — responsive first
 ## 5. World Structure
 
 6 **Depths** (floors), each with a biome, palette, enemy pool, and boss pool.
-Each depth is **one** generated floor (Isaac has 2 per chapter; we can extend) [Q].
+Each depth is **one** generated floor. v1 ships Depths 1–3; 4–6 are post-v1.
 
 | # | Depth | Palette / vibe | Hazards |
 |---|---|---|---|
@@ -98,8 +117,29 @@ Each depth is **one** generated floor (Isaac has 2 per chapter; we can extend) [
 | 5 | **Twilight Trench** | Deep blue, glowing dots | Darkness (limited light radius around Clementine) |
 | 6 | **The Abyss** | Black + neon outlines | Currents that push you |
 
-Beating Depth 6 boss (**The Hollow Maw**) = run win. Post-win unlock:
-**Alt path / "Volcanic Vents"** loop for harder runs (stretch goal).
+Beating Depth 6 boss (**The Hollow Maw**) = true ending. Post-win unlock:
+**Alt path / "Volcanic Vents"** loop for harder runs (post-v1).
+
+### 5.1 Progressive depth unlocks ("The Dive Gets Deeper")
+
+Like Isaac's Mom → Womb → Cathedral progression, the run's end point moves
+deeper as the player proves themselves:
+
+| Unlock | Requirement | Effect on runs |
+|---|---|---|
+| Start | — | Run = Depth 1 only. Boss kill → "Clementine surfaces" ending, run won. |
+| **Dive 2** | Beat any Depth 1 boss once | Boss room now shows a **Whirlpool** down to Kelp Jungle. Run ends at Depth 2 boss. |
+| **Dive 3** | Beat any Depth 2 boss once | Whirlpool to Sunken Galleon. Run ends at Depth 3 boss. |
+| **The Admiral's Key** | Beat Rusty Admiral 3× | Adds a Key item; post-v1 it opens Depth 4. |
+| *Dive 4–6 (post-v1)* | Boss kills + item gates | e.g. carry **The Lantern Pearl** into Depth 5 to light the Trench. |
+
+After each new unlock: a short comic-panel cutscene (3–4 panels, procedurally
+composed from existing sprites + captions) — "The current pulls deeper…".
+
+Each ending also unlocks content (items into pools), so early short runs
+already feed meta progress. The **surface choice**: when the next depth is
+unlocked, beating a boss shows both the Whirlpool (continue) and a **Surface
+Bubble** (end run as a win now) — like Isaac's chest vs. trapdoor.
 
 ## 6. Procedural Generation
 
@@ -135,7 +175,7 @@ Everything derived from a single **run seed** (see §10).
   on room clear (Isaac-like reward table with luck bonus), boss choice, curses.
 - **Art is procedural too:** all sprites drawn at runtime with Canvas vector
   shapes (see §11) — no bitmap assets needed.
-- **Music/SFX** generated with WebAudio synth [Q].
+- **SFX** generated with WebAudio synth. Music post-v1.
 
 ## 7. Rooms & Special Rooms
 
@@ -189,63 +229,65 @@ Because shot behaviors compose, most synergies emerge naturally. A small
 Treasure · Shop · Boss · Secret · Mermaid (Siren) · Whale Song (Angel) · Curse ·
 Golden Clam · Beggar. Each item has `quality 0–4`, weight, pool list, unlock condition.
 
-### 9.3 Starter item list (~60 at launch, target 100+) [Q on scope]
+### 9.3 Item list (full target ~60, then 100+)
+
+**v1 vertical slice ships ~30:** marked ★ below; rest post-v1.
 
 **Passive — stats**
 | Item | Effect | Lore flavor |
 |---|---|---|
-| Coral Crown | +1 heart, +0.3 dmg | A reef princess's lost tiara |
-| Squid Ink Espresso | +0.3 speed, +fire rate | "The Galleon's cook swore by it" |
-| Whale Lung | +1 range, bubbles are bigger | Deep breath! |
-| Pufferfish Pout | ×1.5 damage, −shot speed | Angry and proud of it |
-| Lucky Sea Glass | +2 luck | Found only on moonlit tides |
+| ★ Coral Crown | +1 heart, +0.3 dmg | A reef princess's lost tiara |
+| ★ Squid Ink Espresso | +0.3 speed, +fire rate | "The Galleon's cook swore by it" |
+| ★ Whale Lung | +1 range, bubbles are bigger | Deep breath! |
+| ★ Pufferfish Pout | ×1.5 damage, −shot speed | Angry and proud of it |
+| ★ Lucky Sea Glass | +2 luck | Found only on moonlit tides |
 | Plankton Swarm | +0.5 fire rate ×3 small bubbles | Tiny friends |
-| Barnacle Armor | +2 Foam hearts, −0.1 speed | Clingy but protective |
+| ★ Barnacle Armor | +2 Foam hearts, −0.1 speed | Clingy but protective |
 
 **Passive — bubble modifiers**
 | Item | Effect |
 |---|---|
-| Electric Eel Tail | Bubbles **chain lightning** to 2 nearby enemies |
-| Nautilus Spiral | Bubbles **spiral outward** |
-| Mirror Scale | Bubbles **bounce** off walls |
-| Anglerfish Lure | Bubbles **home** onto enemies |
-| Swordfish Bill | Bubbles **pierce** enemies |
-| Ghost Jelly | Bubbles are **spectral** (pass rocks) |
-| Mitosis | Bubbles **split in 2** on hit |
-| Frost Kelp | Chance to **freeze**; frozen enemies shatter into shards |
-| Fire Coral | Bubbles **burn** |
+| ★ Electric Eel Tail | Bubbles **chain lightning** to 2 nearby enemies |
+| ★ Nautilus Spiral | Bubbles **spiral outward** |
+| ★ Mirror Scale | Bubbles **bounce** off walls |
+| ★ Anglerfish Lure | Bubbles **home** onto enemies |
+| ★ Swordfish Bill | Bubbles **pierce** enemies |
+| ★ Ghost Jelly | Bubbles are **spectral** (pass rocks) |
+| ★ Mitosis | Bubbles **split in 2** on hit |
+| ★ Frost Kelp | Chance to **freeze**; frozen enemies shatter into shards |
+| ★ Fire Coral | Bubbles **burn** |
 | Sea Nettle Sting | **Poison** damage over time |
-| Boomerang Shrimp | Bubbles **return** to Clementine |
-| Pearl Diver | **Charge shot** — hold to fire a large pearl |
-| Sunbeam | Replaces bubbles with a **laser beam** (charge) |
+| ★ Boomerang Shrimp | Bubbles **return** to Clementine |
+| ★ Pearl Diver | **Charge shot** — hold to fire a large pearl |
+| ★ Sunbeam | Replaces bubbles with a **laser beam** (charge) |
 | Double Helix | **Wave motion** + 2 shots |
-| Triple Tentacle | **Triple shot** (−damage) |
-| Starfish Arm | Bubbles **grow** with distance |
-| Ink Sac | Bubbles become **ink bombs** (explosive) |
+| ★ Triple Tentacle | **Triple shot** (−damage) |
+| ★ Starfish Arm | Bubbles **grow** with distance |
+| ★ Ink Sac | Bubbles become **ink bombs** (explosive) |
 | Siren Song | Chance to **charm** enemies |
 
 **Familiars**
 | Item | Effect |
 |---|---|
-| Baby Clementine | Mini jelly that copies your shots at 35% damage |
+| ★ Baby Clementine | Mini jelly that copies your shots at 35% damage |
 | Remora Buddy | Follows, picks up coins |
-| Orbiting Krill | 3 krill orbit, block shots, contact damage |
+| ★ Orbiting Krill | 3 krill orbit, block shots, contact damage |
 | Hermit Guard | Blocks projectiles behind you |
-| Clownfish Pal | Shoots when you shoot, gains damage per room cleared |
+| ★ Clownfish Pal | Shoots when you shoot, gains damage per room cleared |
 
 **Active items (Space; charge by room clears)**
 | Item | Charge | Effect |
 |---|---|---|
-| Conch Horn | 3 | Stun + knock back all enemies |
-| Bubble Shield | 2 | Invulnerable bubble for 3s |
+| ★ Conch Horn | 3 | Stun + knock back all enemies |
+| ★ Bubble Shield | 2 | Invulnerable bubble for 3s |
 | Tidal Wave | 4 | Pushes & damages everything in a direction |
-| Treasure Map | 6 | Reveal floor + secret rooms |
-| Mimic Clam | 6 | Reroll room pedestals (Isaac's D6) |
-| Glow Burst | 1 | Your next 5s bubbles triple; screen flash |
+| ★ Treasure Map | 6 | Reveal floor + secret rooms |
+| ★ Mimic Clam | 6 | Reroll room pedestals (Isaac's D6) |
+| ★ Glow Burst | 1 | Your next 5s bubbles triple; screen flash |
 | Sea Dice | 3 | Re-roll pickups in room |
 | Kraken Summon | 6 | Tentacles slam random enemies |
 
-**Trinkets:** Bottle Cap (+coin drops), Rusty Hook (hit enemies bleed),
+**Trinkets (v1: Bottle Cap, Rusty Hook, Message in a Bottle):** Bottle Cap (+coin drops), Rusty Hook (hit enemies bleed),
 Message in a Bottle (reveal a special room each floor), Sailor's Tooth (+range), …
 
 ### 9.4 Synergies (explicit, with special visuals)
@@ -261,15 +303,15 @@ Emergent combos + named synergies with unique effects:
 | Frost Kelp + Fire Coral | **Steam Vent** | Frozen enemies hit with fire explode into steam clouds (AoE, blinds) |
 | Boomerang Shrimp + Swordfish Bill | **Tuna Rang** | Piercing boomerang that hits twice & grows on return |
 | Pearl Diver + Mitosis | **Pearl Necklace** | Charged pearl bursts into a ring of 8 pearls |
-| Siren Song + Baby Clementine | **Choir** | Charmed enemies become temporary familiars |
+| Siren Song + Baby Clementine | **Choir** *(post-v1)* | Charmed enemies become temporary familiars |
 | Sunbeam + Pearl Diver | **Prism Pearl** | Charged pearl fires lasers in 4 directions when it pops |
-| Tidal Wave + Ink Sac | **Black Tide** | Wave drags ink bombs along and detonates them |
+| Tidal Wave + Ink Sac | **Black Tide** *(post-v1)* | Wave drags ink bombs along and detonates them |
 | Orbiting Krill + Electric Eel Tail | **Krill Coil** | Krill are electrified, zap enemies nearby |
 | Pufferfish Pout + Starfish Arm | **Big Mad Puff** | Bubbles inflate with spikes & shotgun burst on pop |
 | Ghost Jelly + Anglerfish Lure | **Will-o'-Wisp** | Spectral homing wisps; phase through everything |
 | Clownfish Pal + Coral Crown | **Royal Guard** | Clownfish gets a crown, doubles damage |
 
-**Transformations (3 items with same tag):**
+**Transformations (3 items with same tag; v1 ships Kraken Form + Neon Rave):**
 - **Kraken Form** (tag: tentacle) — 8-way shooting, ink trail.
 - **Neon Rave** (tag: glow) — bubbles cycle colors, +damage, screen pulses to music.
 - **Shark Mode** (tag: predator) — contact damage, speed up, heal on kill (tiny).
@@ -286,9 +328,10 @@ Emergent combos + named synergies with unique effects:
   Player actions (e.g. killing enemies in a different order) must not change
   what the next treasure room contains → item pool draws are seeded per room.
 - Same seed + same choices ⇒ identical run layout & items.
-- **Seeded runs don't count toward unlocks** OR do count — [Q].
-- **Daily Dive:** date-derived seed, one attempt per day, local leaderboard
-  (online leaderboard is out of scope unless requested).
+- **Custom-seeded runs don't grant unlocks/achievements** (Isaac rule). The run
+  still uses the player's currently-unlocked depths and item pools, so a seed
+  reproduces identically for players with the same unlock state.
+- **Daily Dive** *(post-v1)*: date-derived seed, one attempt per day, local best.
 - **Special seeds** (easter eggs): e.g. `BIGG JELL` = Clementine is huge.
 
 ## 11. Visual Style — "Funky Comic Reef"
@@ -350,19 +393,17 @@ Boss structure: 2–3 phases with telegraphed bullet patterns (colorful, readabl
   Optional **export/import save** as a text code for backup / transferring.
 - **Mid-run save:** "Save & Quit" from pause; on continue, restore at the start
   of the current room (seed + floor state + player state). One suspended run slot.
-- **Profile:** 3 save slots [Q].
+- **Profile:** 1 profile. **Export/Import** via a base64 save string in Options.
 
 ### 13.2 Meta progression
-Hybrid of Isaac unlocks + light persistent currency:
-- **Pearls** — earned per run (floors reached, bosses killed); spent in the
-  Tide Pool Hub.
-- **Hub upgrades (small, not power-creep):** unlock new starting options,
-  e.g. "start with 1 Ink Bomb", "shop has +1 slot", "see item quality on pedestal".
-- **Achievements → unlocks** (Isaac-style), e.g.:
-  - Beat Rusty Admiral → unlock *Barnaby the Hermit Crab*.
+Pure Isaac-style: **achievements → unlocks**. No currency. e.g.:
+  - Beat any Depth 1 / Depth 2 boss → unlock next Dive (§5.1).
+  - Beat Rusty Admiral → *Admiral's Key* (post-v1: Barnaby the Hermit Crab).
   - Get 3 synergies in one run → *Mitosis* added to item pool.
   - Win without taking damage on a floor → *Golden Scale* hearts can drop.
   - Beat Hollow Maw → Abyss alternate endings / hard mode.
+- The **Tide Pool** title screen visibly fills with rescued, re-colored
+  bosses as trophies (visual progress, no currency).
 - **Collection Log ("Sea-pedia")** — every item/enemy/boss seen, with lore text.
 - **Stats:** runs, wins, deaths by cause, best time, favorite item.
 
@@ -373,10 +414,10 @@ Hybrid of Isaac unlocks + light persistent currency:
 | Language | **TypeScript** |
 | Build | **Vite** (dev server + static build) |
 | Rendering | Canvas 2D (custom, no engine) — full control over comic look |
-| Audio | WebAudio (procedural synth SFX + simple generative funk music) |
+| Audio | WebAudio synth SFX (music post-v1) |
 | Physics | Custom AABB/circle collision, tile grid |
 | Tests | **Vitest** for PRNG, generation determinism, item modifiers, save migration |
-| Deploy | Static site → GitHub Pages (via Actions) [Q] |
+| Deploy | Static site → GitHub Pages via Actions workflow |
 
 ```
 src/
@@ -393,18 +434,20 @@ src/
 
 Performance target: 60 FPS with ~300 projectiles on mid-range laptops.
 
-## 15. Open Questions [Q]
+## 15. v1 Delivery Plan (after approval)
 
-1. **Scope of v1** — full content list above, or a vertical slice first
-   (e.g. 3 depths, ~30 items, 8 bosses), then expand?
-2. **Floors:** 6 depths × 1 floor, or 6 × 2 floors (Isaac length)?
-3. **Characters:** just Clementine in v1, or the unlockable roster too?
-4. **Audio:** procedural synth music/SFX (no assets, retro-funky), or silence/SFX-only for v1?
-5. **Resolution:** chunky low-res (480×270, pixel-crisp outlines) or smooth HD (960×540+)?
-6. **Seeded runs & unlocks:** should custom-seeded runs grant achievements/unlocks?
-7. **Meta currency (Pearls + hub upgrades)** — yes, or pure Isaac-style unlocks only?
-8. **Save slots:** 1 or 3 profiles?
-9. **Deployment:** publish to GitHub Pages automatically?
-10. **Difficulty modes:** Normal only, or Normal + Hard ("Riptide")?
-11. **Gamepad support** in v1?
-12. **Mobile/touch:** out of scope? (Assumed yes, out of scope.)
+1. **Skeleton** — Vite + TS, game loop, input, scaling canvas, scene manager, seeded RNG, Vitest, Pages workflow.
+2. **Clementine** — movement, 4-dir bubbles, stats, procedural jelly sprite with tentacles.
+3. **Floor gen** — layout, room templates + procedural rooms, doors, minimap, transitions.
+4. **Combat** — 12 enemies (Depths 1–3), hit/knockback, pickups, room-clear rewards.
+5. **Items** — modifier system, ~30 items, pools, pedestals, shop, actives, trinkets.
+6. **Synergies & transformations** — explicit table + FX.
+7. **Bosses** — 6 bosses with comic-cover intros.
+8. **Meta** — save/continue, unlocks, progressive dives, Sea-pedia, export code.
+9. **Juice** — comic FX, halftones, onomatopoeia, SFX, options (shake/flash).
+10. **Polish & balance** — seed determinism tests, perf pass, deploy.
+
+## 16. Remaining minor assumptions
+- Diagonal shooting off by default (toggle in Options).
+- No mobile/touch support.
+- Difficulty: Normal only in v1; "Riptide" hard mode post-v1.
