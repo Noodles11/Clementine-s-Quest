@@ -66,7 +66,7 @@ export class PlantSystem {
         }
         this.chains.push({
           d, pts, seg, kind: d.kind === 'chain' ? 'chain' : 'kelp',
-          buoy: d.kind === 'chain' ? 260 : d.attach === 'ceil' ? 60 : -70,
+          buoy: d.kind === 'chain' ? 260 : d.attach === 'ceil' ? 60 : -150,
           leafSide: pts.map(() => (rng.chance(0.5) ? 1 : -1)),
         });
       } else if (d.kind === 'grass' || d.kind === 'anemone') {
@@ -121,7 +121,7 @@ export class PlantSystem {
           const d2 = dx * dx + dy * dy;
           if (d2 < pu.r * pu.r && d2 > 0.01) {
             const d = Math.sqrt(d2);
-            const push = (pu.r - d) * 0.25;
+            const push = (pu.r - d) * 0.12;
             p.x += (dx / d) * push;
             p.y += (dy / d) * push;
           }

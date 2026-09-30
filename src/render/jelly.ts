@@ -105,21 +105,20 @@ export class JellyView {
         q.x += vx + fx * dt2;
         q.y += vy + fy * dt2;
       }
-      for (let it = 0; it < 3; it++) {
-        for (let i = 1; i < pts.length; i++) {
-          const a0 = pts[i - 1], b0 = pts[i];
-          const dx = b0.x - a0.x, dy = b0.y - a0.y;
-          const d = Math.hypot(dx, dy) || 0.001;
-          const diff = (d - tc.seg) / d;
-          if (i === 1) {
-            b0.x -= dx * diff;
-            b0.y -= dy * diff;
-          } else {
-            a0.x += dx * diff * 0.5;
-            a0.y += dy * diff * 0.5;
-            b0.x -= dx * diff * 0.5;
-            b0.y -= dy * diff * 0.5;
-          }
+      // Follow-the-leader constraint: tentacles never stretch, even when
+      // the bell moves a long way in one frame.
+      for (let i = 1; i < pts.length; i++) {
+        const a0 = pts[i - 1], b0 = pts[i];
+        const dx = b0.x - a0.x, dy = b0.y - a0.y;
+        const d = Math.hypot(dx, dy) || 0.001;
+        if (d > tc.seg) {
+          const k = tc.seg / d;
+          const nx = a0.x + dx * k, ny = a0.y + dy * k;
+          // Carry velocity along so the correction doesn't add energy.
+          b0.px += nx - b0.x;
+          b0.py += ny - b0.y;
+          b0.x = nx;
+          b0.y = ny;
         }
       }
     }

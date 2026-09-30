@@ -13,7 +13,7 @@ import {
   Texture,
   TilingSprite,
 } from 'pixi.js';
-import { DT, FONT_UI, TILE, VIEW_H, VIEW_W } from './config';
+import { DT, FONT_UI, VIEW_H, VIEW_W } from './config';
 import { clamp, darken, lighten, mixColor } from './core/math';
 import { cosmetic as R } from './core/rng';
 import { input } from './core/input';
@@ -24,7 +24,8 @@ import { ParticleSystem } from './ambient/particles';
 import { INK, PlantSystem } from './ambient/plants';
 import { biomeFor, type Biome } from './gen/biomes';
 import { type FloorRoom, type Side } from './gen/floor';
-import type { Boss } from './game/bosses';
+import { createBoss, type Boss } from './game/bosses';
+import { createEnemy } from './game/enemies';
 import { ITEM_BY_ID } from './game/items';
 import type { Run } from './game/run';
 import { GROTTO_ID, RoomWorld, type WorldEvent } from './game/room';
@@ -125,6 +126,7 @@ export class GameScene {
   projG = new Graphics();
   jellyLayer = new Container();
   labels = new Container();
+  hintLayer = new Container();
   glowRoot = new Container();
   glowCam = new Container();
   glowG = new Graphics();
@@ -188,6 +190,7 @@ export class GameScene {
     this.fgSnow = new ParticleSystem({ snow: T.soft, dot: T.soft }, 60);
 
     this.cam.addChild(
+      this.hintLayer,
       this.terrain.container,
       this.plantsLayer,
       this.doorsG,
@@ -283,9 +286,12 @@ export class GameScene {
     this.checkBossIntro();
   }
 
+  attractPending = false;
   startAttract(run: Run) {
     this.run = run;
+    this.attractPending = true;
     this.buildWorld(run.floor.rooms[run.floor.startId], { side: null, from: -1 });
+    this.attractPending = false;
     this.mode = 'attract';
     this.hud.container.visible = false;
   }
@@ -348,6 +354,8 @@ export class GameScene {
     this.jellyLayer.addChild(this.jelly.container);
     for (const [, l] of this.pedLabels) l.destroy();
     this.pedLabels.clear();
+    this.hintLayer.removeChildren().forEach((c) => c.destroy());
+    if (w.layout.hintText && this.mode !== 'attract' && !this.attractPending) this.drawHints(w);
 
     this.bgWater.texture = waterTexture(b);
     this.bgWater.width = VIEW_W;
@@ -411,6 +419,27 @@ export class GameScene {
 
     this.setupRefraction(w);
     this.updateCamera(true);
+  }
+
+  /** Tutorial doodles on the back wall of the very first room. */
+  private drawHints(w: RoomWorld) {
+    const lines: [string, number, number][] = [
+      ['W A S D  to swim', 0.26, 0.3],
+      ['ARROWS  to shoot', 0.26, 0.42],
+      ['E  ink bomb   ·   SPACE  active   ·   Q  snack', 0.5, 0.62],
+      ['Let go and you slowly sink~', 0.74, 0.3],
+    ];
+    for (const [txt, fx, fy] of lines) {
+      const t = new Text({
+        text: txt,
+        style: { fontFamily: FONT_UI, fontSize: 20, fontWeight: '700', fill: 0xffffff, stroke: { color: INK, width: 5 }, align: 'center' },
+      });
+      t.anchor.set(0.5);
+      t.alpha = 0.55;
+      t.rotation = (fx - 0.5) * 0.08;
+      t.position.set(w.widthPx * fx, w.heightPx * fy);
+      this.hintLayer.addChild(t);
+    }
   }
 
   private drawSilhouettes(b: Biome, seed: number) {
@@ -489,7 +518,7 @@ export class GameScene {
     if (!this.dispSprite) return;
     const on = this.qualityLevel >= 2 && !this.options.calmWater;
     if (on) {
-      if (!this.dispFilter) this.dispFilter = new DisplacementFilter({ sprite: this.dispSprite, scale: 14 });
+      if (!this.dispFilter) this.dispFilter = new DisplacementFilter({ sprite: this.dispSprite, scale: 10 });
       this.worldView.filters = [this.dispFilter];
     } else this.worldView.filters = [];
   }
@@ -656,7 +685,6 @@ export class GameScene {
     if (!w || !w.bossPending || this.mode !== 'play') return;
     this.mode = 'splash';
     const kind = w.room.boss ?? 'barnacle';
-    const { createBoss } = await import('./game/bosses');
     const dummy = createBoss(kind, 0, 0, w.menace, w.depth);
     await this.hooks.onBossIntro(dummy);
     if (this.world === w && this.mode === 'splash') {
@@ -747,7 +775,6 @@ export class GameScene {
         if (c) costumes.add(c);
       }
       this.jelly.draw(p, t, costumes);
-      this.jelly.container.visible = this.mode !== 'dead' || !!this.transition || true;
     }
 
     // Dynamic world drawing.
@@ -799,15 +826,8 @@ export class GameScene {
     const eg = this.enemiesG;
     eg.clear();
     for (const e of w.enemies) {
-      if (e.boss) {
-        const b = e as Boss;
-        if (b.intro > 0) {
-          const k = 1 - b.intro / 1.2;
-          eg.alpha = 1;
-          drawBoss(eg, b, t);
-          void k;
-        } else drawBoss(eg, b, t);
-      } else drawEnemy(eg, e, t);
+      if (e.boss) drawBoss(eg, e as Boss, t);
+      else drawEnemy(eg, e, t);
       drawEnemyGlow(glow, e, t);
     }
     const prj = this.projG;
@@ -952,7 +972,6 @@ export class GameScene {
     const key = 'enemy:' + kind;
     const cached = this.iconCache.get(key);
     if (cached) return cached;
-    const { createEnemy } = await import('./game/enemies');
     const e = createEnemy(kind as any, 32, 32, 0, 'none');
     e.hidden = false;
     e.state = 'awake';
@@ -968,8 +987,5 @@ export class GameScene {
     } finally {
       g.destroy();
     }
-  }
-  get tileSize() {
-    return TILE;
   }
 }

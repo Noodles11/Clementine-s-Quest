@@ -219,6 +219,10 @@ export function buildRoom(room: FloorRoom, depth: number): RoomLayout {
     const { cols, rows } = doorMouthTiles(m.door, tw, th);
     for (const c of cols) for (const r of rows) for (let dx = -1; dx <= 1; dx++) if (c + dx >= 0 && c + dx < tw) noDecor[r * tw + c + dx] = 1;
   }
+  if (layout.crack) {
+    const c0 = Math.floor(layout.crack.x0 / TILE) - 1, c1 = Math.ceil(layout.crack.x1 / TILE) + 1;
+    for (let c = c0; c <= c1; c++) for (let r = 0; r < th; r++) if (c >= 0 && c < tw) noDecor[r * tw + c] = 1;
+  }
   layout.decor = placeDecor(rng, tiles, tw, th, noDecor, depth, room.type, surface);
   return layout;
 }

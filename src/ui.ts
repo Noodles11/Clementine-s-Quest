@@ -97,9 +97,11 @@ export class UI {
 
   private show(node: HTMLElement) {
     this.clear();
+    // Modal screens replace transient popups (banners, floor titles).
+    this.popups.querySelectorAll('.banner, .floor-title').forEach((b) => b.remove());
     this.layer = node;
     this.root.insertBefore(node, this.popups);
-    requestAnimationFrame(() => (node.querySelector('.btn:not(:disabled)') as HTMLElement | null)?.focus());
+    requestAnimationFrame(() => (node.querySelector('.btn:not(:disabled)') as HTMLElement | null)?.focus({ preventScroll: true }));
   }
 
   // ── Title ────────────────────────────────────────────
