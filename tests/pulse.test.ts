@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Run } from '../src/game/run';
-import { RoomWorld } from '../src/game/room';
+import { RoomWorld, TITLE_ID } from '../src/game/room';
+import { generateTitleLevel } from '../src/gen/level';
 import { NullFx } from '../src/game/fx';
 import { DEFAULT_OPTIONS } from '../src/core/save';
 import { input } from '../src/core/input';
@@ -8,8 +9,8 @@ import { input } from '../src/core/input';
 describe('jellyfish propulsion', () => {
   it('moves in pulses: speed surges then glides, averaging the speed stat', () => {
     const run = Run.create('PULSETST', true, [], 1);
-    const w = new RoomWorld(run, run.floor.rooms[run.floor.startId], NullFx, DEFAULT_OPTIONS, { side: null, from: -1 });
-    w.player.x = 300;
+    const w = new RoomWorld(run, generateTitleLevel(3), TITLE_ID, NullFx, DEFAULT_OPTIONS);
+    w.player.x = 200;
     w.player.y = 300;
     input.setTouchMove(1, 0);
     const speeds: number[] = [];

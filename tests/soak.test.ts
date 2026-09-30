@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Run } from '../src/game/run';
-import { RoomWorld, GROTTO_ID } from '../src/game/room';
+import { RoomWorld, GROTTO_ID, LEVEL_ID } from '../src/game/room';
 import { NullFx } from '../src/game/fx';
 import { DEFAULT_OPTIONS } from '../src/core/save';
 import { ITEMS } from '../src/game/items';
-import type { FloorRoom } from '../src/gen/floor';
+import { TILE } from '../src/config';
 
 const ALL_UNLOCKS = ['beat_barnacle', 'beat_queenclam', 'beat_kelpie', 'beat_sirurchin', 'beat_admiral', 'beat_treasuremimic', 'first_synergy', 'transformation', 'die_5'];
 
@@ -12,18 +12,25 @@ function finite(n: number) {
   return Number.isFinite(n);
 }
 
-/** Simulate every room of every depth with a scripted "player". */
+/** Simulate every encounter, the boss and the grotto of every depth with a scripted "player". */
 function soak(seed: string, items: string[]) {
   const run = Run.create(seed, true, ALL_UNLOCKS, 3);
   for (const id of items) run.giveItem(id);
   run.p.maxHp = run.p.hp = 24;
   for (let depth = 1; depth <= 3; depth++) {
-    const rooms: FloorRoom[] = [...run.floor.rooms];
-    const boss = run.floor.rooms[run.floor.bossId];
-    rooms.push({ id: GROTTO_ID, type: 'grotto', x: -1, y: -1, w: 1, h: 1, dist: 99, doors: [], seed: boss.seed ^ 0x9e37, grottoItems: boss.grottoItems });
-    for (const room of rooms) {
-      const w = new RoomWorld(run, room, NullFx, DEFAULT_OPTIONS, { side: null, from: -1 });
-      if (w.bossPending) w.spawnBoss();
+    const areas: [number, ReturnType<Run['grottoSpec']>][] = [[LEVEL_ID, run.level], [GROTTO_ID, run.grottoSpec()]];
+    const spots = [...run.level.groups.map((g) => ({ x: g.x, y: g.y, boss: false })), { x: run.level.boss.crack.x0 + TILE * 3, y: run.level.boss.crack.y - TILE * 2, boss: true }];
+    for (const [id, spec] of areas)
+    for (const spot of id === LEVEL_ID ? spots : [{ x: spec.start.x, y: spec.start.y, boss: false }]) {
+      const w = new RoomWorld(run, spec, id, NullFx, DEFAULT_OPTIONS);
+      w.player.x = spot.x;
+      w.player.y = spot.y;
+      if (w.solidAt(spot.x, spot.y)) {
+        w.player.x = spec.start.x;
+        w.player.y = spec.start.y;
+      }
+      w.fluid.follow(w.player.x, w.player.y, true);
+      if (spot.boss) w.spawnBoss();
       const p = w.player;
       for (let f = 0; f < 300; f++) {
         // Wander and shoot at the nearest enemy.

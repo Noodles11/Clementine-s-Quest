@@ -27,12 +27,12 @@ import { FishSchools } from './ambient/boids';
 import { ParticleSystem } from './ambient/particles';
 import { INK, PlantSystem } from './ambient/plants';
 import { biomeFor, type Biome } from './gen/biomes';
-import { type FloorRoom, type Side } from './gen/floor';
+import { generateTitleLevel, type LevelSpec } from './gen/level';
 import { createBoss, type Boss } from './game/bosses';
 import { createEnemy } from './game/enemies';
 import { ITEM_BY_ID } from './game/items';
 import type { Run } from './game/run';
-import { GROTTO_ID, RoomWorld, type WorldEvent } from './game/room';
+import { GROTTO_ID, LEVEL_ID, RoomWorld, TITLE_ID, type WorldEvent } from './game/room';
 import { drawBoss, drawEnemy, drawEnemyGlow } from './render/creatures';
 import { FxSystem } from './render/fxsys';
 import { Hud } from './render/hud';
@@ -41,7 +41,7 @@ import { JellyView } from './render/jelly';
 import { TerrainView } from './render/terrain';
 import { tex } from './render/textures';
 import { CameraFilter } from './render/camera';
-import { drawBubble, drawDoor, drawProp, drawShot, drawWorldExtras } from './render/worldart';
+import { drawBubble, drawGate, drawProp, drawShot, drawWorldExtras } from './render/worldart';
 
 export interface SceneHooks {
   onEvent(ev: WorldEvent): void;
@@ -58,7 +58,7 @@ type Mode = 'idle' | 'attract' | 'intro' | 'play' | 'paused' | 'transition' | 'd
 
 interface Transition {
   t: number;
-  dir: Side | 'down' | 'fade';
+  dir: 'down' | 'fade';
   swapped: boolean;
   swap: () => void;
 }
@@ -124,6 +124,8 @@ export class GameScene {
   cam = new Container();
   terrain = new TerrainView();
   plantsLayer = new Container();
+  /** Growth in front of Clementine and the creatures. */
+  frontPlants = new Container();
   doorsG = new Graphics();
   propsG = new Graphics();
   itemsG = new Graphics();
@@ -184,6 +186,10 @@ export class GameScene {
   camX = 0;
   camY = 0;
   restartHold = 0;
+  private autosaveClock = 0;
+  private lastCam = { x: 0, y: 0 };
+  /** 0 at the surface … 1 at the bottom of the level (for light falloff). */
+  depthFrac = 0;
   frameTimes: number[] = [];
   qualityLevel = 2;
   private lastQualityCheck = 0;
@@ -219,6 +225,7 @@ export class GameScene {
       this.trophyG,
       this.enemiesG,
       this.jellyLayer,
+      this.frontPlants,
       this.projG,
       this.fx.world.container,
       this.labels,
@@ -305,13 +312,11 @@ export class GameScene {
     this.transG.clear();
     this.run = run;
     const d = run.data;
-    const room = this.roomById(d.currentRoom);
-    this.buildWorld(room, { side: d.entrySide, from: d.entryFrom });
+    this.buildWorld(this.areaSpec(d.currentRoom), d.currentRoom);
     this.mode = 'play';
     this.hud.container.visible = true;
     input.clear();
-    if (fresh || d.entrySide === null) this.hooks.onFloorStart(d.depth);
-    this.checkBossIntro();
+    if (fresh) this.hooks.onFloorStart(d.depth);
   }
 
   attractPending = false;
@@ -321,15 +326,10 @@ export class GameScene {
     this.run = run;
     this.attractPending = true;
     // A quiet stretch of open water above a sandy floor with one opening in it.
-    const start = run.floor.rooms[run.floor.startId];
-    const room: FloorRoom = {
-      id: start.id, type: 'start', x: 0, y: 0, w: 1, h: 1, dist: 0, seed: start.seed,
-      doors: [{ side: 'D', lx: 0, ly: 0, to: -1, tlx: 0, tly: 0, kind: 'normal', locked: false, hidden: false }],
-    };
     this.mode = 'attract';
     this.zoom = TITLE_ZOOM;
     this.sceneAlpha = 0;
-    this.buildWorld(room, { side: null, from: -1 });
+    this.buildWorld(generateTitleLevel(run.seed), TITLE_ID);
     this.attractPending = false;
     const w = this.world!;
     w.player.x = w.widthPx * 0.5;
@@ -366,31 +366,30 @@ export class GameScene {
     input.clear();
   }
 
-  /** Debug helper: jump straight to a room of the current floor. */
-  debugWarp(id: number) {
-    this.buildWorld(this.roomById(id), { side: null, from: -1 });
-    this.mode = 'play';
-    this.checkBossIntro();
+  /** Debug helper: teleport Clementine (e.g. to the boss arena). */
+  debugTeleport(x: number, y: number) {
+    const w = this.world;
+    if (!w) return;
+    w.player.x = x;
+    w.player.y = y;
+    w.player.vx = w.player.vy = 0;
+    w.fluid.follow(x, y, true);
+    this.updateCamera(true);
   }
 
-  private roomById(id: number): FloorRoom {
+  private areaSpec(id: number): LevelSpec {
     const run = this.run!;
-    if (id === GROTTO_ID) {
-      const boss = run.floor.rooms[run.floor.bossId];
-      return { id: GROTTO_ID, type: 'grotto', x: -1, y: -1, w: 1, h: 1, dist: 99, doors: [], seed: boss.seed ^ 0x9e37, grottoItems: boss.grottoItems };
-    }
-    return run.floor.rooms[id];
+    return id === GROTTO_ID ? run.grottoSpec() : run.level;
   }
 
-  private buildWorld(room: FloorRoom, entry: { side: Side | null; from: number; door?: import('./gen/floor').DoorSpec }) {
+  private buildWorld(spec: LevelSpec, areaId: number) {
     const run = this.run!;
     const old = this.world;
     if (old) old.persist();
-    const w = new RoomWorld(run, room, this.fx, this.options, entry);
+    const w = new RoomWorld(run, spec, areaId, this.fx, this.options);
     this.world = w;
-    run.data.currentRoom = room.id;
-    run.data.entrySide = entry.side;
-    run.data.entryFrom = entry.from;
+    if (areaId !== TITLE_ID) run.data.currentRoom = areaId;
+    const seed = (run.seed ^ (run.data.depth * 0x9e37) ^ areaId) >>> 0;
     const b = w.biome;
     setPitchShift(1 - b.menace * 0.25);
 
@@ -400,8 +399,10 @@ export class GameScene {
     this.terrain.build(w);
     w.terrainDirty = false;
     this.plantsLayer.removeChildren();
-    this.plants = new PlantSystem(w.layout.decor, b.menace);
+    this.frontPlants.removeChildren();
+    this.plants = new PlantSystem(spec.decor, b.menace);
     this.plantsLayer.addChild(this.plants.container);
+    this.frontPlants.addChild(this.plants.front);
     this.jellyLayer.removeChildren();
     const size = run.data.seedCode === 'HUGEJELL' ? 1.7 : run.data.seedCode === 'TEENYJEL' ? 0.6 : 1;
     this.jelly = new JellyView(w.player.x, w.player.y, size);
@@ -409,7 +410,7 @@ export class GameScene {
     for (const [, l] of this.pedLabels) l.destroy();
     this.pedLabels.clear();
     this.hintLayer.removeChildren().forEach((c) => c.destroy());
-    if (w.layout.hintText && this.mode !== 'attract' && !this.attractPending) this.drawHints(w);
+    if (areaId === LEVEL_ID && w.depth === 1 && this.mode !== 'attract' && !this.attractPending) this.drawHints(w);
 
     this.bgWater.texture = waterTexture(b);
     this.bgWater.width = VIEW_W;
@@ -417,7 +418,7 @@ export class GameScene {
     this.ambient.texture = run.data.seedCode === 'DARKDEEP' ? ambientTexture({ ...b, depth: 99, lightTop: 0.28, lightBottom: 0.12 }) : ambientTexture(b);
     this.ambient.width = VIEW_W;
     this.ambient.height = VIEW_H;
-    this.drawSilhouettes(b, room.seed);
+    this.drawSilhouettes(b, seed);
     this.camera.setGrade(b.grade);
     this.haze.texture = waterTexture(b);
     this.haze.width = VIEW_W;
@@ -457,27 +458,31 @@ export class GameScene {
 
     // Marine snow.
     this.snow.clear();
-    this.snow.bounds = { w: w.widthPx, h: w.heightPx };
-    const snowN = Math.round(b.snowCount * (q === 0 ? 0.35 : q === 1 ? 0.7 : 1));
+    // Marine snow lives in a box around the camera and wraps as it moves.
+    const vw = VIEW_W / ZOOM + 200, vh = VIEW_H / ZOOM + 200;
+    this.snow.bounds = { x: w.player.x - vw / 2, y: w.player.y - vh / 2, w: vw, h: vh };
+    const snowN = Math.round(b.snowCount * 0.8 * (q === 0 ? 0.35 : q === 1 ? 0.7 : 1));
     for (let i = 0; i < snowN; i++) {
       this.snow.spawn({
-        kind: 'snow', x: R.range(0, w.widthPx), y: R.range(0, w.heightPx), size: R.range(1.5, 4.2),
+        kind: 'snow', x: this.snow.bounds.x + R.range(0, vw), y: this.snow.bounds.y + R.range(0, vh), size: R.range(1.5, 4.2),
         alpha: R.range(0.25, 0.7), color: mixColor(0xffffff, b.waterTop, 0.25), wrap: true, gravity: 6, drag: 0.8, fluid: 0.9, life: 1,
       });
     }
     this.fgSnow.clear();
-    this.fgSnow.bounds = { w: VIEW_W, h: VIEW_H };
+    this.fgSnow.bounds = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
     for (let i = 0; i < (q === 0 ? 6 : 16); i++) {
       this.fgSnow.spawn({ kind: 'snow', x: R.range(0, VIEW_W), y: R.range(0, VIEW_H), size: R.range(14, 34), alpha: R.range(0.06, 0.16), wrap: true, vx: R.range(-8, 8), vy: R.range(2, 8), drag: 0, fluid: 0, life: 1 });
     }
-    this.drawForeground(b, room.seed);
+    this.drawForeground(b, seed);
 
     // Bubble vents on the floor.
     this.vents = [];
-    for (const d of w.layout.decor) if ((d.kind === 'rockling' || d.kind === 'shell') && R.chance(0.4)) this.vents.push({ x: d.x, y: d.y - 6, t: R.range(0, 3) });
+    for (const d of spec.decor) if ((d.kind === 'rockling' || d.kind === 'shell' || d.kind === 'boulder') && R.chance(0.35)) this.vents.push({ x: d.x, y: d.y - 6, t: R.range(0, 3) });
 
     this.setupRefraction(w);
     this.updateCamera(true);
+    this.lastCam = { x: this.camX, y: this.camY };
+    this.autosaveClock = 0;
   }
 
   /** Tutorial doodles on the back wall of the very first room. */
@@ -496,7 +501,7 @@ export class GameScene {
       t.anchor.set(0.5);
       t.alpha = 0.55;
       t.rotation = (fx - 0.5) * 0.08;
-      t.position.set(w.widthPx * fx, w.heightPx * fy);
+      t.position.set(w.spec.start.x + (fx - 0.5) * 900, w.spec.start.y + TILE * 3 + (fy - 0.4) * 420);
       this.hintLayer.addChild(t);
     }
   }
@@ -599,6 +604,7 @@ export class GameScene {
       }
     this.dispCtx.putImageData(img, 0, 0);
     this.dispTex!.source.update();
+    this.dispSprite!.position.set(f.ox, f.oy);
   }
 
   // ── Frame ──────────────────────────────────────────────────
@@ -638,6 +644,12 @@ export class GameScene {
         this.drainEvents();
         if (this.mode !== 'play' || this.world !== w) break;
       }
+      if (this.mode === 'play' && this.world === w && w.bossPending) this.checkBossIntro();
+      this.autosaveClock += dt;
+      if (this.autosaveClock > 30 && this.mode === 'play') {
+        this.autosaveClock = 0;
+        this.hooks.onAutosave();
+      }
     } else if (this.mode === 'attract') {
       this.attractStep(w, dt);
     } else if (this.mode === 'intro') {
@@ -652,7 +664,6 @@ export class GameScene {
       if (tr.t >= 2) {
         this.transition = null;
         this.mode = 'play';
-        this.checkBossIntro();
       }
       w.fluid.step(dt);
     } else if (this.mode === 'dead' || this.mode === 'splash' || this.mode === 'paused') {
@@ -698,8 +709,8 @@ export class GameScene {
     const it = this.intro!;
     const p = w.player;
     it.t += dt;
-    const mouth = w.layout.mouths[0];
-    const goalX = mouth ? mouth.x : w.widthPx / 2;
+    const c = w.spec.boss.crack;
+    const goalX = (c.x0 + c.x1) / 2;
     const goalY = w.heightPx + TILE * 2;
     // Camera pulls back and the reef fades in around her.
     const k = Math.min(1, it.t / 2.2);
@@ -726,18 +737,11 @@ export class GameScene {
     const evs = w.events.splice(0);
     for (const ev of evs) {
       switch (ev.type) {
-        case 'exit':
-          this.beginTransition(ev.door.side, () => {
-            this.buildWorld(this.roomById(ev.door.to), { side: ev.door.side, from: w.room.id, door: ev.door });
-            this.hooks.onAutosave();
-          });
-          sfx.splash();
-          break;
         case 'descend':
           sfx.descend();
           this.beginTransition('down', () => {
             this.run!.nextFloor();
-            this.buildWorld(this.roomById(this.run!.floor.startId), { side: null, from: -1 });
+            this.buildWorld(this.run!.level, LEVEL_ID);
             this.hooks.onAutosave();
             this.hooks.onFloorStart(this.run!.data.depth);
           });
@@ -748,21 +752,25 @@ export class GameScene {
           break;
         case 'grotto':
           this.beginTransition('fade', () => {
-            this.buildWorld(this.roomById(GROTTO_ID), { side: null, from: this.run!.floor.bossId });
+            const lw = this.world!;
+            const gp = lw.props.find((p) => p.kind === 'grotto');
+            if (gp) {
+              // Come back out beside the portal, not inside it.
+              lw.player.x = gp.x - 80;
+              lw.player.y = gp.y - 20;
+            }
+            this.buildWorld(this.run!.grottoSpec(), GROTTO_ID);
             this.hooks.onAutosave();
           });
           break;
         case 'grottoExit':
           this.beginTransition('fade', () => {
-            this.buildWorld(this.roomById(this.run!.floor.bossId), { side: null, from: GROTTO_ID });
-            const bw = this.world!;
-            const gp = bw.props.find((p) => p.kind === 'grotto');
-            if (gp) {
-              bw.player.x = gp.x - 70;
-              bw.player.y = gp.y - 20;
-            }
+            this.buildWorld(this.run!.level, LEVEL_ID);
             this.hooks.onAutosave();
           });
+          break;
+        case 'autosave':
+          this.hooks.onAutosave();
           break;
         case 'died':
           this.mode = 'dead';
@@ -775,7 +783,7 @@ export class GameScene {
     }
   }
 
-  private beginTransition(dir: Side | 'down' | 'fade', swap: () => void) {
+  private beginTransition(dir: 'down' | 'fade', swap: () => void) {
     this.mode = 'transition';
     this.transition = { t: 0, dir, swapped: false, swap };
   }
@@ -784,7 +792,7 @@ export class GameScene {
     const w = this.world;
     if (!w || !w.bossPending || this.mode !== 'play') return;
     this.mode = 'splash';
-    const kind = w.room.boss ?? 'barnacle';
+    const kind = w.spec.boss.kind;
     const dummy = createBoss(kind, 0, 0, w.menace, w.depth);
     await this.hooks.onBossIntro(dummy);
     if (this.world === w && this.mode === 'splash') {
@@ -815,15 +823,23 @@ export class GameScene {
       }
       return;
     }
-    const tx = w.widthPx <= vw ? (w.widthPx - vw) / 2 : clamp(p.x - vw / 2, 0, w.widthPx - vw);
-    const ty = w.heightPx <= vh ? (w.heightPx - vh) / 2 : clamp(p.y - vh / 2, 0, w.heightPx - vh);
+    // Follow Clementine with a little look-ahead in the direction she swims.
+    const lx = clamp(p.vx * 0.28, -140, 140), ly = clamp(p.vy * 0.2, -90, 90);
+    const tx = w.widthPx <= vw ? (w.widthPx - vw) / 2 : clamp(p.x + lx - vw / 2, 0, w.widthPx - vw);
+    const ty = w.heightPx <= vh ? (w.heightPx - vh) / 2 : clamp(p.y + ly - vh / 2, 0, w.heightPx - vh);
     if (snap) {
       this.camX = tx;
       this.camY = ty;
     } else {
-      this.camX += (tx - this.camX) * 0.12;
-      this.camY += (ty - this.camY) * 0.12;
+      this.camX += (tx - this.camX) * 0.08;
+      this.camY += (ty - this.camY) * 0.08;
     }
+  }
+
+  /** The world rectangle the camera currently shows. */
+  viewRect(margin = 0) {
+    const vw = VIEW_W / this.zoom, vh = VIEW_H / this.zoom;
+    return { x0: this.camX - margin, y0: this.camY - margin, x1: this.camX + vw + margin, y1: this.camY + vh + margin };
   }
 
   private render(dt: number) {
@@ -831,7 +847,7 @@ export class GameScene {
     const t = this.time;
     const run = this.run!;
     if (w.terrainDirty) {
-      this.terrain.build(w);
+      this.terrain.rebuildDirty(w);
       w.terrainDirty = false;
     }
     this.updateCamera();
@@ -844,17 +860,33 @@ export class GameScene {
     this.root.rotation = Math.sin(t * 0.21) * 0.0025 * calm;
     this.camera.time = t;
     this.cam.scale.set(this.zoom);
-    for (const layer of [this.terrain.container, this.plantsLayer, this.doorsG, this.propsG, this.itemsG, this.trophyG, this.fgG, this.bgSil])
+    for (const layer of [this.terrain.container, this.plantsLayer, this.frontPlants, this.doorsG, this.propsG, this.itemsG, this.trophyG, this.fgG])
       layer.alpha = this.sceneAlpha;
+    // Light falls off with depth inside the level.
+    const vh = VIEW_H / this.zoom;
+    this.depthFrac = w.areaId === LEVEL_ID ? clamp((this.camY + vh / 2) / w.heightPx, 0, 1) : w.areaId === GROTTO_ID ? 0.5 : 0;
+    const df = this.depthFrac;
+    const lightK = 1 - df * (0.3 + w.menace * 0.25);
+    const gray = (k: number) => {
+      const v = Math.round(clamp(k, 0, 1) * 255);
+      return (v << 16) | (v << 8) | v;
+    };
+    this.ambient.tint = gray(lightK);
+    this.bgWater.tint = gray(1 - df * 0.55);
+    this.bgSil.alpha = this.sceneAlpha * clamp(1 - df * 1.6, 0, 1);
+    this.rays.alpha = clamp(1.1 - df * 1.8, 0, 1);
     this.glowCam.scale.set(this.zoom);
     this.cam.x = -Math.round(this.camX * this.zoom);
     this.cam.y = -Math.round(this.camY * this.zoom);
     this.glowCam.position.copyFrom(this.cam.position);
-    // Parallax.
-    this.fishFar.x = -this.camX * this.zoom * 0.3;
-    this.fishNear.x = -this.camX * this.zoom * 0.6;
-    this.bgSil.x = -this.camX * this.zoom * 0.15;
-    this.fgLayer.x = -this.camX * this.zoom * 0.2;
+    // Parallax: distant fish drift against the camera's motion.
+    const dcx = (this.camX - this.lastCam.x) * this.zoom, dcy = (this.camY - this.lastCam.y) * this.zoom;
+    this.lastCam = { x: this.camX, y: this.camY };
+    if (this.schools[0]) this.schools[0].pan(dcx * 0.3, dcy * 0.3);
+    if (this.schools[1]) this.schools[1].pan(dcx * 0.6, dcy * 0.6);
+    const view = this.viewRect();
+    const sv = this.viewRect(100);
+    this.snow.bounds = { x: sv.x0, y: sv.y0, w: sv.x1 - sv.x0, h: sv.y1 - sv.y0 };
 
     const neon = run.stats.transformations.has('neonrave') || run.data.seedCode === 'PARTYFSH';
     const p = w.player;
@@ -863,7 +895,7 @@ export class GameScene {
     const live = this.mode !== 'paused';
     const adt = live ? dt : 0;
     const pushers = [{ x: p.x, y: p.y, r: 34 }, ...w.enemies.filter((e) => !e.hidden).map((e) => ({ x: e.x, y: e.y, r: e.r + 10 }))];
-    this.plants?.update(adt, w.fluid, pushers, t);
+    this.plants?.update(adt, w.fluid, pushers, t, view);
     for (const s of this.schools) s.update(adt, (p.x - this.camX) * this.zoom, (p.y - this.camY) * this.zoom, t);
     if (run.data.seedCode === 'PARTYFSH') for (const s of this.schools) for (const f of s.fish) f.s.tint = hsl(t * 0.5 + f.school * 0.2, 0.9, 0.6);
     const solid = (x: number, y: number) => w.solidAt(x, y);
@@ -874,7 +906,7 @@ export class GameScene {
     });
     this.fx.glow.update(adt, w.fluid, solid);
     this.fx.update(adt);
-    this.terrain.update(t, w);
+    this.terrain.update(t, w, view);
     this.bgCaustic.tilePosition.set(t * 5, t * 3);
     for (const r of this.raySprites) {
       const k = (r as any).base * (0.6 + 0.4 * Math.sin(t * 0.4 + (r as any).ph));
@@ -894,6 +926,7 @@ export class GameScene {
     }
     if (live) {
       for (const v of this.vents) {
+        if (v.x < view.x0 || v.x > view.x1 || v.y < view.y0 || v.y > view.y1 + 60) continue;
         v.t -= dt;
         if (v.t <= 0) {
           v.t = R.range(0.8, 3.5);
@@ -922,7 +955,8 @@ export class GameScene {
     this.jelly?.drawGlow(glow, p, t, neon);
     const dg = this.doorsG;
     dg.clear();
-    for (const d of w.doors) drawDoor(dg, d, w, t, glow);
+    if (w.bossFight) for (const gate of w.gates) drawGate(dg, gate, t, glow);
+    const inV = (x: number, y: number, m: number) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
     const pg = this.propsG;
     pg.clear();
     for (const pr of w.props) drawProp(pg, glow, pr, w, t);
@@ -930,6 +964,7 @@ export class GameScene {
     ig.clear();
     const seen = new Set<object>();
     for (const pd of w.pedestals) {
+      if (!inV(pd.x, pd.y, 80)) continue;
       seen.add(pd);
       const kind = pd.hearts !== undefined ? 'grotto' : pd.price !== undefined ? 'shop' : 'rock';
       drawPedestal(ig, pd.x, pd.y, kind);
@@ -957,6 +992,7 @@ export class GameScene {
       this.pedLabels.delete(k);
     }
     for (const pk of w.pickups) {
+      if (!inV(pk.x, pk.y, 40)) continue;
       const bob = pk.settled ? 0 : Math.sin(pk.bob * 3) * 1.5;
       drawPickup(ig, pk.kind, pk.x, pk.y + bob, t + pk.bob, pk.opened, pk.snack);
       if (pk.kind === 'coin' || pk.kind === 'coin5' || pk.kind === 'glowjelly' || pk.kind === 'container')
@@ -973,6 +1009,7 @@ export class GameScene {
         drawBoss(tg, b, t);
       }
     for (const e of w.enemies) {
+      if (!inV(e.x, e.y, e.boss ? 300 : 120)) continue;
       if (e.boss) drawBoss(eg, e as Boss, t);
       else drawEnemy(eg, e, t);
       drawEnemyGlow(glow, e, t);
@@ -996,16 +1033,18 @@ export class GameScene {
   private renderLights(w: RoomWorld, neon: boolean) {
     const lights: { x: number; y: number; r: number; c: number; a: number }[] = [];
     const p = w.player;
+    const v = this.viewRect(200);
+    const vis = (x: number, y: number, r: number) => x > v.x0 - r && x < v.x1 + r && y > v.y0 - r && y < v.y1 + r;
     const m = w.menace;
     // Clementine is the key practical light: warm, breathing bioluminescence.
     const breathe = 0.85 + Math.sin(this.time * 2.2) * 0.15 + p.shootFlash * 0.25;
     lights.push({ x: p.x, y: p.y, r: (230 + m * 120) * breathe, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.5 + m * 0.5) });
     for (const b of w.bubbles) if (lights.length < 70) lights.push({ x: b.x, y: b.y, r: 60 + b.r * 3, c: b.color, a: 0.4 });
     for (const s of w.shots) if (lights.length < 110) lights.push({ x: s.x, y: s.y, r: 44, c: s.color, a: 0.3 });
-    for (const pd of w.pedestals) if (pd.itemId) lights.push({ x: pd.x, y: pd.y, r: 150, c: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, a: 0.5 });
-    for (const pr of w.props) if (pr.active && pr.kind === 'crack') lights.push({ x: pr.x, y: pr.y - 40, r: 320, c: 0x9ef0ff, a: 0.9 });
+    for (const pd of w.pedestals) if (pd.itemId && vis(pd.x, pd.y, 150)) lights.push({ x: pd.x, y: pd.y, r: 150, c: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, a: 0.5 });
+    for (const pr of w.props) if (pr.active && pr.kind === 'crack' && vis(pr.x, pr.y, 320)) lights.push({ x: pr.x, y: pr.y - 40, r: 320, c: 0x9ef0ff, a: 0.9 });
     for (const bm of w.beams) for (let s = 0; s < bm.len; s += 120) lights.push({ x: bm.x + bm.dx * s, y: bm.y + bm.dy * s, r: 160, c: bm.color, a: 0.8 });
-    for (const l of this.fx.lights) lights.push({ x: l.x, y: l.y, r: l.r, c: l.color, a: l.intensity * (1 - l.age / l.life) });
+    for (const l of this.fx.lights) if (vis(l.x, l.y, l.r)) lights.push({ x: l.x, y: l.y, r: l.r, c: l.color, a: l.intensity * (1 - l.age / l.life) });
     const T = tex().soft;
     while (this.lightPool.length < lights.length) {
       const s = new Sprite(T);

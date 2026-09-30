@@ -5,57 +5,24 @@ import { EA, EW, shade } from './style';
 import { TILE } from '../config';
 import { darken, hsl, lighten } from '../core/math';
 import { INK } from '../ambient/plants';
-import type { DoorState, RoomWorld } from '../game/room';
+import type { RoomWorld } from '../game/room';
+import type { Gate } from '../gen/level';
 import type { Prop } from '../game/pickups';
 import type { Bubble, EnemyShot } from '../game/projectiles';
 
-const DOOR_COL: Record<string, number> = {
-  normal: 0x6e6456,
-  start: 0x6e6456,
-  treasure: 0xa88a4a,
-  shop: 0x4e7a6e,
-  boss: 0xcfc6b4,
-  secret: 0x5a5046,
-  curse: 0x6a2a2a,
-  grotto: 0x8a5a7a,
-};
-
-export function drawDoor(g: Graphics, d: DoorState, w: RoomWorld, t: number, glow?: Graphics) {
-  if (d.hidden) return;
-  const m = d.mouth;
-  const side = d.spec.side;
-  const horiz = side === 'L' || side === 'R';
-  const nx = side === 'L' ? 1 : side === 'R' ? -1 : 0;
-  const ny = side === 'U' ? 1 : side === 'D' ? -1 : 0;
-  const span = TILE * 1.1; // half-height of the opening
-  // Tunnel darkness receding beyond the opening.
-  for (let i = 0; i < 4; i++) {
-    const depth = 10 + i * 12;
-    const cx = m.x - nx * depth, cy = m.y - ny * depth;
-    const ww = horiz ? 22 : span * 2 - i * 8, hh = horiz ? span * 2 - i * 8 : 22;
-    g.ellipse(cx, cy, ww / 2, hh / 2).fill({ color: 0x02060a, alpha: 0.28 });
+/** Arena gates: while the boss fight lasts, a current pours in through each tunnel. */
+export function drawGate(g: Graphics, gate: Gate, t: number, glow?: Graphics) {
+  const { x, y, nx, ny } = gate;
+  const span = TILE * 1.6;
+  for (let i = 0; i < 8; i++) {
+    const phase = (t * 1.8 + i / 8) % 1;
+    const off = (i / 7 - 0.5) * span * 1.6;
+    const x0 = x - nx * TILE * 1.5 + nx * phase * TILE * 3 - ny * off;
+    const y0 = y - ny * TILE * 1.5 + ny * phase * TILE * 3 + nx * off;
+    const len = 30;
+    g.moveTo(x0, y0).lineTo(x0 + nx * len, y0 + ny * len).stroke({ width: 1.6, color: 0xdff6ff, alpha: 0.4 * Math.sin(phase * Math.PI) });
   }
-  // Special rooms spill a hint of their light through the hole.
-  const spill: Record<string, number> = { treasure: 0xffd27a, shop: 0x7ae0c8, boss: 0xff5a4a, curse: 0xb03040, grotto: 0xff9ae0 };
-  const c = spill[d.spec.kind];
-  if (c && glow) glow.circle(m.x + nx * 20, m.y + ny * 20, TILE * 1.3).fill({ color: c, alpha: 0.12 + Math.sin(t * 2) * 0.04 });
-  // Closed: the inflowing current shows as bright moving streaks.
-  if (!d.open) {
-    for (let i = 0; i < 6; i++) {
-      const phase = ((t * 1.8 + i / 6) % 1);
-      const off = (i / 5 - 0.5) * span * 1.6;
-      const x0 = m.x + nx * phase * TILE * 2.6 + (horiz ? 0 : off);
-      const y0 = m.y + ny * phase * TILE * 2.6 + (horiz ? off : 0);
-      const len = 26;
-      g.moveTo(x0, y0).lineTo(x0 + nx * len, y0 + ny * len).stroke({ width: 1.4, color: 0xdff6ff, alpha: 0.35 * Math.sin(phase * Math.PI) });
-    }
-  }
-  if (d.locked) {
-    const lx = m.ix, ly = m.iy;
-    g.roundRect(lx - 9, ly - 3, 18, 14, 3).fill(shade(0xc8a04a)).stroke({ width: 1, color: 0x000000, alpha: 0.4 });
-    g.moveTo(lx - 5, ly - 3).lineTo(lx - 5, ly - 9).arc(lx, ly - 9, 5, Math.PI, 0).lineTo(lx + 5, ly - 3).stroke({ width: 2, color: 0xc8a04a });
-    g.circle(lx, ly + 4, 2).fill(0x1a1208);
-  }
+  if (glow) glow.circle(x, y, TILE * 1.2).fill({ color: 0xff5a4a, alpha: 0.06 + Math.sin(t * 3) * 0.03 });
 }
 
 export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: number) {
@@ -76,7 +43,7 @@ export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: 
         g.poly(pts).fill(0x2a1a2a).stroke({ width: (3) * EW, color: INK, alpha: EA });
         // Sealed with a glowing "?" rune while the next depth is locked.
         const sealed = w.run.data.depth >= w.run.data.maxDepth;
-        if (sealed && w.run.roomState(w.room.id).bossDead) glow.circle(p.x, y + 4, 14).fill({ color: 0xb06bff, alpha: 0.5 + Math.sin(t * 2) * 0.2 });
+        if (sealed && w.bossDead) glow.circle(p.x, y + 4, 14).fill({ color: 0xb06bff, alpha: 0.5 + Math.sin(t * 2) * 0.2 });
       }
       break;
     }
@@ -170,21 +137,21 @@ export function drawWorldExtras(g: Graphics, glow: Graphics, w: RoomWorld, t: nu
     const warn = h.warning;
     const blink = Math.floor(t * 12) % 2 === 0;
     if (h.kind === 'hline') {
-      if (warn) g.moveTo(0, h.y).lineTo(w.widthPx, h.y).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
+      if (warn) g.moveTo(w.arena.x0, h.y).lineTo(w.arena.x1, h.y).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
       else {
-        g.moveTo(0, h.y);
-        for (let x = 0; x <= w.widthPx; x += 30) g.lineTo(x, h.y + Math.sin(x * 0.05 + t * 20) * 6);
+        g.moveTo(w.arena.x0, h.y);
+        for (let x = w.arena.x0; x <= w.arena.x1; x += 30) g.lineTo(x, h.y + Math.sin(x * 0.05 + t * 20) * 6);
         g.stroke({ width: (h.size + 6) * EW, color: INK, alpha: EA });
-        g.moveTo(0, h.y);
-        for (let x = 0; x <= w.widthPx; x += 30) g.lineTo(x, h.y + Math.sin(x * 0.05 + t * 20) * 6);
+        g.moveTo(w.arena.x0, h.y);
+        for (let x = w.arena.x0; x <= w.arena.x1; x += 30) g.lineTo(x, h.y + Math.sin(x * 0.05 + t * 20) * 6);
         g.stroke({ width: h.size, color: h.color });
-        glow.moveTo(0, h.y).lineTo(w.widthPx, h.y).stroke({ width: h.size * 2, color: 0x5cd65c, alpha: 0.5 });
+        glow.moveTo(w.arena.x0, h.y).lineTo(w.arena.x1, h.y).stroke({ width: h.size * 2, color: 0x5cd65c, alpha: 0.5 });
       }
     } else if (h.kind === 'vline') {
-      if (warn) g.moveTo(h.x, 0).lineTo(h.x, w.heightPx).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
+      if (warn) g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
       else {
-        g.moveTo(h.x, 0).lineTo(h.x, w.heightPx).stroke({ width: (h.size + 6) * EW, color: INK, alpha: EA });
-        g.moveTo(h.x, 0).lineTo(h.x, w.heightPx).stroke({ width: h.size, color: h.color });
+        g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: (h.size + 6) * EW, color: INK, alpha: EA });
+        g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: h.size, color: h.color });
       }
     }
   }

@@ -2,7 +2,8 @@
 
 import { Rng, stream } from '../core/rng';
 import { seedToNumber } from '../gen/seed';
-import { generateFloor, ItemPools, type Floor, type Side } from '../gen/floor';
+import { generateGrotto, generateLevel, type LevelSpec } from '../gen/level';
+import { ItemPools } from './pools';
 import { ITEM_BY_ID, type StatBlock } from './items';
 import { computeStats, type DerivedStats } from './stats';
 
@@ -46,6 +47,11 @@ export interface RoomPersist {
   broken: number[];
   bossDead?: boolean;
   grotto?: boolean;
+  groupsCleared?: number[];
+  /** Packed fog-of-war bitmap. */
+  explored?: string;
+  /** Where Clementine was when last saved. */
+  pos?: { x: number; y: number };
 }
 
 export interface PlayerData {
@@ -83,7 +89,7 @@ export const SNACK_COLORS: Record<string, number> = {
 };
 
 export interface RunData {
-  v: 1;
+  v: 2;
   seedCode: string;
   custom: boolean;
   depth: number;
@@ -92,32 +98,30 @@ export interface RunData {
   floorPoolStart: string[];
   poolRemoved: string[];
   player: PlayerData;
+  /** Per-area state: the level (0) and the Mermaid's Grotto (-2). */
   rooms: Record<string, RoomPersist>;
   currentRoom: number;
-  entrySide: Side | null;
-  entryFrom: number;
   time: number;
   kills: number;
   synergies: string[];
   transformations: string[];
   floorDamaged: boolean;
-  openedDoors: string[];
   mapRevealed: boolean;
   /** snack name → effect */
   snacks: Record<string, SnackEffect>;
   identified: string[];
-  grottoVisitedFrom?: number;
   bossesBeaten: string[];
 }
 
 export class Run {
   data: RunData;
   seed: number;
-  floor!: Floor;
+  level!: LevelSpec;
   stats!: DerivedStats;
   private pools!: ItemPools;
 
   constructor(data: RunData) {
+    if (data.v !== 2) throw new Error('Old run format');
     this.data = data;
     this.seed = seedToNumber(data.seedCode);
     this.buildFloor();
@@ -131,7 +135,7 @@ export class Run {
     const snacks: Record<string, SnackEffect> = {};
     SNACK_EFFECTS.forEach((e, i) => (snacks[names[i]] = e));
     const data: RunData = {
-      v: 1,
+      v: 2,
       seedCode,
       custom,
       depth: 1,
@@ -143,30 +147,30 @@ export class Run {
         hp: 6, maxHp: 6, foam: 0, coins: 0, bombs: 1, keys: 0, items: [], active: null, snack: null, temp: {},
       },
       rooms: {},
-      currentRoom: -1,
-      entrySide: null,
-      entryFrom: -1,
+      currentRoom: 0,
       time: 0,
       kills: 0,
       synergies: [],
       transformations: [],
       floorDamaged: false,
-      openedDoors: [],
       mapRevealed: false,
       snacks,
       identified: [],
       bossesBeaten: [],
     };
-    const run = new Run(data);
-    data.currentRoom = run.floor.startId;
-    return run;
+    return new Run(data);
   }
 
   buildFloor() {
     const d = this.data;
-    this.floor = generateFloor({ seed: this.seed, depth: d.depth, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
-    // Pool state continues from floor generation plus anything rerolled since.
-    this.pools = new ItemPools(d.unlocked, [...this.floor.poolRemovedAfter, ...d.poolRemoved]);
+    this.level = generateLevel({ seed: this.seed, depth: d.depth, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
+    // Pool state continues from level generation plus anything rerolled since.
+    this.pools = new ItemPools(d.unlocked, [...this.level.poolRemovedAfter, ...d.poolRemoved]);
+  }
+
+  /** The Mermaid's Grotto of the current depth. */
+  grottoSpec(): LevelSpec {
+    return generateGrotto(this.seed, this.data.depth, this.level.boss.grottoItems);
   }
 
   nextFloor() {
@@ -175,13 +179,10 @@ export class Run {
     d.poolRemoved = [];
     d.depth++;
     d.rooms = {};
-    d.openedDoors = [];
     d.mapRevealed = false;
     d.floorDamaged = false;
-    d.entrySide = null;
-    d.entryFrom = -1;
     this.buildFloor();
-    d.currentRoom = this.floor.startId;
+    d.currentRoom = 0;
   }
 
   /** Draw a fresh item (rerolls). Recorded so continuing reproduces pools. */

@@ -3,7 +3,7 @@
 
 import { Container, Graphics } from 'pixi.js';
 import { EA, EW, shade } from '../render/style';
-import type { Decor } from '../gen/roomgen';
+import type { Decor } from '../gen/tiles';
 import type { FluidField } from './fluid';
 import { Rng } from '../core/rng';
 import { darken, lighten, mixColor } from '../core/math';
@@ -41,10 +41,25 @@ interface Wobbly {
   vs: number;
 }
 
+export interface ViewRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+const inView = (d: Decor, v: ViewRect, m: number) => d.x > v.x0 - m && d.x < v.x1 + m && d.y > v.y0 - m && d.y < v.y1 + m;
+
 export class PlantSystem {
+  /** Growth behind Clementine and the creatures. */
   container = new Container();
+  /** Growth in front of them: it covers whatever swims behind it. */
+  front = new Container();
   private dyn = new Graphics();
+  private dynFront = new Graphics();
   private staticLayer = new Container();
+  private staticFront = new Container();
+  private view: ViewRect = { x0: -1e9, y0: -1e9, x1: 1e9, y1: 1e9 };
   chains: Chain[] = [];
   clumps: Clump[] = [];
   wobblies: Wobbly[] = [];
@@ -54,6 +69,7 @@ export class PlantSystem {
   constructor(decor: Decor[], menace: number) {
     this.menace = menace;
     this.container.addChild(this.staticLayer, this.dyn);
+    this.front.addChild(this.staticFront, this.dynFront);
     for (const d of decor) {
       const rng = new Rng(d.seed);
       if (d.kind === 'kelp' || (d.kind === 'chain' && d.attach === 'ceil')) {
@@ -85,7 +101,7 @@ export class PlantSystem {
         drawStatic(g, d, rng, menace);
         g.x = d.x;
         g.y = d.y;
-        this.staticLayer.addChild(g);
+        (d.front ? this.staticFront : this.staticLayer).addChild(g);
         this.wobblies.push({ d, g, a: 0, va: 0, s: 1, vs: 0 });
       }
     }
@@ -103,10 +119,13 @@ export class PlantSystem {
     }
   }
 
-  update(dt: number, fluid: FluidField, pushers: { x: number; y: number; r: number }[], time: number) {
+  update(dt: number, fluid: FluidField, pushers: { x: number; y: number; r: number }[], time: number, view?: ViewRect) {
     const tmp = this.tmp;
     const dt2 = dt * dt;
+    if (view) this.view = view;
+    const v = this.view;
     for (const c of this.chains) {
+      if (!inView(c.d, v, 280)) continue;
       const pts = c.pts;
       for (let i = 1; i < pts.length; i++) {
         const p = pts[i];
@@ -149,6 +168,7 @@ export class PlantSystem {
       }
     }
     for (const c of this.clumps) {
+      if (!inView(c.d, v, 80)) continue;
       fluid.sample(c.d.x, c.d.y - 20, tmp);
       let push = 0;
       for (const pu of pushers) {
@@ -164,6 +184,8 @@ export class PlantSystem {
       }
     }
     for (const w of this.wobblies) {
+      w.g.visible = inView(w.d, v, 120);
+      if (!w.g.visible) continue;
       fluid.sample(w.d.x, w.d.y - 16, tmp);
       w.va += (-w.a * 60 + tmp.x * 0.004) * dt;
       w.va *= Math.exp(-5 * dt);
@@ -178,9 +200,12 @@ export class PlantSystem {
   }
 
   private draw(time: number) {
-    const g = this.dyn;
-    g.clear();
+    this.dyn.clear();
+    this.dynFront.clear();
+    const v = this.view;
     for (const c of this.chains) {
+      if (!inView(c.d, v, 280)) continue;
+      const g = c.d.front ? this.dynFront : this.dyn;
       if (c.kind === 'chain') {
         for (let i = 1; i < c.pts.length; i++) {
           const a = c.pts[i - 1], b = c.pts[i];
@@ -224,7 +249,9 @@ export class PlantSystem {
       g.stroke({ width: 1.5, color: lighten(col, 0.35), alpha: 0.7 });
     }
     for (const c of this.clumps) {
-      const col = c.kind === 'grass' ? c.d.color : c.d.color;
+      if (!inView(c.d, v, 80)) continue;
+      const g = c.d.front ? this.dynFront : this.dyn;
+      const col = c.d.color;
       if (c.kind === 'anemone') {
         const bx = c.d.x, by = c.d.y;
         for (const b of c.blades) {
@@ -301,6 +328,35 @@ function drawStatic(g: Graphics, d: Decor, rng: Rng, menace: number) {
     case 'rockling': {
       g.ellipse(0, -7 * s, 16 * s, 10 * s).fill(shade(col, 0.8)).stroke({ width: (3) * EW, color: INK, alpha: EA });
       g.ellipse(-4 * s, -11 * s, 5 * s, 2.5 * s).fill(shade(lighten(col, 0.3), 0.8));
+      break;
+    }
+    case 'boulder': {
+      // A rounded, algae-dusted stone half sunk in the sediment.
+      const rw = 26 * s, rh = 19 * s;
+      const pts: number[] = [];
+      for (let i = 0; i <= 12; i++) {
+        const a = Math.PI + (i / 12) * Math.PI;
+        const r = 1 + rng.range(-0.12, 0.1);
+        pts.push(Math.cos(a) * rw * r, Math.sin(a) * rh * r * 1.3 + 3);
+      }
+      g.poly(pts).fill(shade(col, 1)).stroke({ width: 3 * EW, color: INK, alpha: EA, join: 'round' });
+      g.ellipse(-rw * 0.3, -rh * 0.75, rw * 0.35, rh * 0.18).fill({ color: 0xffffff, alpha: 0.1 });
+      for (let i = 0; i < 4; i++) g.circle(rng.range(-rw * 0.7, rw * 0.7), -rng.range(2, rh), rng.range(1, 3) * s).fill({ color: mixColor(col, 0x6aa05a, 0.5), alpha: 0.7 });
+      break;
+    }
+    case 'sponge': {
+      // Tube sponges growing sideways out of a wall.
+      const dir = d.attach === 'left' ? 1 : -1;
+      const n = rng.int(2, 4);
+      for (let i = 0; i < n; i++) {
+        const oy = (i - (n - 1) / 2) * 11 * s;
+        const len = rng.range(16, 30) * s, w = rng.range(7, 10) * s;
+        const ang = rng.range(-0.6, -0.1);
+        const ex = Math.cos(ang) * len * dir, ey = oy + Math.sin(ang) * len;
+        g.moveTo(0, oy).lineTo(ex, ey).stroke({ width: w + 3 * EW, color: INK, alpha: EA, cap: 'round' });
+        g.moveTo(0, oy).lineTo(ex, ey).stroke({ width: w, color: col, cap: 'round' });
+        g.circle(ex, ey, w * 0.32).fill(darken(col, 0.5));
+      }
       break;
     }
     case 'barrel': {

@@ -23,7 +23,11 @@ Full design: [`docs/DESIGN.md`](docs/DESIGN.md).
 half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, 🍬 snack,
 ❚❚ pause, ▦ map.
 
-- Clear rooms to open doors. Find the treasure room, Barnaby's shop, secrets and the boss.
+- Each depth is one big reef labyrinth. The camera follows Clementine; explore the tunnels
+  to find treasure caves, Barnaby's shop, bomb-able secret caves and — always somewhere at
+  the bottom — the boss. Hold **Tab** for the map (it fills in as you explore).
+- Creatures ambush you in their chambers; clearing an encounter drops a reward and charges
+  your active item. Plants and boulders in front can hide you and them from view.
 - Every boss guards **The Crack**. Your first dives end at Depth 1; each new boss you
   defeat unlocks the next depth (Kelp Jungle, then the Sunken Galleon).
 - Items stack: bubble effects combine, 10 named **synergies** add special effects, and
@@ -47,8 +51,8 @@ and sound effects — is generated in code; there are no image or audio assets.
 ```
 src/
   core/      rng, input, audio (WebAudio synth), save/profile, math
-  gen/       seeds, biomes, floor layout, room interiors
-  game/      run state, room simulation, player, enemies, bosses, items, synergies
+  gen/       seeds, biomes, whole-level reef generation (level.ts), tiles
+  game/      run state, level simulation (room.ts), player, enemies, bosses, items, synergies
   ambient/   water velocity field, particles, fish boids, kelp & plants
   render/    terrain, Clementine soft body, creatures, icons, FX, HUD
   scene.ts   layer stack, lighting, bloom, refraction, transitions

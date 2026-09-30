@@ -1,4 +1,5 @@
-// RoomWorld: the live simulation of one room.
+// RoomWorld: the live simulation of one area — a whole depth level (a large
+// reef labyrinth), the Mermaid's Grotto, or the title screen's patch of water.
 
 import { TILE } from '../config';
 import { dist } from '../core/math';
@@ -6,8 +7,8 @@ import { cosmetic as R, stream } from '../core/rng';
 import { sfx } from '../core/audio';
 import type { Options } from '../core/save';
 import { biomeFor, type Biome } from '../gen/biomes';
-import { OPPOSITE, type DoorSpec, type FloorRoom, type Side } from '../gen/floor';
-import { buildRoom, isSolidTile, T_BREAK, T_EMPTY, T_SECRET, T_SPIKE, type DoorMouth, type RoomLayout } from '../gen/roomgen';
+import type { Gate, LevelSpec, SpawnGroup } from '../gen/level';
+import { isSolidTile, T_BREAK, T_EMPTY, T_SECRET, T_SPIKE } from '../gen/tiles';
 import { FluidField } from '../ambient/fluid';
 import { createBoss, Hazard, type Boss } from './bosses';
 import { createEnemy, Enemy } from './enemies';
@@ -21,18 +22,7 @@ import { SYNERGIES, TRANSFORMATIONS } from './synergies';
 import type { Solidity } from './entity';
 import { moveBox } from './entity';
 
-export interface DoorState {
-  mouth: DoorMouth;
-  spec: DoorSpec;
-  open: boolean;
-  locked: boolean;
-  hidden: boolean;
-  /** 0 closed .. 1 open (animation). */
-  anim: number;
-}
-
 export type WorldEvent =
-  | { type: 'exit'; door: DoorSpec }
   | { type: 'descend' }
   | { type: 'surface' }
   | { type: 'grotto' }
@@ -43,20 +33,41 @@ export type WorldEvent =
   | { type: 'transformation'; id: string }
   | { type: 'bossDefeated'; kind: string }
   | { type: 'cleared' }
+  | { type: 'autosave' }
   | { type: 'enemySeen'; kind: string }
   | { type: 'mapReveal' }
   | { type: 'snack'; name: string; effect: string };
 
+/** Area ids: the depth level itself, the Mermaid's Grotto, the title screen. */
+export const LEVEL_ID = 0;
 export const GROTTO_ID = -2;
+export const TITLE_ID = -9;
 
-export function doorKey(a: number, b: number) {
-  return a < b ? `${a}-${b}` : `${b}-${a}`;
+/** Enemies farther than this from Clementine are dormant. */
+const ACTIVE_RANGE = 1250;
+/** Encounter groups wake up when Clementine gets this close to their edge. */
+const WAKE_RANGE = 420;
+
+function packBits(a: Uint8Array): string {
+  const bytes = new Uint8Array(Math.ceil(a.length / 8));
+  for (let i = 0; i < a.length; i++) if (a[i]) bytes[i >> 3] |= 1 << (i & 7);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
+}
+function unpackBits(str: string, out: Uint8Array) {
+  try {
+    const s = atob(str);
+    for (let i = 0; i < out.length; i++) out[i] = (s.charCodeAt(i >> 3) >> (i & 7)) & 1;
+  } catch {
+    /* corrupt map: start unexplored */
+  }
 }
 
 export class RoomWorld implements Solidity {
   run: Run;
-  room: FloorRoom;
-  layout: RoomLayout;
+  spec: LevelSpec;
+  areaId: number;
   biome: Biome;
   menace: number;
   depth: number;
@@ -65,8 +76,10 @@ export class RoomWorld implements Solidity {
   th: number;
   widthPx: number;
   heightPx: number;
-  blocked: Uint8Array;
   tileHp = new Map<number, number>();
+  /** Boss arena bounds (px). */
+  arena: { x0: number; y0: number; x1: number; y1: number };
+  gates: Gate[];
 
   player: Player;
   enemies: Enemy[] = [];
@@ -79,71 +92,66 @@ export class RoomWorld implements Solidity {
   zones: Zone[] = [];
   hazards: Hazard[] = [];
   props: Prop[] = [];
-  doors: DoorState[] = [];
   fluid: FluidField;
 
   events: WorldEvent[] = [];
   time = 0;
-  cleared: boolean;
   boss: Boss | null = null;
   bossPending = false;
+  bossDead = false;
+  /** Tiles changed since the terrain was last drawn. */
   terrainDirty = true;
+  dirtyTiles: number[] = [];
   exiting = false;
   bossHurtPlayer = false;
-  rerolls = 0;
+  /** Fog of war: tiles Clementine has seen. */
+  explored: Uint8Array;
+  exploredVersion = 0;
+  private revealClock = 0;
+  private spawnedGroups = new Set<number>();
+  private clearedGroups: Set<number>;
 
-  constructor(run: Run, room: FloorRoom, public fx: Fx, public options: Options, entry: { side: Side | null; from: number; door?: DoorSpec }) {
+  constructor(run: Run, spec: LevelSpec, areaId: number, public fx: Fx, public options: Options) {
     this.run = run;
-    this.room = room;
-    this.depth = run.data.depth;
+    this.spec = spec;
+    this.areaId = areaId;
+    this.depth = spec.depth;
     this.biome = biomeFor(this.depth);
     this.menace = this.biome.menace;
-    this.layout = buildRoom(room, this.depth);
-    this.tiles = this.layout.tiles;
-    this.tw = this.layout.tw;
-    this.th = this.layout.th;
+    this.tiles = spec.tiles.slice();
+    this.tw = spec.tw;
+    this.th = spec.th;
     this.widthPx = this.tw * TILE;
     this.heightPx = this.th * TILE;
-    this.blocked = new Uint8Array(this.tiles.length);
+    this.arena = spec.boss.arena;
+    this.gates = spec.boss.gates;
+    this.explored = new Uint8Array(this.tiles.length);
 
-    const persist = run.roomState(room.id);
+    const persist = run.roomState(areaId);
     for (const i of persist.broken) this.tiles[i] = T_EMPTY;
+    this.clearedGroups = new Set(persist.groupsCleared ?? []);
+    this.bossDead = !!persist.bossDead;
+    if (persist.explored) unpackBits(persist.explored, this.explored);
+    if (run.data.mapRevealed && areaId === LEVEL_ID) this.explored.fill(1);
 
-    // Doors.
-    for (const m of this.layout.mouths) {
-      const key = doorKey(room.id, m.door.to);
-      const opened = run.data.openedDoors.includes(key);
-      const hidden = m.door.hidden && !opened;
-      if (m.door.hidden && opened) this.openSecretTiles(m);
-      this.doors.push({ mouth: m, spec: m.door, open: true, locked: m.door.locked && !opened, hidden, anim: 1 });
-    }
-
-    // Player placement.
-    let px = this.layout.center.x, py = this.layout.center.y;
-    if (entry.door) {
-      const d = entry.door;
-      const m = this.layout.mouths.find((mm) => mm.door.to === entry.from && mm.door.side === OPPOSITE[d.side] && mm.door.tlx === d.lx && mm.door.tly === d.ly)
-        ?? this.layout.mouths.find((mm) => mm.door.to === entry.from);
-      if (m) {
-        px = m.ix;
-        py = m.iy;
-      }
-    } else if (room.type === 'start') {
-      px = this.widthPx / 2;
-      py = TILE * 3;
-    }
-    this.player = new Player(px, py);
+    const start = persist.pos ?? spec.start;
+    this.player = new Player(start.x, start.y);
     this.player.stats = run.stats;
-    this.player.solidity = { solidAt: (x, y) => this.solidAtForPlayer(x, y) };
+    this.player.solidity = this;
 
-    this.fluid = new FluidField(this.widthPx, this.heightPx, options.quality === 'low' ? 24 : 16);
+    // The water is simulated only in a window that follows Clementine.
+    const cell = options.quality === 'low' ? 24 : 18;
+    this.fluid = new FluidField(Math.min(this.widthPx, 2016), Math.min(this.heightPx, 1260), cell);
     this.fluid.iterations = options.quality === 'low' ? 6 : 10;
-    this.fluid.setSolid((x, y) => this.solidAt(x, y));
+    this.fluid.solidFn = (x, y) => this.solidAt(x, y);
+    this.fluid.follow(this.player.x, this.player.y, true);
     this.fluid.baseX = 3;
 
-    // Contents.
-    this.cleared = persist.cleared;
-    if (!persist.init) this.initContents(persist);
+    if (!persist.init) {
+      persist.init = true;
+      for (const pd of spec.pedestals) persist.pedestals.push({ itemId: pd.itemId, x: pd.x, y: pd.y, price: pd.price, pickup: pd.pickup as PickupKind | undefined, hearts: pd.hearts });
+      for (const pk of spec.pickups) persist.pickups.push({ kind: pk.kind as PickupKind, x: pk.x, y: pk.y });
+    }
     for (const p of persist.pickups) {
       const pk = new Pickup(p.kind, p.x, p.y);
       pk.snack = p.snack;
@@ -158,74 +166,19 @@ export class RoomWorld implements Solidity {
       ped.charge = pd.charge;
       this.pedestals.push(ped);
     }
-    if (!this.cleared && room.type === 'normal') {
-      const crng = run.roomRng(room.id, 'champions');
-      for (const s of this.layout.spawns) {
-        const e = createEnemy(s.kind, s.x, s.y, this.menace, s.attach);
-        // Descent Curve: champions appear from Depth 2 on.
-        if (crng.chance(this.menace * 0.6)) e.makeChampion(crng.pick([0xff3d5a, 0x5cf2ff, 0xffe14d, 0xb06bff]));
-        this.addEnemy(e);
-      }
-    }
-    if (room.type === 'boss') {
-      if (!persist.bossDead) {
-        this.bossPending = true;
-        this.cleared = false;
-      } else this.setupBossRewards(false);
-      if (this.layout.crack) this.props.push(new Prop('crack', (this.layout.crack.x0 + this.layout.crack.x1) / 2, this.layout.crack.y, this.layout.crack.x1 - this.layout.crack.x0, 40));
-    }
-    if (room.type === 'shop') this.props.push(new Prop('shopkeeper', this.widthPx - TILE * 3.5, this.layout.floorAt(this.tw - 4) - 30));
-    if (room.id === GROTTO_ID) {
-      this.props.push(new Prop('grottoExit', TILE * 2.5, this.layout.floorAt(3) - 60));
-      if (entry.from !== undefined) {
-        this.player.x = TILE * 4;
-        this.player.y = this.layout.floorAt(4) - 80;
-      }
-    }
-    if (this.enemies.length === 0 && !this.bossPending) this.cleared = true;
-    // The Urchin Den's spiked door stings on the way in.
-    if (room.type === 'curse' && entry.door && !persist.visited) {
-      const died = run.damage(1);
-      this.player.invuln = 1;
-      this.player.hurtFlash = 1;
-      this.fx.text(this.player.x, this.player.y - 40, 'PRICKLY!', 0xd93b3b, 22);
-      if (died) this.events.push({ type: 'died', by: 'the Urchin Den door' });
-    }
-    persist.visited = true;
-    persist.cleared = this.cleared;
-    this.updateDoorBlocks(true);
-    for (const e of this.enemies) this.events.push({ type: 'enemySeen', kind: e.kind });
-  }
+    if (spec.shopkeeper) this.props.push(new Prop('shopkeeper', spec.shopkeeper.x, spec.shopkeeper.y));
 
-  private initContents(persist: ReturnType<Run['roomState']>) {
-    const r = this.room;
-    persist.init = true;
-    const c = this.layout.center;
-    const rng = this.run.roomRng(r.id, 'contents');
-    if ((r.type === 'treasure' || r.type === 'secret' || r.type === 'curse') && r.item) {
-      persist.pedestals.push({ itemId: r.item, x: c.x, y: c.y });
-    } else if (r.type === 'secret') {
-      for (let i = 0; i < rng.int(4, 6); i++) persist.pickups.push({ kind: rng.pick<PickupKind>(['coin', 'coin5', 'bomb', 'key', 'heart']), x: c.x + rng.range(-160, 160), y: c.y - 40 });
-    } else if (r.type === 'curse') {
-      persist.pickups.push({ kind: 'goldclam', x: c.x, y: c.y - 20 });
-      persist.pickups.push({ kind: 'foam', x: c.x + 60, y: c.y - 20 });
-    } else if (r.type === 'shop' && r.shop) {
-      r.shop.forEach((slot, i) => {
-        const spot = this.layout.shopSpots[i];
-        if (!spot) return;
-        persist.pedestals.push({ itemId: slot.kind === 'item' ? slot.itemId! : null, pickup: slot.pickup as PickupKind, x: spot.x, y: spot.y, price: slot.price });
-      });
-    } else if (r.id === GROTTO_ID && r.grottoItems) {
-      r.grottoItems.forEach((id, i) => {
-        const spot = this.layout.shopSpots[i];
-        if (!spot) return;
-        const q = ITEM_BY_ID[id]?.quality ?? 2;
-        persist.pedestals.push({ itemId: id, x: spot.x, y: spot.y, hearts: q >= 3 ? 2 : 1 });
-      });
-    } else if (r.type === 'start' && this.depth > 1) {
-      // A little welcome gift on deeper floors.
-      if (rng.chance(0.5)) persist.pickups.push({ kind: rng.pick<PickupKind>(['coin', 'bomb', 'key']), x: c.x + 80, y: c.y });
+    if (areaId === LEVEL_ID) {
+      const c = spec.boss.crack;
+      this.props.push(new Prop('crack', (c.x0 + c.x1) / 2, c.y, c.x1 - c.x0, 40));
+      if (this.bossDead) this.setupBossRewards(false);
+    } else if (areaId === GROTTO_ID) {
+      this.props.push(new Prop('grottoExit', TILE * 6.5, spec.start.y - 10));
+    } else if (areaId === TITLE_ID) {
+      const c = spec.boss.crack;
+      this.props.push(new Prop('crack', (c.x0 + c.x1) / 2, c.y, c.x1 - c.x0, 40));
     }
+    this.reveal(true);
   }
 
   // ── Terrain ───────────────────────────────────────────────────
@@ -237,26 +190,7 @@ export class RoomWorld implements Solidity {
   solidAt(x: number, y: number) {
     const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
     if (tx < 0 || ty < 0 || tx >= this.tw || ty >= this.th) return true;
-    const i = ty * this.tw + tx;
-    return isSolidTile(this.tiles[i]) || this.blocked[i] === 1;
-  }
-
-  /** Like solidAt, but open door mouths extend beyond the room edge. */
-  solidAtForPlayer(x: number, y: number) {
-    let tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
-    const outside = tx < 0 || ty < 0 || tx >= this.tw || ty >= this.th;
-    if (outside) {
-      tx = Math.max(0, Math.min(this.tw - 1, tx));
-      ty = Math.max(0, Math.min(this.th - 1, ty));
-    }
-    const i = ty * this.tw + tx;
-    if (outside) {
-      // Beyond the edge only through an open doorway.
-      const side = x < 0 ? 'L' : x >= this.widthPx ? 'R' : y < 0 ? 'U' : 'D';
-      const open = this.doors.some((d) => d.open && d.spec.side === side && Math.abs(side === 'L' || side === 'R' ? y - d.mouth.y : x - d.mouth.x) < TILE * 1.2);
-      if (!open) return true;
-    }
-    return isSolidTile(this.tiles[i]) || this.blocked[i] === 1;
+    return isSolidTile(this.tiles[ty * this.tw + tx]);
   }
 
   spikeAt(x: number, y: number) {
@@ -273,89 +207,166 @@ export class RoomWorld implements Solidity {
     if (hp <= 0) this.breakTile(tx, ty);
   }
 
+  private setTile(i: number, v: number) {
+    this.tiles[i] = v;
+    this.run.roomState(this.areaId).broken.push(i);
+    this.terrainDirty = true;
+    this.dirtyTiles.push(i);
+  }
+
   breakTile(tx: number, ty: number) {
     const i = ty * this.tw + tx;
     if (this.tiles[i] !== T_BREAK) return;
-    this.tiles[i] = T_EMPTY;
-    this.run.roomState(this.room.id).broken.push(i);
-    this.terrainDirty = true;
-    this.fluid.setSolid((x, y) => this.solidAt(x, y));
+    this.setTile(i, T_EMPTY);
+    this.fluid.refreshSolid();
     const cx = (tx + 0.5) * TILE, cy = (ty + 0.5) * TILE;
     this.fx.burst(cx, cy, 'shards', 0xc8743a, 12);
     this.fx.text(cx, cy - 10, 'KRAK!', 0xffa53d, 18);
     sfx.hit();
-    const rng = stream(this.run.seed, 'pot', this.depth, this.room.id, i);
+    const rng = stream(this.run.seed, 'pot', this.depth, this.areaId, i);
     if (rng.chance(0.35)) this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'heart', 'bomb', 'key']), cx, cy, 0, -40);
   }
 
-  private openSecretTiles(m: DoorMouth) {
-    const tx = Math.floor(m.x / TILE), ty = Math.floor(m.y / TILE);
-    for (let dy = -2; dy <= 2; dy++)
-      for (let dx = -2; dx <= 2; dx++) {
-        const x = Math.max(0, Math.min(this.tw - 1, tx + dx)), y = Math.max(0, Math.min(this.th - 1, ty + dy));
-        if (this.tiles[y * this.tw + x] === T_SECRET) this.tiles[y * this.tw + x] = T_EMPTY;
-      }
-  }
-
+  /** Ink bombs crack open the weak rock sealing secret caves. */
   openSecretNear(x: number, y: number, r: number) {
-    for (const d of this.doors) {
-      if (!d.hidden) continue;
-      if (dist(x, y, d.mouth.x, d.mouth.y) > r + TILE * 1.5) continue;
-      d.hidden = false;
-      d.locked = false;
-      this.openSecretTiles(d.mouth);
-      const key = doorKey(this.room.id, d.spec.to);
-      if (!this.run.data.openedDoors.includes(key)) this.run.data.openedDoors.push(key);
-      this.terrainDirty = true;
-      this.fluid.setSolid((xx, yy) => this.solidAt(xx, yy));
-      this.fx.text(d.mouth.x, d.mouth.y, 'SECRET!', 0xfff27a, 28);
-      sfx.unlock();
+    const reach = r + TILE * 1.5;
+    const t0x = Math.floor((x - reach) / TILE), t1x = Math.floor((x + reach) / TILE);
+    const t0y = Math.floor((y - reach) / TILE), t1y = Math.floor((y + reach) / TILE);
+    const seeds: number[] = [];
+    for (let ty = t0y; ty <= t1y; ty++)
+      for (let tx = t0x; tx <= t1x; tx++) if (this.tileAt(tx, ty) === T_SECRET) seeds.push(ty * this.tw + tx);
+    if (!seeds.length) return;
+    // The whole plug crumbles at once.
+    const stack = [...seeds];
+    let n = 0, sx = 0, sy = 0;
+    while (stack.length) {
+      const i = stack.pop()!;
+      if (this.tiles[i] !== T_SECRET) continue;
+      this.setTile(i, T_EMPTY);
+      n++;
+      sx += (i % this.tw) + 0.5;
+      sy += Math.floor(i / this.tw) + 0.5;
+      for (const j of [i - 1, i + 1, i - this.tw, i + this.tw]) if (this.tiles[j] === T_SECRET) stack.push(j);
     }
+    this.fluid.refreshSolid();
+    const cx = (sx / n) * TILE, cy = (sy / n) * TILE;
+    this.fx.burst(cx, cy, 'shards', 0x8a7a6a, 30);
+    this.fx.text(cx, cy, 'SECRET!', 0xfff27a, 28);
+    sfx.unlock();
   }
 
-  updateDoorBlocks(instant = false) {
-    this.blocked.fill(0);
-    for (const d of this.doors) {
-      const shouldOpen = this.cleared && !d.locked && !d.hidden;
-      if (shouldOpen !== d.open) {
-        d.open = shouldOpen;
-        if (!instant) sfx.door();
+  /** Mark the tiles around Clementine as seen on the map. */
+  reveal(force = false) {
+    const p = this.player;
+    const cx = Math.floor(p.x / TILE), cy = Math.floor(p.y / TILE);
+    const rx = 15, ry = 9;
+    let changed = force;
+    for (let y = Math.max(0, cy - ry); y <= Math.min(this.th - 1, cy + ry); y++)
+      for (let x = Math.max(0, cx - rx); x <= Math.min(this.tw - 1, cx + rx); x++) {
+        const dx = (x - cx) / rx, dy = (y - cy) / ry;
+        if (dx * dx + dy * dy > 1) continue;
+        const i = y * this.tw + x;
+        if (!this.explored[i]) {
+          this.explored[i] = 1;
+          changed = true;
+        }
       }
-      if (instant) d.anim = d.open ? 1 : 0;
-      // Openings stay physically open; closed ones are held shut by a water current (see step()).
-    }
+    if (changed) this.exploredVersion++;
   }
 
-  /** Inward normal of a door opening. */
-  static inward(side: string): [number, number] {
-    return side === 'L' ? [1, 0] : side === 'R' ? [-1, 0] : side === 'U' ? [0, 1] : [0, -1];
+  revealAll() {
+    this.explored.fill(1);
+    this.exploredVersion++;
+  }
+
+  /** True while Clementine is inside the boss arena. */
+  inArena(x: number, y: number, margin = TILE * 1.5) {
+    const a = this.arena;
+    return a.x1 > a.x0 && x > a.x0 + margin && x < a.x1 - margin && y > a.y0 && y < a.y1;
+  }
+
+  get bossFight() {
+    return this.bossPending || (!!this.boss && !this.boss.dead);
   }
 
   /**
-   * Doorway currents: while a room is uncleared (or a door is locked) a strong
-   * current pours in through the opening and pushes Clementine back inside.
+   * Arena gates: during the boss fight a strong current pours in through every
+   * tunnel into the arena, pushing Clementine back inside.
    */
-  private applyDoorCurrents(dt: number) {
+  private applyGateCurrents(dt: number) {
+    if (!this.bossFight) return;
     const p = this.player;
-    const range = TILE * 3.2;
-    for (const d of this.doors) {
-      if (d.open || d.hidden) continue;
-      const [nx, ny] = RoomWorld.inward(d.spec.side);
-      const m = d.mouth;
-      const along = (p.x - m.x) * nx + (p.y - m.y) * ny; // distance inward from the edge
-      const lateral = Math.abs((p.x - m.x) * ny + (p.y - m.y) * nx);
-      if (along < range && lateral < TILE * 2.2) {
-        const k = Math.max(0, 1 - Math.max(0, along) / range);
-        const push = 520 * k * (1 - lateral / (TILE * 2.2));
-        p.x += nx * push * dt;
-        p.y += ny * push * dt;
-        p.vx += nx * push * dt * 4;
-        p.vy += ny * push * dt * 4;
+    const range = TILE * 3.5;
+    for (const g of this.gates) {
+      const along = (p.x - g.x) * g.nx + (p.y - g.y) * g.ny; // > 0: arena side
+      const lateral = Math.abs((p.x - g.x) * g.ny - (p.y - g.y) * g.nx);
+      if (along < TILE * 1.2 && along > -range && lateral < TILE * 2.6) {
+        const k = Math.min(1, (TILE * 1.2 - along) / range);
+        const push = 560 * k * (1 - lateral / (TILE * 2.6));
+        p.x += g.nx * push * dt;
+        p.y += g.ny * push * dt;
+        p.vx += g.nx * push * dt * 4;
+        p.vy += g.ny * push * dt * 4;
       }
-      // The current is visible in the water itself.
-      // Only a slight, local stir right at the entrance.
-      if (((this.time * 60) | 0) % 6 === 0) this.fluid.splat(m.x + nx * 12, m.y + ny * 12, nx * 30, ny * 30, TILE * 0.7);
+      if (((this.time * 60) | 0) % 6 === 0) this.fluid.splat(g.x - g.nx * 20, g.y - g.ny * 20, g.nx * 60, g.ny * 60, TILE * 0.9);
     }
+  }
+
+  // ── Encounters ────────────────────────────────────────────────
+  private updateGroups() {
+    const p = this.player;
+    for (const g of this.spec.groups) {
+      if (this.spawnedGroups.has(g.id) || this.clearedGroups.has(g.id)) continue;
+      if (dist(p.x, p.y, g.x, g.y) > g.r + WAKE_RANGE) continue;
+      this.spawnGroup(g);
+    }
+    for (const id of this.spawnedGroups) {
+      if (this.clearedGroups.has(id)) continue;
+      if (this.enemies.some((e) => e.groupId === id && !e.dead)) continue;
+      this.onGroupCleared(this.spec.groups[id]);
+    }
+  }
+
+  private spawnGroup(g: SpawnGroup) {
+    this.spawnedGroups.add(g.id);
+    const crng = stream(this.run.seed, 'champions', this.depth, g.id);
+    for (const s of g.spawns) {
+      const e = createEnemy(s.kind, s.x, s.y, this.menace, s.attach);
+      e.groupId = g.id;
+      // Descent Curve: champions appear from Depth 2 on.
+      if (crng.chance(this.menace * 0.6)) e.makeChampion(crng.pick([0xff3d5a, 0x5cf2ff, 0xffe14d, 0xb06bff]));
+      this.addEnemy(e);
+    }
+  }
+
+  private onGroupCleared(g: SpawnGroup) {
+    this.clearedGroups.add(g.id);
+    const persist = this.run.roomState(this.areaId);
+    persist.groupsCleared = [...this.clearedGroups];
+    this.events.push({ type: 'cleared' });
+    const d = this.run.p;
+    if (d.active) {
+      const def = ITEM_BY_ID[d.active.id];
+      d.active.charge = Math.min(def?.charge ?? 0, d.active.charge + 1);
+    }
+    // Reward roll (deterministic per encounter).
+    const rng = stream(this.run.seed, 'clear', this.depth, g.id);
+    const luck = this.run.stats.luck;
+    if (rng.chance(0.55 + luck * 0.04)) {
+      const kind = rng.weighted<PickupKind>(['coin', 'heart', 'key', 'bomb', 'snack', 'clam', 'glowjelly', 'foam', 'goldclam', 'coin5'], (k) =>
+        ({ coin: 34, heart: 16, key: 12, bomb: 13, snack: 8, clam: 6, glowjelly: 3, foam: 4, goldclam: 2, coin5: 3 } as Record<string, number>)[k])!;
+      // Drop it near Clementine so she sees it.
+      const p = this.player;
+      let sx = p.x, sy = p.y - 40;
+      for (let i = 0; i < 20 && this.solidAt(sx, sy); i++) {
+        sx = p.x + rng.range(-120, 120);
+        sy = p.y + rng.range(-100, 40);
+      }
+      const pk = this.spawnPickup(kind, sx, sy, 0, -80);
+      if (kind === 'snack') pk.snack = rng.pick(Object.keys(this.run.data.snacks));
+      this.fx.burst(sx, sy, 'sparkle', 0xfff27a, 10);
+    }
+    this.events.push({ type: 'autosave' });
   }
 
   // ── Entities ──────────────────────────────────────────────────
@@ -389,11 +400,12 @@ export class RoomWorld implements Solidity {
     return best;
   }
 
+
   spawnBoss() {
-    const kind = this.room.boss ?? 'barnacle';
-    const c = this.layout.crack;
-    const x = c ? (c.x0 + c.x1) / 2 : this.widthPx / 2;
-    const y = c ? c.y - 70 : this.heightPx / 2;
+    const kind = this.spec.boss.kind;
+    const c = this.spec.boss.crack;
+    const x = (c.x0 + c.x1) / 2;
+    const y = c.y - 70;
     const b = createBoss(kind, x, y, this.menace, this.depth);
     this.boss = b;
     this.addEnemy(b);
@@ -403,7 +415,6 @@ export class RoomWorld implements Solidity {
     this.fx.burst(x, y, 'bubbles', undefined, 30);
     this.fluid.blast(x, y, 400, 300);
     sfx.bossRoar();
-    this.updateDoorBlocks();
   }
 
   // ── Player interaction ───────────────────────────────────────
@@ -507,6 +518,7 @@ export class RoomWorld implements Solidity {
         break;
       case 'treasuremap':
         this.run.data.mapRevealed = true;
+        if (this.areaId === LEVEL_ID) this.revealAll();
         this.events.push({ type: 'mapReveal' });
         this.fx.text(p.x, p.y - 40, 'X MARKS THE SPOT', 0xf2d49a, 22);
         sfx.pickup();
@@ -515,8 +527,8 @@ export class RoomWorld implements Solidity {
         const targets = this.pedestals.filter((pd) => pd.itemId && pd.itemId !== HEART_CONTAINER_ID);
         if (!targets.length) { ok = false; break; }
         for (const pd of targets) {
-          const rng = stream(this.run.seed, 'reroll', this.depth, this.room.id, this.run.data.poolRemoved.length);
-          pd.itemId = this.run.drawItem(this.room.type === 'shop' ? 'shop' : 'treasure', rng);
+          const rng = stream(this.run.seed, 'reroll', this.depth, this.areaId, this.run.data.poolRemoved.length);
+          pd.itemId = this.run.drawItem(pd.price !== undefined ? 'shop' : 'treasure', rng);
           this.fx.burst(pd.x, pd.y - 20, 'sparkle', 0xb88adf, 16);
         }
         this.fx.text(p.x, p.y - 40, 'CHOMP-SHUFFLE!', 0xb88adf, 24);
@@ -615,7 +627,7 @@ export class RoomWorld implements Solidity {
           d.keys--;
         }
         pk.opened = true;
-        const rng = stream(this.run.seed, 'clam', this.depth, this.room.id, Math.round(pk.x), Math.round(pk.y));
+        const rng = stream(this.run.seed, 'clam', this.depth, this.areaId, Math.round(pk.x), Math.round(pk.y));
         const n = pk.kind === 'goldclam' ? rng.int(3, 5) : rng.int(2, 3);
         for (let i = 0; i < n; i++)
           this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'coin5', 'heart', 'bomb', 'key', 'snack', 'foam']), pk.x, pk.y - 10, rng.range(-160, 160), rng.range(-260, -120));
@@ -742,10 +754,11 @@ export class RoomWorld implements Solidity {
     }
     if (!e.boss && R.chance(0.05 + this.run.stats.luck * 0.01)) this.spawnPickup('coin', e.x, e.y, 0, -60);
     if (e.champion) {
-      const rng = stream(this.run.seed, 'champ', this.depth, this.room.id, this.run.data.kills);
+      const rng = stream(this.run.seed, 'champ', this.depth, this.areaId, this.run.data.kills);
       this.spawnPickup(rng.pick<PickupKind>(['heart', 'coin', 'bomb', 'key', 'foam', 'halfheart']), e.x, e.y, 0, -80);
     }
   }
+
 
   onBossKilled(b: Boss) {
     this.onEnemyKilled(b);
@@ -754,74 +767,40 @@ export class RoomWorld implements Solidity {
     this.fx.hitstop(10);
     this.fx.text(b.x, b.y - 60, 'K.O.!', 0xfff27a, 48);
     this.fx.burst(b.x, b.y, 'explosion', 0xfff27a, 40);
-    const persist = this.run.roomState(this.room.id);
+    const persist = this.run.roomState(this.areaId);
     persist.bossDead = true;
-    for (const e of this.enemies) if (!e.dead && !e.boss) e.die(this);
+    this.bossDead = true;
+    for (const e of this.enemies) if (!e.dead && !e.boss && dist(e.x, e.y, b.x, b.y) < 1200) e.die(this);
     this.shots.length = 0;
     this.events.push({ type: 'bossDefeated', kind: b.bossKind });
     this.setupBossRewards(true);
+    this.events.push({ type: 'autosave' });
   }
 
   private setupBossRewards(fresh: boolean) {
-    const persist = this.run.roomState(this.room.id);
-    const c = this.layout.crack;
-    const cx = c ? (c.x0 + c.x1) / 2 : this.widthPx / 2;
+    const persist = this.run.roomState(this.areaId);
+    const c = this.spec.boss.crack;
+    const cx = (c.x0 + c.x1) / 2;
+    const a = this.arena;
     if (fresh) {
-      const left = cx < this.widthPx / 2;
-      const px = left ? cx + TILE * 7 : cx - TILE * 5;
-      const floorY = this.layout.floorAt(Math.floor(px / TILE));
-      persist.pedestals.push({ itemId: this.room.item ?? HEART_CONTAINER_ID, x: px, y: floorY - 40 });
-      const ped = persist.pedestals[persist.pedestals.length - 1];
-      const pd = new Pedestal(ped.itemId, ped.x, ped.y);
-      this.pedestals.push(pd);
-      this.spawnPickup('container', left ? cx + TILE * 10 : cx + TILE * 5, TILE * 2, 0, 0);
-      const rng = this.run.roomRng(this.room.id, 'grotto');
+      const ped = { itemId: this.spec.boss.item || HEART_CONTAINER_ID, x: cx + TILE * 6, y: c.y - 40 };
+      persist.pedestals.push(ped);
+      this.pedestals.push(new Pedestal(ped.itemId, ped.x, ped.y));
+      this.spawnPickup('container', cx - TILE * 5, c.y - TILE * 3, 0, 0);
+      const rng = stream(this.run.seed, 'grotto', this.depth);
       const chance = this.bossHurtPlayer ? 0.33 : 0.66;
-      persist.grotto = rng.chance(chance) && !!this.room.grottoItems;
+      persist.grotto = rng.chance(chance) && this.spec.boss.grottoItems.length > 0;
     }
     const canDescend = this.depth < this.run.data.maxDepth;
     for (const pr of this.props) if (pr.kind === 'crack') pr.active = canDescend;
-    const surf = new Prop('surface', this.widthPx / 2, TILE * 2.6, 70, 70);
+    const surf = new Prop('surface', cx, a.y0 + TILE * 1.6, 70, 70);
     surf.active = true;
     this.props.push(surf);
     if (persist.grotto) {
-      const gp = new Prop('grotto', this.widthPx - TILE * 3, this.layout.floorAt(this.tw - 3) - 60, 60, 80);
+      const gp = new Prop('grotto', a.x1 - TILE * 2.5, c.y - 60, 60, 80);
       gp.active = true;
       this.props.push(gp);
     }
-    this.cleared = true;
-    persist.cleared = true;
-    this.updateDoorBlocks(!fresh);
-  }
-
-  private onRoomCleared() {
-    const persist = this.run.roomState(this.room.id);
-    persist.cleared = true;
-    this.cleared = true;
-    this.updateDoorBlocks();
-    this.events.push({ type: 'cleared' });
-    const d = this.run.p;
-    if (d.active) {
-      const def = ITEM_BY_ID[d.active.id];
-      d.active.charge = Math.min(def?.charge ?? 0, d.active.charge + 1);
-    }
-    if (this.room.type !== 'normal') return;
-    // Reward roll (deterministic per room).
-    const rng = this.run.roomRng(this.room.id, 'clear');
-    const luck = this.run.stats.luck;
-    if (!rng.chance(0.55 + luck * 0.04)) return;
-    const kind = rng.weighted<PickupKind>(['coin', 'heart', 'key', 'bomb', 'snack', 'clam', 'glowjelly', 'foam', 'goldclam', 'coin5'], (k) =>
-      ({ coin: 34, heart: 16, key: 12, bomb: 13, snack: 8, clam: 6, glowjelly: 3, foam: 4, goldclam: 2, coin5: 3 } as Record<string, number>)[k])!;
-    const c = this.layout.center;
-    // Find an open spot near the center.
-    let sx = c.x, sy = c.y;
-    for (let i = 0; i < 20 && this.solidAt(sx, sy); i++) {
-      sx = c.x + rng.range(-200, 200);
-      sy = c.y + rng.range(-100, 60);
-    }
-    const pk = this.spawnPickup(kind, sx, sy, 0, -80);
-    if (kind === 'snack') pk.snack = rng.pick(Object.keys(this.run.data.snacks));
-    this.fx.burst(sx, sy, 'sparkle', 0xfff27a, 10);
   }
 
   // ── Simulation step ─────────────────────────────────────────
@@ -831,12 +810,27 @@ export class RoomWorld implements Solidity {
     const p = this.player;
     p.stats = this.run.stats;
     p.update(this, dt);
-    this.applyDoorCurrents(dt);
+    this.applyGateCurrents(dt);
+    this.fluid.follow(p.x, p.y);
+    this.revealClock -= dt;
+    if (this.revealClock <= 0) {
+      this.revealClock = 0.2;
+      this.reveal();
+    }
+    if (this.areaId === LEVEL_ID) {
+      this.updateGroups();
+      if (!this.bossDead && !this.bossFight && this.inArena(p.x, p.y)) this.bossPending = true;
+    }
 
     // Spikes.
     if (this.spikeAt(p.x, p.y + p.hh)) this.hurtPlayer(1, 'Urchin Spikes');
 
-    for (const e of this.enemies) if (!e.dead) e.update(this, dt);
+    const act2 = ACTIVE_RANGE * ACTIVE_RANGE;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      if (!e.boss && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 > act2) continue;
+      e.update(this, dt);
+    }
     // Soft separation between enemies.
     for (let i = 0; i < this.enemies.length; i++) {
       const a = this.enemies[i];
@@ -933,22 +927,6 @@ export class RoomWorld implements Solidity {
       if (dist(pd.x, pd.y - 10, p.x, p.y) < 38) this.takePedestal(pd);
     }
 
-    // Locked doors: unlock with a key when touching them.
-    for (const d of this.doors) {
-      if (!d.locked || d.hidden) continue;
-      if (dist(d.mouth.ix, d.mouth.iy, p.x, p.y) < 70) {
-        if (this.run.p.keys > 0) {
-          this.run.p.keys--;
-          d.locked = false;
-          const key = doorKey(this.room.id, d.spec.to);
-          if (!this.run.data.openedDoors.includes(key)) this.run.data.openedDoors.push(key);
-          this.fx.text(d.mouth.ix, d.mouth.iy - 30, 'CLICK!', 0xffe14d, 22);
-          sfx.unlock();
-          this.updateDoorBlocks();
-        } else if (R.chance(dt * 1.5)) this.fx.text(d.mouth.ix, d.mouth.iy - 30, 'LOCKED', 0xffe14d, 16);
-      }
-    }
-    for (const d of this.doors) d.anim += ((d.open ? 1 : 0) - d.anim) * Math.min(1, dt * 8);
 
     // Props.
     for (const pr of this.props) {
@@ -967,6 +945,10 @@ export class RoomWorld implements Solidity {
       }
     }
 
+    // Stray shots far from the action fade out.
+    const far2 = 1600 * 1600;
+    for (const s of this.shots) if ((s.x - p.x) ** 2 + (s.y - p.y) ** 2 > far2) s.dead = true;
+
     // Cleanup.
     this.enemies = this.enemies.filter((e) => !e.dead);
     this.bubbles = this.bubbles.filter((b) => !b.dead);
@@ -977,22 +959,6 @@ export class RoomWorld implements Solidity {
     this.beams = this.beams.filter((b) => !b.dead);
     this.zones = this.zones.filter((z) => !z.dead);
     this.hazards = this.hazards.filter((h) => !h.dead);
-
-    if (!this.cleared && !this.bossPending && this.enemies.length === 0) this.onRoomCleared();
-
-    // Door exits.
-    if (!this.exiting) {
-      const out = p.x < 0 ? 'L' : p.x > this.widthPx ? 'R' : p.y < 0 ? 'U' : p.y > this.heightPx ? 'D' : null;
-      if (out) {
-        let best: DoorState | null = null, bd = 1e9;
-        for (const d of this.doors) {
-          if (d.spec.side !== out || !d.open) continue;
-          const dd = dist(p.x, p.y, d.mouth.x, d.mouth.y);
-          if (dd < bd) { bd = dd; best = d; }
-        }
-        if (best) this.exit({ type: 'exit', door: best.spec });
-      }
-    }
 
     this.fluid.step(dt);
   }
@@ -1013,10 +979,14 @@ export class RoomWorld implements Solidity {
 
   /** Save transient contents back into run data (on leaving/saving). */
   persist() {
-    const s = this.run.roomState(this.room.id);
-    // Opened clams are gone once you leave.
+    const s = this.run.roomState(this.areaId);
+    // Opened clams are gone once saved.
     s.pickups = this.pickups.filter((p) => !p.opened).map((p) => ({ kind: p.kind, x: p.x, y: p.y, snack: p.snack }));
     s.pedestals = this.pedestals.map((p) => ({ itemId: p.itemId, x: p.x, y: p.y, price: p.price, pickup: p.pickup, hearts: p.hearts, charge: p.charge }));
-    s.cleared = this.cleared;
+    s.groupsCleared = [...this.clearedGroups];
+    s.explored = packBits(this.explored);
+    // Resume where she was, unless mid boss fight (then back at the arena mouth).
+    const p = this.player;
+    if (!this.bossFight && !this.solidAt(p.x, p.y)) s.pos = { x: Math.round(p.x), y: Math.round(p.y) };
   }
 }

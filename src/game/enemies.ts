@@ -4,7 +4,7 @@ import { clamp, dist, lerp } from '../core/math';
 import { cosmetic as R } from '../core/rng';
 import { sfx } from '../core/audio';
 import type { EnemyKind } from '../gen/biomes';
-import type { Attach } from '../gen/roomgen';
+import type { Attach } from '../gen/tiles';
 import { Entity, moveBox } from './entity';
 import { Bubble, EnemyShot } from './projectiles';
 import type { RoomWorld } from './room';
@@ -58,6 +58,8 @@ export class Enemy extends Entity {
   display: string;
   lastHitBy: Bubble | null = null;
   spawnGrace = 0.6;
+  /** Encounter group this enemy belongs to (-1: none). */
+  groupId = -1;
   /** Champion variant: tougher, tinted, drops a bonus pickup. */
   champion = 0;
 

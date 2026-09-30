@@ -57,7 +57,8 @@ export class ParticleSystem {
   private pool: Sprite[] = [];
   list: Particle[] = [];
   max: number;
-  bounds = { w: 960, h: 528 };
+  /** Wrap region for wrapping particles (e.g. the camera view). */
+  bounds = { x: 0, y: 0, w: 960, h: 528 };
   private tmp = { x: 0, y: 0 };
 
   constructor(private textures: Record<string, Texture>, max = 900, additive = false) {
@@ -153,11 +154,11 @@ export class ParticleSystem {
       p.y = ny;
       if (p.spin) p.sprite.rotation += p.spin * dt;
       if (p.wrap) {
-        const { w, h } = this.bounds;
-        if (p.x < -10) p.x += w + 20;
-        if (p.x > w + 10) p.x -= w + 20;
-        if (p.y < -10) p.y += h + 20;
-        if (p.y > h + 10) p.y -= h + 20;
+        const { x: bx, y: by, w, h } = this.bounds;
+        if (p.x < bx - 10) p.x += w + 20;
+        if (p.x > bx + w + 10) p.x -= w + 20;
+        if (p.y < by - 10) p.y += h + 20;
+        if (p.y > by + h + 10) p.y -= h + 20;
       }
       this.apply(p);
     }

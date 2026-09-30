@@ -214,7 +214,7 @@ function build(): TextureSet {
     for (let x = 0; x < RS; x++) {
       let n = vnoise(x, y, 4, 1) * 0.5 + vnoise(x, y, 8, 2) * 0.25 + vnoise(x, y, 16, 3) * 0.15 + vnoise(x, y, 64, 4) * 0.1;
       const ridge = Math.abs(vnoise(x, y, 6, 9) - 0.5);
-      if (ridge < 0.015) n -= 0.12; // cracks
+      if (ridge < 0.01) n -= 0.05; // cracks
       const v = Math.max(0, Math.min(255, 165 + n * 90));
       const k = (y * RS + x) * 4;
       rimg.data[k] = v;

@@ -19,6 +19,10 @@ export class FluidField {
   time = 0;
   iterations = 10;
   decay = 0.985;
+  /** World position of the window's top-left corner (the field follows the camera). */
+  ox = 0;
+  oy = 0;
+  solidFn: ((x: number, y: number) => boolean) | null = null;
 
   constructor(widthPx: number, heightPx: number, cell = 16) {
     this.cell = cell;
@@ -35,16 +39,59 @@ export class FluidField {
   }
 
   setSolid(isSolidPx: (x: number, y: number) => boolean) {
+    this.solidFn = isSolidPx;
+    this.refreshSolid();
+  }
+
+  refreshSolid() {
+    const f = this.solidFn;
+    if (!f) return;
     for (let j = 0; j < this.ny; j++)
       for (let i = 0; i < this.nx; i++)
-        this.solid[j * this.nx + i] = isSolidPx((i + 0.5) * this.cell, (j + 0.5) * this.cell) ? 1 : 0;
+        this.solid[j * this.nx + i] = f(this.ox + (i + 0.5) * this.cell, this.oy + (j + 0.5) * this.cell) ? 1 : 0;
+  }
+
+  /**
+   * Keep the simulated window centred near (x, y). The field shifts by whole
+   * cells, carrying the existing flow along, so recentring is invisible.
+   */
+  follow(x: number, y: number, snap = false) {
+    const W = this.nx * this.cell, H = this.ny * this.cell;
+    const cx = this.ox + W / 2, cy = this.oy + H / 2;
+    if (!snap && Math.abs(x - cx) < W * 0.2 && Math.abs(y - cy) < H * 0.2) return;
+    const nox = Math.round((x - W / 2) / this.cell) * this.cell;
+    const noy = Math.round((y - H / 2) / this.cell) * this.cell;
+    const di = Math.round((nox - this.ox) / this.cell), dj = Math.round((noy - this.oy) / this.cell);
+    this.ox = nox;
+    this.oy = noy;
+    if (snap) {
+      this.u.fill(0);
+      this.v.fill(0);
+    } else if (di || dj) {
+      const { nx, ny, u, v, u0, v0 } = this;
+      u0.set(u);
+      v0.set(v);
+      for (let j = 0; j < ny; j++)
+        for (let i = 0; i < nx; i++) {
+          const si = i + di, sj = j + dj;
+          const k = j * nx + i;
+          if (si < 0 || sj < 0 || si >= nx || sj >= ny) {
+            u[k] = 0;
+            v[k] = 0;
+          } else {
+            u[k] = u0[sj * nx + si];
+            v[k] = v0[sj * nx + si];
+          }
+        }
+    }
+    this.refreshSolid();
   }
 
   /** Add velocity (px/s) in a soft radius around (x, y). */
   splat(x: number, y: number, vx: number, vy: number, radius: number) {
     const c = this.cell;
     const r = Math.max(radius / c, 0.8);
-    const ci = x / c - 0.5, cj = y / c - 0.5;
+    const ci = (x - this.ox) / c - 0.5, cj = (y - this.oy) / c - 0.5;
     const i0 = Math.max(0, Math.floor(ci - r)), i1 = Math.min(this.nx - 1, Math.ceil(ci + r));
     const j0 = Math.max(0, Math.floor(cj - r)), j1 = Math.min(this.ny - 1, Math.ceil(cj + r));
     for (let j = j0; j <= j1; j++)
@@ -64,7 +111,7 @@ export class FluidField {
   blast(x: number, y: number, strength: number, radius: number) {
     const c = this.cell;
     const r = radius / c;
-    const ci = x / c - 0.5, cj = y / c - 0.5;
+    const ci = (x - this.ox) / c - 0.5, cj = (y - this.oy) / c - 0.5;
     const i0 = Math.max(0, Math.floor(ci - r)), i1 = Math.min(this.nx - 1, Math.ceil(ci + r));
     const j0 = Math.max(0, Math.floor(cj - r)), j1 = Math.min(this.ny - 1, Math.ceil(cj + r));
     for (let j = j0; j <= j1; j++)
@@ -89,8 +136,9 @@ export class FluidField {
       for (let i = 0; i < nx; i++) {
         const k = j * nx + i;
         if (this.solid[k]) continue;
-        const ax = Math.sin(j * 0.23 + t * 0.35) * 0.9 + Math.sin(i * 0.11 - t * 0.2) * 0.5;
-        const ay = Math.cos(i * 0.19 + t * 0.3) * 0.7;
+        const wi = i + this.ox / this.cell, wj = j + this.oy / this.cell;
+        const ax = Math.sin(wj * 0.23 + t * 0.35) * 0.9 + Math.sin(wi * 0.11 - t * 0.2) * 0.5;
+        const ay = Math.cos(wi * 0.19 + t * 0.3) * 0.7;
         u[k] += (this.baseX + ax * 4) * dt * 0.6;
         v[k] += (this.baseY + ay * 3) * dt * 0.6;
       }
@@ -161,8 +209,8 @@ export class FluidField {
   /** Bilinear sample of velocity at pixel position. */
   sample(x: number, y: number, out: { x: number; y: number }) {
     const { nx, ny } = this;
-    let fx = x / this.cell - 0.5;
-    let fy = y / this.cell - 0.5;
+    let fx = (x - this.ox) / this.cell - 0.5;
+    let fy = (y - this.oy) / this.cell - 0.5;
     fx = Math.max(0, Math.min(nx - 1.001, fx));
     fy = Math.max(0, Math.min(ny - 1.001, fy));
     const i0 = fx | 0, j0 = fy | 0;

@@ -1,23 +1,17 @@
 // In-game HUD: hearts, counters, active item, snack, stats, minimap, boss bar.
 
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { EA, EW } from './style';
 import { FONT_TITLE, FONT_UI, VIEW_W, VIEW_H } from '../config';
 import { INK } from '../ambient/plants';
 import { ITEM_BY_ID } from '../game/items';
 import type { Run } from '../game/run';
 import type { RoomWorld } from '../game/room';
-import type { RoomType } from '../gen/floor';
+import { TILE } from '../config';
+import { isSolidTile } from '../gen/tiles';
+import { LEVEL_ID } from '../game/room';
 import { heart } from './creatures';
 import { drawItemIcon, drawPickup } from './icons';
-
-const ROOM_ICON_COL: Partial<Record<RoomType, number>> = {
-  treasure: 0xffd23d,
-  shop: 0x5cf2a0,
-  boss: 0xff4d6d,
-  secret: 0xb06bff,
-  curse: 0xd93b3b,
-};
 
 function label(size: number, color = 0xffffff, font = FONT_UI) {
   return new Text({
@@ -32,7 +26,6 @@ function label(size: number, color = 0xffffff, font = FONT_UI) {
 export class Hud {
   container = new Container();
   private g = new Graphics();
-  private map = new Graphics();
   private coins = label(18);
   private bombs = label(18);
   private keys = label(18);
@@ -44,9 +37,21 @@ export class Hud {
   private osd = label(13, 0xe8f4ff);
   private osdRec = label(13, 0xff4d4d);
   private osdG = new Graphics();
+  // Explored map (fog of war): one pixel per tile.
+  private mapCanvas = document.createElement('canvas');
+  private mapTex: Texture | null = null;
+  private mapSprite = new Sprite();
+  private mapMask = new Graphics();
+  private mapFrame = new Graphics();
+  private mapMarks = new Graphics();
+  private mapLayer = new Container();
+  private mapVersion = -1;
+  private mapWorld: RoomWorld | null = null;
 
   constructor() {
-    this.container.addChild(this.osdG, this.g, this.map, this.coins, this.bombs, this.keys, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec);
+    this.mapLayer.addChild(this.mapFrame, this.mapSprite, this.mapMarks, this.mapMask);
+    this.mapSprite.mask = this.mapMask;
+    this.container.addChild(this.osdG, this.g, this.coins, this.bombs, this.keys, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec, this.mapLayer);
     this.osd.anchor.set(0, 0);
     this.osdRec.anchor.set(1, 0);
     this.stats.alpha = 0.75;
@@ -143,88 +148,107 @@ export class Hud {
 
     this.depthLabel.text = world.biome.name.toUpperCase();
     this.drawMap(run, world, t);
-    // Hold Tab for a big map.
-    const k = this.bigMap ? 2.2 : 1;
-    this.map.scale.set(k);
-    this.map.pivot.set(VIEW_W - 12, 12);
-    this.map.position.set(this.bigMap ? VIEW_W - 40 : VIEW_W - 12, this.bigMap ? 50 : 12);
-    this.map.alpha = this.bigMap ? 0.95 : 1;
   }
 
-  /** Underwater-camera on-screen display: viewfinder, REC, timecode, depth, temperature. */
-  private drawOSD(run: Run, world: RoomWorld, t: number) {
-    const g = this.osdG;
-    g.clear();
-    const c = { color: 0xe8f4ff, alpha: 0.55, width: 1.5 };
-    const m = 26, L = 22;
-    for (const [x, y, sx, sy] of [[m, m, 1, 1], [VIEW_W - m, m, -1, 1], [m, VIEW_H - m, 1, -1], [VIEW_W - m, VIEW_H - m, -1, -1]]) {
-      g.moveTo(x, y + sy * L).lineTo(x, y).lineTo(x + sx * L, y).stroke(c);
+  /** Repaint the fog-of-war map: open water that has been seen, outlined by its rock. */
+  private paintMap(w: RoomWorld) {
+    let c = this.mapCanvas;
+    if (c.width !== w.tw || c.height !== w.th) {
+      // Textures are cached per canvas, so a new size needs a new canvas.
+      c = this.mapCanvas = document.createElement('canvas');
+      c.width = w.tw;
+      c.height = w.th;
+      this.mapTex = null;
     }
-    // Centre crosshair ticks.
-    g.moveTo(VIEW_W / 2 - 8, VIEW_H / 2).lineTo(VIEW_W / 2 - 3, VIEW_H / 2).moveTo(VIEW_W / 2 + 3, VIEW_H / 2).lineTo(VIEW_W / 2 + 8, VIEW_H / 2)
-      .moveTo(VIEW_W / 2, VIEW_H / 2 - 8).lineTo(VIEW_W / 2, VIEW_H / 2 - 3).moveTo(VIEW_W / 2, VIEW_H / 2 + 3).lineTo(VIEW_W / 2, VIEW_H / 2 + 8)
-      .stroke({ color: 0xe8f4ff, alpha: 0.2, width: 1 });
-    const sec = run.data.time;
-    const hh = Math.floor(sec / 3600), mm = Math.floor(sec / 60) % 60, ss = Math.floor(sec) % 60, ff = Math.floor((sec % 1) * 24);
-    const tc = [hh, mm, ss, ff].map((v) => String(v).padStart(2, '0')).join(':');
-    const depthBase = [0, 6, 28, 62][run.data.depth] ?? 60;
-    const meters = depthBase + Math.max(0, world.room.y) * 4 + (world.player.y / world.heightPx) * 4;
-    const temp = 24 - run.data.depth * 4.5 - (meters - depthBase) * 0.05;
-    const rec = Math.floor(t * 1.2) % 2 === 0;
-    this.osdRec.text = rec ? '● REC' : '  REC';
-    this.osdRec.position.set(VIEW_W / 2 - 14, 30);
-    this.osd.text = `${tc}   ${meters.toFixed(1)} m   ${temp.toFixed(1)}°C   ISO 3200`;
-    this.osd.position.set(VIEW_W / 2 + 4, 30);
-  }
-
-  private drawMap(run: Run, world: RoomWorld, t: number) {
-    const m = this.map;
-    m.clear();
-    const f = run.floor;
-    const cs = 14, gap = 2;
-    const oy = 12;
-    // Crop to the explored bounding box for a compact map.
-    const shown = new Set<number>();
-    for (const r of f.rooms) {
-      const st = run.data.rooms[String(r.id)];
-      const visited = st?.visited;
-      if (visited) shown.add(r.id);
-      if (visited)
-        for (const d of r.doors) {
-          const key = d.to < r.id ? `${d.to}-${r.id}` : `${r.id}-${d.to}`;
-          if (!d.hidden || run.data.openedDoors.includes(key)) shown.add(d.to);
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(w.tw, w.th);
+    const d = img.data;
+    const { tw, th, tiles, explored } = w;
+    for (let y = 0; y < th; y++)
+      for (let x = 0; x < tw; x++) {
+        const i = y * tw + x;
+        if (!explored[i]) continue;
+        const solid = isSolidTile(tiles[i]);
+        let r = 0, g = 0, b = 0, a = 0;
+        if (!solid) {
+          r = 40; g = 78; b = 118; a = 200;
+        } else {
+          const edge = (x > 0 && !isSolidTile(tiles[i - 1]) && explored[i - 1]) || (x < tw - 1 && !isSolidTile(tiles[i + 1]) && explored[i + 1]) ||
+            (y > 0 && !isSolidTile(tiles[i - tw]) && explored[i - tw]) || (y < th - 1 && !isSolidTile(tiles[i + tw]) && explored[i + tw]);
+          if (edge) {
+            r = 190; g = 214; b = 236; a = 235;
+          }
         }
-      if (run.data.mapRevealed && r.type !== 'secret') shown.add(r.id);
+        d[i * 4] = r;
+        d[i * 4 + 1] = g;
+        d[i * 4 + 2] = b;
+        d[i * 4 + 3] = a;
+      }
+    ctx.putImageData(img, 0, 0);
+    if (!this.mapTex) {
+      this.mapTex = Texture.from(c);
+      this.mapTex.source.scaleMode = 'nearest';
+      this.mapSprite.texture = this.mapTex;
+    } else this.mapTex.source.update();
+  }
+
+  private drawMap(run: Run, w: RoomWorld, t: number) {
+    const fr = this.mapFrame, mk = this.mapMarks, mask = this.mapMask;
+    fr.clear();
+    mk.clear();
+    mask.clear();
+    if (this.mapWorld !== w || this.mapVersion !== w.exploredVersion) {
+      this.mapWorld = w;
+      this.mapVersion = w.exploredVersion;
+      this.paintMap(w);
     }
-    // Hide still-secret rooms unless opened or revealed.
-    for (const r of f.rooms) {
-      if (r.type !== 'secret') continue;
-      const opened = r.doors.some((d) => run.data.openedDoors.includes(d.to < r.id ? `${d.to}-${r.id}` : `${r.id}-${d.to}`));
-      if (!opened && !run.data.mapRevealed) shown.delete(r.id);
+    const p = w.player;
+    const big = this.bigMap;
+    let k: number, ox: number, oy: number, bx: number, by: number, bw: number, bh: number;
+    if (big) {
+      // Whole level, fitted to the screen.
+      k = Math.min((VIEW_W - 120) / w.tw, (VIEW_H - 110) / w.th);
+      bw = w.tw * k + 16;
+      bh = w.th * k + 16;
+      bx = (VIEW_W - bw) / 2;
+      by = (VIEW_H - bh) / 2 + 10;
+      ox = bx + 8;
+      oy = by + 8;
+    } else {
+      k = 3;
+      bw = 190;
+      bh = 116;
+      bx = VIEW_W - bw - 12;
+      by = 12;
+      ox = bx + bw / 2 - (p.x / TILE) * k;
+      oy = by + bh / 2 - (p.y / TILE) * k;
     }
-    let minX = 13, minY = 13, maxX = 0, maxY = 0;
-    for (const id of shown) {
-      const r = f.rooms[id];
-      minX = Math.min(minX, r.x);
-      minY = Math.min(minY, r.y);
-      maxX = Math.max(maxX, r.x + r.w - 1);
-      maxY = Math.max(maxY, r.y + r.h - 1);
+    fr.roundRect(bx, by, bw, bh, 10).fill({ color: 0x06101c, alpha: big ? 0.88 : 0.55 }).stroke({ width: 2.5 * EW, color: INK, alpha: EA });
+    mask.roundRect(bx + 3, by + 3, bw - 6, bh - 6, 8).fill(0xffffff);
+    this.mapSprite.position.set(ox, oy);
+    this.mapSprite.scale.set(k);
+    const at = (x: number, y: number) => [ox + (x / TILE) * k, oy + (y / TILE) * k] as const;
+    const inBox = (x: number, y: number) => x > bx + 4 && x < bx + bw - 4 && y > by + 4 && y < by + bh - 4;
+    const seen = (x: number, y: number) => {
+      const i = Math.floor(y / TILE) * w.tw + Math.floor(x / TILE);
+      return !!w.explored[i];
+    };
+    // Points of interest once seen.
+    for (const pd of w.pedestals) {
+      if (!seen(pd.x, pd.y)) continue;
+      const [x, y] = at(pd.x, pd.y);
+      if (inBox(x, y)) mk.circle(x, y, big ? 4 : 3).fill(pd.price !== undefined ? 0x5cf2a0 : pd.hearts !== undefined ? 0xff5cae : 0xffd23d).stroke({ width: 1, color: INK });
     }
-    if (!shown.size) return;
-    const bw = (maxX - minX + 1) * (cs + gap) + 8, bh = (maxY - minY + 1) * (cs + gap) + 8;
-    const bx = VIEW_W - bw - 12;
-    m.roundRect(bx, oy, bw, bh, 8).fill({ color: 0x0b1a2e, alpha: 0.5 }).stroke({ width: (2.5) * EW, color: INK, alpha: EA });
-    for (const id of shown) {
-      const r = f.rooms[id];
-      const st = run.data.rooms[String(r.id)];
-      const x = bx + 4 + (r.x - minX) * (cs + gap), y = oy + 4 + (r.y - minY) * (cs + gap);
-      const w = r.w * cs + (r.w - 1) * gap, h = r.h * cs + (r.h - 1) * gap;
-      const cur = r.id === world.room.id || (world.room.id < 0 && r.type === 'boss');
-      const col = cur ? 0xffffff : st?.visited ? 0xa8c8e8 : 0x4a6a8a;
-      m.roundRect(x, y, w, h, 3).fill({ color: col, alpha: cur ? 1 : 0.9 }).stroke({ width: (1.5) * EW, color: INK, alpha: EA });
-      const ic = ROOM_ICON_COL[r.type];
-      if (ic) m.circle(x + w / 2, y + h / 2, 3.5).fill(ic).stroke({ width: (1) * EW, color: INK, alpha: EA });
-      if (cur) m.circle(x + w / 2, y + h / 2, 2.5 + Math.sin(t * 6)).fill(0xff9a2e);
+    if (w.areaId === LEVEL_ID) {
+      const c = w.spec.boss.crack;
+      const cx = (c.x0 + c.x1) / 2;
+      if (seen(cx, c.y - TILE) || run.data.mapRevealed) {
+        const [x, y] = at(cx, c.y - TILE * 2);
+        if (inBox(x, y)) mk.circle(x, y, big ? 6 : 4).fill(w.bossDead ? 0x9ef0ff : 0xff4d6d).stroke({ width: 1.5, color: INK });
+      }
     }
+    const [px, py] = at(p.x, p.y);
+    mk.circle(px, py, (big ? 4.5 : 3.5) + Math.sin(t * 6) * 0.8).fill(0xff9a2e).stroke({ width: 1.5, color: 0xffffff });
+    void run;
   }
 }

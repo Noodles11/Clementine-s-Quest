@@ -52,6 +52,20 @@ export class FishSchools {
     }
   }
 
+  /** Shift the school against camera motion (parallax), wrapping around the view. */
+  pan(dx: number, dy: number) {
+    if (!dx && !dy) return;
+    const W = this.w + 240, H = this.h + 200;
+    for (const f of this.fish) {
+      f.x -= dx;
+      f.y -= dy;
+      if (f.x < -120) f.x += W;
+      else if (f.x > this.w + 120) f.x -= W;
+      if (f.y < -100) f.y += H;
+      else if (f.y > this.h + 100) f.y -= H;
+    }
+  }
+
   scare(x: number, y: number, r: number, t = 0.6) {
     this.threats.push({ x, y, r, t });
   }

@@ -34,15 +34,16 @@ export class Hazard {
     if (this.warning) return;
     const p = w.player;
     let hit = false;
-    if (this.kind === 'hline') hit = Math.abs(p.y - this.y) < this.size / 2 + 8;
-    else if (this.kind === 'vline') hit = Math.abs(p.x - this.x) < this.size / 2 + 8;
+    const a = w.arena;
+    if (this.kind === 'hline') hit = Math.abs(p.y - this.y) < this.size / 2 + 8 && p.x > a.x0 && p.x < a.x1;
+    else if (this.kind === 'vline') hit = Math.abs(p.x - this.x) < this.size / 2 + 8 && p.y > a.y0 - 100 && p.y < a.y1;
     else hit = dist(p.x, p.y, this.x, this.y) < this.size + 8;
     if (hit) w.hurtPlayer(1, 'Kelpie the Tangler');
     if (!this.hitDone) {
       this.hitDone = true;
       w.fx.shake(4);
       sfx.hit();
-      if (this.kind === 'hline') for (let x = 40; x < w.widthPx; x += 60) w.fluid.splat(x, this.y, R.range(-200, 200), 0, 40);
+      if (this.kind === 'hline') for (let x = w.arena.x0 + 40; x < w.arena.x1; x += 60) w.fluid.splat(x, this.y, R.range(-200, 200), 0, 40);
     }
   }
 }
@@ -235,9 +236,10 @@ class Kelpie extends Boss {
   override think(w: RoomWorld, dt: number) {
     const p = w.player;
     const ph = this.phase;
-    const cx = w.widthPx / 2;
-    const tx = cx + Math.sin(this.age * 0.6) * w.widthPx * 0.32;
-    const ty = w.heightPx * 0.32 + Math.sin(this.age * 1.3) * 60;
+    const a = w.arena;
+    const cx = (a.x0 + a.x1) / 2;
+    const tx = cx + Math.sin(this.age * 0.6) * (a.x1 - a.x0) * 0.32;
+    const ty = a.y0 + (a.y1 - a.y0) * 0.32 + Math.sin(this.age * 1.3) * 60;
     this.steer(tx, ty, 120 + ph * 20, dt, 1.5);
     this.facing = Math.sign(p.x - this.x) || 1;
     this.cd -= dt;
@@ -260,8 +262,9 @@ class Kelpie extends Boss {
     }
   }
   override applyPhysics(w: RoomWorld, dt: number) {
-    this.x = clamp(this.x + this.vx * dt, 80, w.widthPx - 80);
-    this.y = clamp(this.y + this.vy * dt, 80, w.heightPx - 140);
+    const a = w.arena;
+    this.x = clamp(this.x + this.vx * dt, a.x0 + 80, a.x1 - 80);
+    this.y = clamp(this.y + this.vy * dt, a.y0 + 80, a.y1 - 140);
   }
 }
 
@@ -387,10 +390,11 @@ class Admiral extends Boss {
         if (this.livingMinions(w) < 3) for (const s of [-1, 1]) w.addEnemy(createEnemy('crabby', this.x + s * 70, this.y - 30, this.menace, 'floor'));
         // Broadside volley.
         for (let i = 0; i < 5; i++) {
-          const y = 120 + i * ((w.heightPx - 240) / 4);
-          w.shots.push(new EnemyShot(p.x > w.widthPx / 2 ? 20 : w.widthPx - 20, y, p.x > w.widthPx / 2 ? 240 : -240, 0, { color: 0x2a2a38, r: 10, ghost: true, life: 6 }));
+          const a = w.arena, mid = (a.x0 + a.x1) / 2;
+          const y = a.y0 + 60 + i * ((a.y1 - a.y0 - 120) / 4);
+          w.shots.push(new EnemyShot(p.x > mid ? a.x0 + 20 : a.x1 - 20, y, p.x > mid ? 240 : -240, 0, { color: 0x2a2a38, r: 10, ghost: true, life: 6 }));
         }
-        w.fx.text(w.widthPx / 2, 80, 'BROADSIDE!', 0xffc43d, 34);
+        w.fx.text((w.arena.x0 + w.arena.x1) / 2, w.arena.y0 + 80, 'BROADSIDE!', 0xffc43d, 34);
       } else {
         this.state = 'windup';
         this.tele = 0;
@@ -405,7 +409,7 @@ class Admiral extends Boss {
       w.fx.text(this.x, this.y - 60, 'CLANG!', 0xffffff, 30);
       sfx.explosion();
       for (let i = 0; i < 6; i++) {
-        w.shots.push(new EnemyShot(R.range(60, w.widthPx - 60), 70, 0, 40, { color: 0x6a5a4a, r: 9, gravity: 260, life: 5 }));
+        w.shots.push(new EnemyShot(R.range(w.arena.x0 + 60, w.arena.x1 - 60), w.arena.y0 + 30, 0, 40, { color: 0x6a5a4a, r: 9, gravity: 260, life: 5 }));
       }
     }
   }

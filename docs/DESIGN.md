@@ -755,3 +755,32 @@ The game is now presented as documentary footage from an underwater camera:
 - **UI:** camera OSD (REC, timecode, depth in metres, water temperature), viewfinder brackets,
   documentary lower-third captions, letterboxed specimen title cards for bosses, serif/sans typography.
   Comic onomatopoeia removed; only informative floating text remains.
+
+
+## 19. World Structure v3 — "One Reef per Depth" (supersedes §6.1–6.2 and §7 room flow)
+
+Inspired by Hollow Knight: each depth is a single, large, continuous level instead of a grid of rooms.
+
+- **Macro maze:** a grid of chambers (Depth 1: 5×4, Depth 2: 6×5, Depth 3: 7×5; 24×18 tiles
+  each) linked by a randomized depth-first spanning tree plus ~12% extra loops. The start is on
+  the top row (Depth 1 opens into a sunlit lagoon under the surface). The **boss arena** is the
+  bottom-row chamber farthest from the start, reachable by a single tunnel.
+- **Carving:** chambers are noise-perturbed blobs, tunnels are wandering curves; cellular-automata
+  smoothing, rock islands, and a connectivity pass keep it organic and fully traversable.
+- **Caves (dead ends):** treasure, Barnaby's shop, curse den (item among urchins), secret cave
+  (sealed by bombable weak rock), and side pockets with clams.
+- **Encounters:** each chamber has a seeded group of creatures placed on floors, walls, ceilings
+  or in open water. Groups wake when Clementine approaches; clearing one rolls a reward and
+  charges the active item. Far creatures stay dormant.
+- **Boss:** entering the arena starts the fight; strong inflowing currents seal every tunnel until
+  the boss falls. Then the Crack opens (next depth), the surface bubble ends the run, and the
+  Mermaid's Grotto portal may appear (a separate small area).
+- **Growth & cover:** dense kelp, grass, coral, fans, anemones, boulders and wall sponges (densest
+  at Depth 1); ~28% grow in front of the action and simply cover whatever swims behind.
+- **Rendering:** tiles are only the collision skeleton. Rock is drawn as smooth contours
+  (marching squares over a noisy half-tile field), textured, darkening toward its core, with silt
+  on top faces, shadowed overhangs, crusts, and a faint rim light; chunked and culled to the view.
+  Water simulation runs in a window that follows the camera; light falls off with depth.
+- **Map:** fog-of-war minimap (top right) and a full map on **Tab**, revealing tiles as they are seen.
+- **Saving:** per-area state (cleared encounters, pickups, pedestals, broken rock, explored map,
+  position) is autosaved every 30 s and on key events; Continue resumes where you were.
