@@ -11,7 +11,7 @@ const W = 3; // outline width
 
 function tone(e: Enemy, col: number) {
   let c = col;
-  if (e.boss) c = desaturate(c, 0.45); // drained by the Hollow Maw
+  if (e.boss && !(e as { restored?: boolean }).restored) c = desaturate(c, 0.45); // drained by the Hollow Maw
   c = desaturate(darken(c, e.menace * 0.35), e.menace * 0.4);
   if (e.champion) c = mixColor(c, e.champion, 0.45);
   if (e.frozen > 0) c = mixColor(c, 0x9ef0ff, 0.6);

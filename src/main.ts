@@ -103,7 +103,8 @@ class Game {
     input.setEnabled(false);
     const saved = loadRun<RunData>();
     const demo = Run.create(randomSeedCode(), true, [], 1);
-    this.scene.startAttract(demo);
+    const beaten = ['barnacle', 'queenclam', 'kelpie', 'sirurchin', 'admiral', 'treasuremimic'].filter((k) => this.profile.achievements.includes(`beat_${k}`));
+    this.scene.startAttract(demo, beaten);
     this.ui.showTitle(this.profile, !!saved, {
       continueRun: () => this.continueRun(),
       newRun: () => this.newRun(),

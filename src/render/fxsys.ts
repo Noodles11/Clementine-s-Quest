@@ -59,6 +59,8 @@ export class FxSystem implements Fx {
   shakeScale = 1;
   flashScale = 1;
   onExplosion?: (x: number, y: number) => void;
+  /** Nearby decorations wobble on impacts. */
+  onImpact?: (x: number, y: number, strength: number) => void;
   onBanner?: (title: string, sub: string, color?: number) => void;
   onToast?: (title: string, sub: string) => void;
   private flashSprite: Sprite;
@@ -79,6 +81,8 @@ export class FxSystem implements Fx {
 
   burst(x: number, y: number, kind: BurstKind, color = 0xffffff, n = 6) {
     const W = this.world, G = this.glow;
+    const impact = ({ pop: 0.35, kill: 1, sand: 0.6, explosion: 3, shards: 0.6 } as Record<string, number>)[kind];
+    if (impact) this.onImpact?.(x, y, impact);
     switch (kind) {
       case 'pop':
         W.spawn({ kind: 'ring', x, y, life: 0.25, size: 10, size1: 26, color: 0xeaffff, alpha: 0.9, fluid: 0 });

@@ -124,6 +124,7 @@ export class GameScene {
   itemsG = new Graphics();
   enemiesG = new Graphics();
   projG = new Graphics();
+  trophyG = new Graphics();
   jellyLayer = new Container();
   labels = new Container();
   hintLayer = new Container();
@@ -184,6 +185,7 @@ export class GameScene {
     this.bgCaustic.alpha = 0.05;
     this.bg.addChild(this.bgWater, this.bgSil, this.bgCaustic);
     this.rays.blendMode = 'add';
+    this.trophyG.scale.set(0.55);
 
     this.fx = new FxSystem(this.flashLayer);
     this.snow = new ParticleSystem({ snow: T.dot, dot: T.dot }, 400);
@@ -197,6 +199,7 @@ export class GameScene {
       this.propsG,
       this.snow.container,
       this.itemsG,
+      this.trophyG,
       this.enemiesG,
       this.jellyLayer,
       this.projG,
@@ -247,6 +250,7 @@ export class GameScene {
     this.fx.onExplosion = (x, y) => {
       for (const s of this.schools) s.scare(x, y, 400, 1.2);
     };
+    this.fx.onImpact = (x, y, k) => this.plants?.impulse(x, y, k, 60 + k * 50);
     this.applyOptions(options);
     this.drawFrame();
   }
@@ -289,16 +293,34 @@ export class GameScene {
   }
 
   attractPending = false;
-  startAttract(run: Run) {
+  trophies: Boss[] = [];
+  startAttract(run: Run, beaten: string[] = []) {
+    this.trophies = [];
     this.run = run;
     this.attractPending = true;
     this.buildWorld(run.floor.rooms[run.floor.startId], { side: null, from: -1 });
     this.attractPending = false;
+    const w = this.world!;
+    const k = 0.55; // trophies are drawn small (see trophyG scale)
+    beaten.forEach((kind, i) => {
+      let x = w.widthPx * (0.42 + i * 0.1);
+      let tx = Math.min(w.tw - 2, Math.floor(x / 48));
+      // Skip over floor shafts.
+      while (w.layout.floorAt(tx) >= w.heightPx - 1 && tx < w.tw - 2) tx++;
+      x = (tx + 0.5) * 48;
+      const b = createBoss(kind as any, x / k, (w.layout.floorAt(tx) - 24) / k, 0, 1);
+      b.intro = 0;
+      b.facing = -1;
+      (b as any).restored = true;
+      (b as any).open = 1;
+      this.trophies.push(b);
+    });
     this.mode = 'attract';
     this.hud.container.visible = false;
   }
 
   stop() {
+    this.trophies = [];
     this.mode = 'idle';
     this.hud.container.visible = false;
   }
@@ -756,6 +778,17 @@ export class GameScene {
       r.alpha = k;
       r.skew.x = Math.sin(t * 0.2 + (r as any).ph) * 0.05;
     }
+    if (live && this.qualityLevel > 0 && !this.options.calmWater) {
+      const f = w.fluid;
+      const tmp = { x: 0, y: 0 };
+      for (let i = 0; i < 6; i++) {
+        const sx = this.camX + R.range(0, VIEW_W), sy = this.camY + R.range(0, VIEW_H);
+        f.sample(sx, sy, tmp);
+        const sp = Math.hypot(tmp.x, tmp.y);
+        if (sp > 70 && !w.solidAt(sx, sy))
+          this.fx.world.spawn({ kind: 'spark', x: sx, y: sy, vx: tmp.x, vy: tmp.y, life: 0.5, size: 10 + sp * 0.12, alpha: Math.min(0.28, sp / 900), color: 0xeaffff, stretch: true, fluid: 1, drag: 0.5 });
+      }
+    }
     if (live) {
       for (const v of this.vents) {
         v.t -= dt;
@@ -828,6 +861,14 @@ export class GameScene {
     }
     const eg = this.enemiesG;
     eg.clear();
+    const tg = this.trophyG;
+    tg.clear();
+    if (this.mode === 'attract')
+      for (const b of this.trophies) {
+        b.anim += dt;
+        b.age += dt;
+        drawBoss(tg, b, t);
+      }
     for (const e of w.enemies) {
       if (e.boss) drawBoss(eg, e as Boss, t);
       else drawEnemy(eg, e, t);
