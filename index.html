@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#06101d" />
     <title>Clementine's Quest</title>
     <meta name="description" content="A funky underwater roguelite. Dive deep as Clementine the jellyfish." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,6 +18,10 @@
     <div id="stage">
       <div id="canvas-host"></div>
       <div id="ui"></div>
+    </div>
+    <div id="rotate">
+      <div class="loading-title">↻</div>
+      <div class="loading-sub">Turn your device sideways to dive!</div>
     </div>
     <div id="loading">
       <div class="loading-title">CLEMENTINE'S QUEST</div>

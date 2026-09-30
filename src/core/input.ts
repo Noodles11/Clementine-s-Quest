@@ -11,6 +11,10 @@ const PREVENT = new Set([...SHOOT_KEYS, 'Space', 'Tab']);
 
 let enabled = true;
 
+// Virtual (touch) sticks: analog vectors, magnitude 0..1.
+let touchMove: [number, number] = [0, 0];
+let touchAim: [number, number] | null = null;
+
 export function initInput() {
   window.addEventListener('keydown', (e) => {
     if (!enabled) return;
@@ -49,7 +53,7 @@ export const input = {
     released.clear();
   },
   moveAxis(): [number, number] {
-    let x = 0, y = 0;
+    let x = touchMove[0], y = touchMove[1];
     if (down.has('KeyA')) x -= 1;
     if (down.has('KeyD')) x += 1;
     if (down.has('KeyW')) y -= 1;
@@ -58,6 +62,8 @@ export const input = {
   },
   /** Shoot direction; diagonal only when allowed. */
   shootAxis(allowDiagonal: boolean): [number, number] {
+    // Touch aiming is free-angle, like a real twin-stick.
+    if (touchAim) return touchAim;
     if (shootOrder.length === 0) return [0, 0];
     const dir = (k: string): [number, number] =>
       k === 'ArrowUp' ? [0, -1] : k === 'ArrowDown' ? [0, 1] : k === 'ArrowLeft' ? [-1, 0] : [1, 0];
@@ -68,15 +74,35 @@ export const input = {
     if (prev[1] !== 0 && last[1] === 0) return [last[0], prev[1]];
     return last;
   },
-  anyShootDown: () => shootOrder.length > 0,
+  anyShootDown: () => shootOrder.length > 0 || !!touchAim,
+  setTouchMove(x: number, y: number) {
+    touchMove = enabled ? [x, y] : [0, 0];
+  },
+  setTouchAim(v: [number, number] | null) {
+    touchAim = enabled ? v : null;
+  },
+  /** Hold a virtual key (touch buttons such as the map). */
+  setHeld(code: string, held: boolean) {
+    if (held && enabled) down.add(code);
+    else down.delete(code);
+  },
+  /** A one-shot virtual key press (touch buttons). */
+  press(code: string) {
+    if (!enabled) return;
+    pressed.add(code);
+  },
   setEnabled(v: boolean) {
     enabled = v;
     if (!v) {
       down.clear();
       shootOrder.length = 0;
+      touchMove = [0, 0];
+      touchAim = null;
     }
   },
   clear() {
+    touchMove = [0, 0];
+    touchAim = null;
     down.clear();
     pressed.clear();
     released.clear();

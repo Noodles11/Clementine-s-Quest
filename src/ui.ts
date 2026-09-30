@@ -50,6 +50,8 @@ export class UI {
   private popups: HTMLElement;
   private toasts: HTMLElement;
   iconFor: (id: string) => Promise<string> = async () => '';
+  /** Touch device: show touch control hints instead of keys. */
+  touch = false;
   enemyIconFor: (kind: string) => Promise<string> = async () => '';
 
   constructor(root: HTMLElement) {
@@ -129,7 +131,8 @@ export class UI {
     const prog = el('div', 'progress', `Runs ${p.stats.runs} · Wins ${p.stats.wins} · Achievements ${p.achievements.length}/${ACHIEVEMENTS.length}`);
     left.append(dives, prog);
     s.append(left);
-    s.append(el('div', 'controls-hint', `<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> swim · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> shoot · <kbd>E</kbd> ink bomb · <kbd>Space</kbd> active · <kbd>Q</kbd> snack · <kbd>Esc</kbd> pause`));
+    if (this.touch) s.append(el('div', 'controls-hint', 'Left thumb: swim · Right thumb: aim & shoot · 💣 bomb · ★ active · 🍬 snack'));
+    else s.append(el('div', 'controls-hint', `<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> swim · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> shoot · <kbd>E</kbd> ink bomb · <kbd>Space</kbd> active · <kbd>Q</kbd> snack · <kbd>Esc</kbd> pause`));
     this.show(s);
   }
 
@@ -163,6 +166,8 @@ export class UI {
     p.style.width = '620px';
     p.append(el('h1', 'title-text screen-title', 'HOW TO PLAY'));
     p.append(el('div', '', `
+      <p><b>Touch:</b> drag anywhere on the left half to swim, on the right half to aim and shoot.
+      Buttons: 💣 ink bomb, ★ active item, 🍬 snack, ❚❚ pause, ▦ map.</p>
       <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> swim. Let go and Clementine slowly sinks.<br/>
       <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> shoot glow bubbles. <kbd>E</kbd> drop an ink bomb (it sinks!).<br/>
       <kbd>Space</kbd> use your active item. <kbd>Q</kbd> eat your sea snack. <kbd>Esc</kbd> pause. Hold <kbd>R</kbd> to restart.</p>
