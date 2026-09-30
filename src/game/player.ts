@@ -158,7 +158,7 @@ export class Player extends Entity {
   wasMoving = false;
 
   /** One bell contraction: thrust along `angle`, water pushed out from the bell margin. */
-  private startPulse(w: RoomWorld, angle: number, strength: number) {
+  startPulse(w: RoomWorld, angle: number, strength: number) {
     this.pulseClock = 0;
     this.pulseAngle = angle;
     this.pulseStrength = strength;

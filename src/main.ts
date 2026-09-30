@@ -191,11 +191,21 @@ class Game {
     this.profile.stats.runs++;
     saveProfile(this.profile);
     clearRun();
-    this.ui.clear();
-    input.setEnabled(true);
-    this.scene.startRun(run, true);
-    if (SPECIAL_SEEDS[seed]) this.ui.toast('SPECIAL SEED!', SPECIAL_SEEDS[seed]);
-    this.autosave();
+    const begin = () => {
+      input.setEnabled(true);
+      this.scene.startRun(run, true);
+      if (SPECIAL_SEEDS[seed]) this.ui.toast('SPECIAL SEED!', SPECIAL_SEEDS[seed]);
+      this.autosave();
+    };
+    if (this.scene.mode === 'attract') {
+      // From the title: the menu fades while Clementine dives into the opening.
+      this.ui.fadeOut();
+      input.setEnabled(false);
+      this.scene.playIntro(begin);
+    } else {
+      this.ui.clear();
+      begin();
+    }
   }
 
   continueRun() {

@@ -14,11 +14,10 @@ import {
   Texture,
   TilingSprite,
 } from 'pixi.js';
-import { DT, FONT_UI, VIEW_H, VIEW_W, ZOOM } from './config';
+import { DT, FONT_UI, TILE, VIEW_H, VIEW_W, ZOOM } from './config';
 
-/** Visible world area at the zoomed-out camera. */
-const VW = VIEW_W / ZOOM;
-const VH = VIEW_H / ZOOM;
+/** Close-up camera used on the title screen. */
+const TITLE_ZOOM = 1.55;
 import { clamp, darken, hsl, lighten, mixColor } from './core/math';
 import { cosmetic as R } from './core/rng';
 import { input } from './core/input';
@@ -55,7 +54,7 @@ export interface SceneHooks {
   onBossIntro(boss: Boss): Promise<void>;
 }
 
-type Mode = 'idle' | 'attract' | 'play' | 'paused' | 'transition' | 'dead' | 'splash';
+type Mode = 'idle' | 'attract' | 'intro' | 'play' | 'paused' | 'transition' | 'dead' | 'splash';
 
 interface Transition {
   t: number;
@@ -175,6 +174,13 @@ export class GameScene {
   blur: BlurFilter;
 
   transition: Transition | null = null;
+  /** Current camera zoom (world → screen). */
+  zoom = ZOOM;
+  /** 0 = only open water visible (title), 1 = full scene. */
+  sceneAlpha = 1;
+  private intro: { t: number; fade: number; onDone: () => void } | null = null;
+  private attractClock = 0;
+  private attractTarget = { x: 0, y: 0 };
   camX = 0;
   camY = 0;
   restartHold = 0;
@@ -293,6 +299,10 @@ export class GameScene {
 
   // ── Run control ──────────────────────────────────────────
   startRun(run: Run, fresh: boolean) {
+    this.zoom = ZOOM;
+    this.sceneAlpha = 1;
+    this.intro = null;
+    this.transG.clear();
     this.run = run;
     const d = run.data;
     const room = this.roomById(d.currentRoom);
@@ -306,29 +316,37 @@ export class GameScene {
 
   attractPending = false;
   trophies: Boss[] = [];
-  startAttract(run: Run, beaten: string[] = []) {
+  startAttract(run: Run, _beaten: string[] = []) {
     this.trophies = [];
     this.run = run;
     this.attractPending = true;
-    this.buildWorld(run.floor.rooms[run.floor.startId], { side: null, from: -1 });
+    // A quiet stretch of open water above a sandy floor with one opening in it.
+    const start = run.floor.rooms[run.floor.startId];
+    const room: FloorRoom = {
+      id: start.id, type: 'start', x: 0, y: 0, w: 1, h: 1, dist: 0, seed: start.seed,
+      doors: [{ side: 'D', lx: 0, ly: 0, to: -1, tlx: 0, tly: 0, kind: 'normal', locked: false, hidden: false }],
+    };
+    this.mode = 'attract';
+    this.zoom = TITLE_ZOOM;
+    this.sceneAlpha = 0;
+    this.buildWorld(room, { side: null, from: -1 });
     this.attractPending = false;
     const w = this.world!;
-    const k = 0.55; // trophies are drawn small (see trophyG scale)
-    beaten.forEach((kind, i) => {
-      let x = w.widthPx * (0.42 + i * 0.1);
-      let tx = Math.min(w.tw - 2, Math.floor(x / 48));
-      // Skip over floor shafts.
-      while (w.layout.floorAt(tx) >= w.heightPx - 1 && tx < w.tw - 2) tx++;
-      x = (tx + 0.5) * 48;
-      const b = createBoss(kind as any, x / k, (w.layout.floorAt(tx) - 24) / k, 0, 1);
-      b.intro = 0;
-      b.facing = -1;
-      (b as any).restored = true;
-      (b as any).open = 1;
-      this.trophies.push(b);
-    });
-    this.mode = 'attract';
+    w.player.x = w.widthPx * 0.5;
+    w.player.y = w.heightPx * 0.35;
+    this.attractTarget = { x: w.player.x, y: w.player.y };
+    this.updateCamera(true);
     this.hud.container.visible = false;
+  }
+
+  /** New dive: Clementine dives, the camera pulls back and she enters the opening in the floor. */
+  playIntro(onDone: () => void) {
+    if (this.mode !== 'attract' || !this.world) {
+      onDone();
+      return;
+    }
+    this.mode = 'intro';
+    this.intro = { t: 0, fade: 0, onDone };
   }
 
   stop() {
@@ -622,6 +640,8 @@ export class GameScene {
       }
     } else if (this.mode === 'attract') {
       this.attractStep(w, dt);
+    } else if (this.mode === 'intro') {
+      this.introStep(w, dt);
     } else if (this.mode === 'transition' && this.transition) {
       const tr = this.transition;
       tr.t += dt / 0.28;
@@ -641,25 +661,64 @@ export class GameScene {
     this.render(dt);
   }
 
+  /** Title screen: Clementine drifts in open water with real jellyfish strokes. */
   private attractStep(w: RoomWorld, dt: number) {
     const p = w.player;
-    const t = this.time;
-    const tx = w.widthPx * 0.62 + Math.sin(t * 0.35) * 170;
-    const ty = w.heightPx * 0.42 + Math.sin(t * 0.61) * 70;
-    const vx = (tx - p.x) * 1.5, vy = (ty - p.y) * 1.5;
-    p.vx = vx;
-    p.vy = vy;
-    p.x += vx * dt;
-    p.y += vy * dt;
-    p.moving = true;
-    p.pulse += dt * 1.6;
-    if (p.pulse > 1) {
-      p.pulse = 0;
-      p.kick();
+    this.attractClock += dt;
+    if (this.attractClock > 1.1 + Math.sin(this.time * 0.7) * 0.3) {
+      this.attractClock = 0;
+      if (Math.hypot(this.attractTarget.x - p.x, this.attractTarget.y - p.y) < 60)
+        this.attractTarget = { x: w.widthPx * R.range(0.25, 0.75), y: w.heightPx * R.range(0.18, 0.5) };
+      p.startPulse(w, Math.atan2(this.attractTarget.y - p.y, this.attractTarget.x - p.x), 0.55);
     }
-    p.pulseKick = Math.max(0, p.pulseKick - dt * 3);
-    if (R.chance(dt * 2)) w.fluid.splat(p.x, p.y + 20, -vx * 0.5, 60, 30);
+    this.swimFree(p, dt, 2.6);
     w.fluid.step(dt);
+  }
+
+  /** Integrate a pulse-driven swim without terrain collision (cinematic moments only). */
+  private swimFree(p: RoomWorld['player'], dt: number, drag: number) {
+    const st = p.stats;
+    p.pulseClock += dt;
+    if (p.pulseClock < 0.14) {
+      const J = st.movePx * 4 * 0.5 * p.pulseStrength;
+      const acc = J * (Math.PI / 0.28) * Math.sin((Math.PI * p.pulseClock) / 0.14);
+      p.vx += Math.cos(p.pulseAngle) * acc * dt;
+      p.vy += Math.sin(p.pulseAngle) * acc * dt;
+    }
+    const k = Math.exp(-drag * dt);
+    p.vx *= k;
+    p.vy *= k;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.moving = true;
+    p.pulseKick = Math.max(0, p.pulseKick - dt * 2);
+  }
+
+  private introStep(w: RoomWorld, dt: number) {
+    const it = this.intro!;
+    const p = w.player;
+    it.t += dt;
+    const mouth = w.layout.mouths[0];
+    const goalX = mouth ? mouth.x : w.widthPx / 2;
+    const goalY = w.heightPx + TILE * 2;
+    // Camera pulls back and the reef fades in around her.
+    const k = Math.min(1, it.t / 2.2);
+    const e = k * k * (3 - 2 * k);
+    this.zoom = TITLE_ZOOM + (ZOOM - TITLE_ZOOM) * e;
+    this.sceneAlpha = Math.min(1, it.t / 1.4);
+    // Strong strokes straight for the opening.
+    if (p.pulseClock >= 0.5) p.startPulse(w, Math.atan2(goalY - p.y, goalX - p.x), 1.15);
+    // Keep her lined up with the hole as she approaches it.
+    p.vx += (goalX - p.x) * dt * 2.5;
+    this.swimFree(p, dt, 3.2);
+    w.fluid.step(dt);
+    if (p.y > w.heightPx - TILE * 0.6 || it.t > 6) it.fade = Math.min(1, it.fade + dt / 0.5);
+    if (it.fade >= 1) {
+      this.intro = null;
+      this.zoom = ZOOM;
+      this.sceneAlpha = 1;
+      it.onDone();
+    }
   }
 
   private drainEvents() {
@@ -738,8 +797,26 @@ export class GameScene {
   private updateCamera(snap = false) {
     const w = this.world!;
     const p = w.player;
-    const tx = w.widthPx <= VW ? (w.widthPx - VW) / 2 : clamp(p.x - VW / 2, 0, w.widthPx - VW);
-    const ty = w.heightPx <= VH ? (w.heightPx - VH) / 2 : clamp(p.y - VH / 2, 0, w.heightPx - VH);
+    const vw = VIEW_W / this.zoom, vh = VIEW_H / this.zoom;
+    if (this.mode === 'attract' || this.mode === 'intro') {
+      // Close-up: keep Clementine framed (blending to the full-room framing during the dive).
+      const fit = this.mode === 'intro' ? Math.min(1, (TITLE_ZOOM - this.zoom) / (TITLE_ZOOM - ZOOM)) : 0;
+      // Title framing keeps her to the right of the menu.
+      const fx = p.x - vw * 0.66, fy = p.y - vh * 0.45;
+      const rx = w.widthPx <= vw ? (w.widthPx - vw) / 2 : clamp(p.x - vw / 2, 0, w.widthPx - vw);
+      const ry = w.heightPx <= vh ? (w.heightPx - vh) / 2 : clamp(p.y - vh / 2, 0, w.heightPx - vh);
+      const tx = fx + (rx - fx) * fit, ty = fy + (ry - fy) * fit;
+      if (snap) {
+        this.camX = tx;
+        this.camY = ty;
+      } else {
+        this.camX += (tx - this.camX) * 0.08;
+        this.camY += (ty - this.camY) * 0.08;
+      }
+      return;
+    }
+    const tx = w.widthPx <= vw ? (w.widthPx - vw) / 2 : clamp(p.x - vw / 2, 0, w.widthPx - vw);
+    const ty = w.heightPx <= vh ? (w.heightPx - vh) / 2 : clamp(p.y - vh / 2, 0, w.heightPx - vh);
     if (snap) {
       this.camX = tx;
       this.camY = ty;
@@ -766,16 +843,18 @@ export class GameScene {
     this.root.position.set(VIEW_W / 2 + swayX + (sh ? R.range(-sh, sh) : 0), VIEW_H / 2 + swayY + (sh ? R.range(-sh, sh) : 0));
     this.root.rotation = Math.sin(t * 0.21) * 0.0025 * calm;
     this.camera.time = t;
-    this.cam.scale.set(ZOOM);
-    this.glowCam.scale.set(ZOOM);
-    this.cam.x = -Math.round(this.camX * ZOOM);
-    this.cam.y = -Math.round(this.camY * ZOOM);
+    this.cam.scale.set(this.zoom);
+    for (const layer of [this.terrain.container, this.plantsLayer, this.doorsG, this.propsG, this.itemsG, this.trophyG, this.fgG, this.bgSil])
+      layer.alpha = this.sceneAlpha;
+    this.glowCam.scale.set(this.zoom);
+    this.cam.x = -Math.round(this.camX * this.zoom);
+    this.cam.y = -Math.round(this.camY * this.zoom);
     this.glowCam.position.copyFrom(this.cam.position);
     // Parallax.
-    this.fishFar.x = -this.camX * ZOOM * 0.3;
-    this.fishNear.x = -this.camX * ZOOM * 0.6;
-    this.bgSil.x = -this.camX * ZOOM * 0.15;
-    this.fgLayer.x = -this.camX * ZOOM * 0.2;
+    this.fishFar.x = -this.camX * this.zoom * 0.3;
+    this.fishNear.x = -this.camX * this.zoom * 0.6;
+    this.bgSil.x = -this.camX * this.zoom * 0.15;
+    this.fgLayer.x = -this.camX * this.zoom * 0.2;
 
     const neon = run.stats.transformations.has('neonrave') || run.data.seedCode === 'PARTYFSH';
     const p = w.player;
@@ -785,7 +864,7 @@ export class GameScene {
     const adt = live ? dt : 0;
     const pushers = [{ x: p.x, y: p.y, r: 34 }, ...w.enemies.filter((e) => !e.hidden).map((e) => ({ x: e.x, y: e.y, r: e.r + 10 }))];
     this.plants?.update(adt, w.fluid, pushers, t);
-    for (const s of this.schools) s.update(adt, (p.x - this.camX) * ZOOM, (p.y - this.camY) * ZOOM, t);
+    for (const s of this.schools) s.update(adt, (p.x - this.camX) * this.zoom, (p.y - this.camY) * this.zoom, t);
     if (run.data.seedCode === 'PARTYFSH') for (const s of this.schools) for (const f of s.fish) f.s.tint = hsl(t * 0.5 + f.school * 0.2, 0.9, 0.6);
     const solid = (x: number, y: number) => w.solidAt(x, y);
     this.snow.update(adt, w.fluid, solid);
@@ -806,7 +885,7 @@ export class GameScene {
       const f = w.fluid;
       const tmp = { x: 0, y: 0 };
       for (let i = 0; i < 6; i++) {
-        const sx = this.camX + R.range(0, VW), sy = this.camY + R.range(0, VH);
+        const sx = this.camX + R.range(0, VIEW_W / this.zoom), sy = this.camY + R.range(0, VIEW_H / this.zoom);
         f.sample(sx, sy, tmp);
         const sp = Math.hypot(tmp.x, tmp.y);
         if (sp > 70 && !w.solidAt(sx, sy))
@@ -943,9 +1022,9 @@ export class GameScene {
         continue;
       }
       s.visible = true;
-      s.x = (l.x - this.camX) * ZOOM;
-      s.y = (l.y - this.camY) * ZOOM;
-      s.scale.set((l.r * 2 * ZOOM) / 128);
+      s.x = (l.x - this.camX) * this.zoom;
+      s.y = (l.y - this.camY) * this.zoom;
+      s.scale.set((l.r * 2 * this.zoom) / 128);
       s.tint = l.c;
       s.alpha = l.a;
     }
@@ -955,6 +1034,7 @@ export class GameScene {
   private renderTransition() {
     const g = this.transG;
     g.clear();
+    if (this.intro && this.intro.fade > 0) g.rect(-20, -20, VIEW_W + 40, VIEW_H + 40).fill({ color: 0x010204, alpha: this.intro.fade });
     const tr = this.transition;
     if (!tr) return;
     // Camera cut: a quick fade through black (longer and deeper when descending).

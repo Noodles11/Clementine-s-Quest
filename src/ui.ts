@@ -97,6 +97,17 @@ export class UI {
     this.layer = null;
   }
 
+  /** Fade the current screen out (e.g. the title menu when a dive starts). */
+  fadeOut(ms = 700) {
+    const l = this.layer;
+    if (!l) return;
+    this.layer = null;
+    l.style.transition = `opacity ${ms}ms ease`;
+    l.style.pointerEvents = 'none';
+    requestAnimationFrame(() => (l.style.opacity = '0'));
+    setTimeout(() => l.remove(), ms + 50);
+  }
+
   private show(node: HTMLElement) {
     this.clear();
     // Modal screens replace transient popups (banners, floor titles).
