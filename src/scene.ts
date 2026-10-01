@@ -440,7 +440,7 @@ export class GameScene {
     this.haze.texture = waterTexture(b);
     this.haze.width = VIEW_W;
     this.haze.height = VIEW_H;
-    this.haze.alpha = 0.1 + b.menace * 0.35;
+    this.haze.alpha = 0.1 + b.menace * 0.2;
 
     this.fishFar.removeChildren();
     this.fishNear.removeChildren();
@@ -902,13 +902,13 @@ export class GameScene {
     const vh = VIEW_H / this.zoom;
     this.depthFrac = w.areaId === LEVEL_ID ? clamp((this.camY + vh / 2) / w.heightPx, 0, 1) : w.areaId === GROTTO_ID ? 0.5 : 0;
     const df = this.depthFrac;
-    const lightK = 1 - df * (0.3 + w.menace * 0.25);
+    const lightK = 1 - df * (0.3 + w.menace * 0.1);
     const gray = (k: number) => {
       const v = Math.round(clamp(k, 0, 1) * 255);
       return (v << 16) | (v << 8) | v;
     };
     this.ambient.tint = gray(lightK);
-    this.bgWater.tint = gray(1 - df * 0.55);
+    this.bgWater.tint = gray(1 - df * (0.55 - w.menace * 0.5));
     this.bgSil.alpha = this.sceneAlpha * clamp(1 - df * 1.6, 0, 1);
     this.rays.alpha = clamp(1.1 - df * 1.8, 0, 1);
     this.glowCam.scale.set(this.zoom);
