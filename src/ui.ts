@@ -180,11 +180,11 @@ export class UI {
       <p><b>Touch:</b> drag anywhere on the left half to swim, on the right half to aim and shoot.
       Buttons: 💣 ink bomb, ★ active item, 🍬 snack, ❚❚ pause, ▦ map.</p>
       <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> swim. Let go and Clementine slowly sinks.<br/>
-      <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> shoot glow bubbles. <kbd>E</kbd> drop an ink bomb (it sinks!).<br/>
+      <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> squirt ink. <kbd>E</kbd> drop an ink bomb (it sinks!).<br/>
       <kbd>Space</kbd> use your active item. <kbd>Q</kbd> eat your sea snack. <kbd>Esc</kbd> pause. Hold <kbd>R</kbd> to restart.</p>
       <p>Clear rooms to open the doors. Find the <b>treasure room</b> (gold door), the <b>shop</b> (Barnaby the hermit crab) and the <b>boss</b>.
       Bosses guard <b>The Crack</b> — beat them to dive deeper. Your first dives end after one depth; every new boss you beat unlocks the next.</p>
-      <p>Items combine: many bubble effects stack, and some pairs trigger <b>synergies</b>. Collect three related items to <b>transform</b>.
+      <p>Items combine: many ink effects stack, and some pairs trigger <b>synergies</b>. Collect three related items to <b>transform</b>.
       Bomb suspicious cracked walls for secrets. The deeper you go, the darker and meaner the sea gets.</p>`));
     p.append(btn('Got it!', 'orange back', onBack));
     o.append(p);

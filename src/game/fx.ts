@@ -14,7 +14,8 @@ export type BurstKind =
   | 'blood'
   | 'explosion'
   | 'heal'
-  | 'wake';
+  | 'wake'
+  | 'inktrail';
 
 export interface Fx {
   burst(x: number, y: number, kind: BurstKind, color?: number, n?: number): void;

@@ -797,3 +797,13 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   sweep together in a power stroke and she darts forward (~1.8× speed, 0.38 s). A sharp turn
   (>110°) takes another jet.
 - **Cruising:** smooth continuous movement, mantle first, arms trailing in a loose rippling bundle.
+- **Title screen & dive intro** use the same swimming: hover upright, one jet to set off, then a
+  smooth mantle-first cruise (the intro is one jet and a head-first dive into the opening).
+
+## 21. Ink shots (replaces bubbles)
+
+- Clementine squirts **ink**: dark wobbling blobs with a smeared tail and a thin ink trail; the
+  item's colour shows only as a sheen and a faint luminescence. Hitting a foe or running out of
+  range dissolves the blob into an ink cloud.
+- Where ink hits rock it leaves a **stain**: a blob flattened along the drawn rock face, spatter
+  along the surface and drips running down walls and hanging from ceilings (newest 260 kept per area).

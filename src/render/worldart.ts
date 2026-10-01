@@ -3,9 +3,9 @@
 import type { Graphics } from 'pixi.js';
 import { EA, EW, shade } from './style';
 import { TILE } from '../config';
-import { darken, hsl, lighten } from '../core/math';
+import { darken, hsl, lighten, mixColor } from '../core/math';
 import { INK } from '../ambient/plants';
-import type { RoomWorld } from '../game/room';
+import type { InkMark, RoomWorld } from '../game/room';
 import type { Gate } from '../gen/level';
 import type { Prop } from '../game/pickups';
 import type { Bubble, EnemyShot } from '../game/projectiles';
@@ -82,26 +82,86 @@ export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: 
   }
 }
 
+/** Clementine's shots: wobbling blobs of ink with a smeared tail. */
 export function drawBubble(g: Graphics, glow: Graphics, b: Bubble, t: number, neon: boolean) {
   let col = b.color;
   if (neon) col = hsl(b.hue + t * 0.8, 1, 0.65);
   const r = b.r;
-  const alpha = b.ghost ? 0.55 : 0.92;
   if (b.pearl > 0) {
     g.circle(b.x, b.y, r).fill(0xfff6e8).stroke({ width: (2.5) * EW, color: INK, alpha: EA });
     g.circle(b.x - r * 0.35, b.y - r * 0.35, r * 0.3).fill(0xffffff);
     glow.circle(b.x, b.y, r * 2).fill({ color: 0xfff6c0, alpha: 0.5 });
     return;
   }
-  if (b.flags.has('explosive') && !b.mini) {
-    g.circle(b.x, b.y, r).fill(0x3a2a5a).stroke({ width: (2.2) * EW, color: INK, alpha: EA });
-    g.circle(b.x + r * 0.3, b.y - r * 0.9, 2).fill(Math.floor(t * 20) % 2 ? 0xffa53d : 0xffffff);
-  } else {
-    g.circle(b.x, b.y, r).fill({ color: col, alpha }).stroke({ width: (b.mini ? 1.5 : 2.2) * EW, color: INK, alpha: b.ghost ? 0.5 : 1 });
-    g.circle(b.x - r * 0.35, b.y - r * 0.35, Math.max(1, r * 0.3)).fill({ color: 0xffffff, alpha: 0.9 });
+  const ink = neon ? mixColor(0x140c1e, col, 0.6) : b.ink;
+  const alpha = b.ghost ? 0.5 : 0.95;
+  const sp = Math.hypot(b.vx, b.vy) || 1;
+  const dx = b.vx / sp, dy = b.vy / sp;
+  // Tail: ink stretched out behind the blob, thinning and fading.
+  for (let i = 6; i >= 1; i--) {
+    const k = i / 6;
+    g.circle(b.x - dx * r * 0.75 * i, b.y - dy * r * 0.75 * i, r * (1 - k * 0.7)).fill({ color: ink, alpha: alpha * (0.5 - k * 0.3) });
   }
+  // Wobbling head of the blob.
+  const pts: number[] = [];
+  const n = 12;
+  const seed = b.id * 1.7;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const along = Math.cos(a) * dx + Math.sin(a) * dy;
+    const wob = 1 + Math.sin(t * 14 + seed + i * 2.1) * 0.12;
+    const rr = r * wob * (along < 0 ? 1 + -along * 0.25 : 1);
+    pts.push(b.x + Math.cos(a) * rr, b.y + Math.sin(a) * rr);
+  }
+  g.poly(pts).fill({ color: ink, alpha });
+  // The item's tint shows as a sheen on the ink.
+  g.circle(b.x - dx * r * 0.2, b.y - dy * r * 0.2, r * 0.6).fill({ color: mixColor(ink, col, 0.55), alpha: 0.45 * alpha });
+  g.circle(b.x - r * 0.35, b.y - r * 0.4, Math.max(0.8, r * 0.22)).fill({ color: 0xffffff, alpha: 0.45 });
+  if (b.flags.has('explosive') && !b.mini) g.circle(b.x + r * 0.3, b.y - r * 0.9, 2).fill(Math.floor(t * 20) % 2 ? 0xffa53d : 0xffffff);
   if (b.syn.has('wisp')) glow.circle(b.x - b.vx * 0.03, b.y - b.vy * 0.03, r * 2.4).fill({ color: 0xc8d8ff, alpha: 0.4 });
-  glow.circle(b.x, b.y, r * 1.8).fill({ color: col, alpha: 0.55 });
+  // Ink is dark; only a faint coloured luminescence betrays its effect.
+  glow.circle(b.x, b.y, r * 1.6).fill({ color: col, alpha: col === 0xffb347 ? 0.12 : 0.28 });
+}
+
+/** A splat of ink stuck to the rock: blob, spatter along the face, drips on walls and ceilings. */
+export function drawInkMark(g: Graphics, m: InkMark) {
+  let s = m.seed;
+  const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const { x, y, nx, ny, color } = m;
+  const r = m.r * 1.9;
+  const tx = -ny, ty = nx; // along the surface
+  // Main blob, flattened against the surface and pushed slightly into the rock.
+  const pts: number[] = [];
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const along = Math.cos(a) * r * (1.5 + rnd() * 0.5);
+    const out = Math.sin(a) * r * (0.55 + rnd() * 0.35);
+    pts.push(x + tx * along + nx * (out - r * 0.25), y + ty * along + ny * (out - r * 0.25));
+  }
+  g.poly(pts).fill({ color, alpha: 0.9 });
+  g.poly(pts).fill({ color: 0x000000, alpha: 0.15 });
+  // Spatter along the face.
+  for (let i = 0; i < 7; i++) {
+    const side = rnd() < 0.5 ? -1 : 1;
+    const d = r * (1.6 + rnd() * 1.8);
+    const px = x + tx * d * side + nx * (rnd() - 0.6) * r * 0.5;
+    const py = y + ty * d * side + ny * (rnd() - 0.6) * r * 0.5;
+    g.circle(px, py, r * (0.12 + rnd() * 0.22)).fill({ color, alpha: 0.75 });
+  }
+  // Drips run down walls and hang from ceilings.
+  if (ny > -0.5) {
+    for (let i = 0; i < 2 + Math.floor(rnd() * 2); i++) {
+      const o = (rnd() - 0.5) * r * 2;
+      const sx = x + tx * o, sy = y + ty * o;
+      const len = r * (0.8 + rnd() * 1.6);
+      const w = r * (0.18 + rnd() * 0.12);
+      g.moveTo(sx, sy).lineTo(sx, sy + len).stroke({ width: w, color, alpha: 0.7, cap: 'round' });
+      g.circle(sx, sy + len, w * 0.9).fill({ color, alpha: 0.75 });
+    }
+  }
+  // Wet sheen.
+  g.ellipse(x + tx * r * 0.3 + nx * r * 0.05, y + ty * r * 0.3 + ny * r * 0.05, r * 0.35, r * 0.12).fill({ color: 0xffffff, alpha: 0.12 });
 }
 
 export function drawShot(g: Graphics, glow: Graphics, s: EnemyShot, t: number) {

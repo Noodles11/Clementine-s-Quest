@@ -199,6 +199,24 @@ export class TerrainView {
     return { texture: this.rockTex, color, matrix: this.rockMatrix, textureSpace: 'global' as const };
   }
 
+  private lastW: RoomWorld | null = null;
+
+  /** True where the drawn (noisy, smoothed) rock is, which can differ slightly from the tiles. */
+  visualRockAt(x: number, y: number) {
+    const w = this.lastW;
+    if (!w) return false;
+    const Wt = w.tw + 2;
+    const fx = clamp(x / TILE - 0.5 + 1, 0, w.tw + 1), fy = clamp(y / TILE - 0.5 + 1, 0, w.th + 1);
+    const ix = Math.min(Math.floor(fx), w.tw), iy = Math.min(Math.floor(fy), w.th);
+    const u = fx - ix, v = fy - iy;
+    const k = iy * Wt + ix;
+    const f = this.field;
+    const base = (f[k] * (1 - u) + f[k + 1] * u) * (1 - v) + (f[k + Wt] * (1 - u) + f[k + Wt + 1] * u) * v;
+    const seed = w.spec.tw * 13 + w.depth * 101;
+    const noise = (valueNoise2(x / 70, y / 70, seed) - 0.5) * 0.3 + (valueNoise2(x / 26, y / 26, seed + 1) - 0.5) * 0.16 + 0.03;
+    return base + noise >= ISO;
+  }
+
   private isRock(w: RoomWorld, x: number, y: number) {
     if (x < 0 || x >= w.tw || y >= w.th) return true;
     if (y < 0) return !this.surfaceOpen(w, x);
@@ -246,6 +264,7 @@ export class TerrainView {
 
 
   build(w: RoomWorld) {
+    this.lastW = w;
     for (const ch of this.chunks) ch.c.destroy({ children: true });
     this.chunks = [];
     this.computeField(w);

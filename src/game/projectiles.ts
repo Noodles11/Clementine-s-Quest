@@ -1,7 +1,7 @@
-// Player bubbles (composable flags), enemy shots, beams, ink bombs, zones.
+// Player ink shots (composable flags), enemy shots, beams, ink bombs, zones.
 
 import { TILE } from '../config';
-import { clamp, dist } from '../core/math';
+import { clamp, dist, mixColor } from '../core/math';
 import { cosmetic as R } from '../core/rng';
 import { sfx } from '../core/audio';
 import { Entity } from './entity';
@@ -86,6 +86,22 @@ export class Bubble extends Entity {
     this.color = s.color ?? 0xffb347;
     this.ghost = this.flags.has('spectral');
     this.hw = this.hh = 3;
+    this.ink = mixColor(0x120a1a, this.color, 0.2);
+  }
+
+  /** Clementine's shots are blobs of ink, tinted by her items. */
+  ink: number;
+
+  /** Leave an ink stain where the shot hits rock (n = surface normal). */
+  private stain(w: RoomWorld, nx: number, ny: number, scale = 1) {
+    if (this.pearl > 0) return;
+    w.addInkMark(this.x, this.y, nx, ny, this.r * scale, this.ink);
+  }
+
+  private surfaceNormal(w: RoomWorld, nx: number, ny: number): [number, number] {
+    const hx = w.solidAt(nx, this.y), hy = w.solidAt(this.x, ny);
+    if (hy && (!hx || Math.abs(this.vy) >= Math.abs(this.vx))) return [0, -Math.sign(this.vy) || -1];
+    return [-Math.sign(this.vx) || -1, 0];
   }
 
   has(f: ShotFlag) {
@@ -162,6 +178,7 @@ export class Bubble extends Entity {
     if (!this.ghost && w.solidAt(nx, ny)) {
       if (this.has('bounce') && this.bounces < 6) {
         this.bounces++;
+        this.stain(w, ...this.surfaceNormal(w, nx, ny), 0.6);
         const hx = w.solidAt(nx, this.y), hy = w.solidAt(this.x, ny);
         if (hx || !hy) this.vx = -this.vx;
         if (hy || !hx) this.vy = -this.vy;
@@ -180,6 +197,7 @@ export class Bubble extends Entity {
         return;
       }
       w.damageTileAt(nx, ny, this.dmg);
+      this.stain(w, ...this.surfaceNormal(w, nx, ny));
       this.pop(w);
       return;
     }
@@ -207,8 +225,10 @@ export class Bubble extends Entity {
     }
 
     if (this.traveled >= this.range && !(this.has('boomerang') && this.returning)) this.pop(w);
-    // Cosmetic wake in the water.
-    if (((this.age * 60) | 0) % 3 === 0) w.fluid.splat(this.x, this.y, this.vx * 0.25, this.vy * 0.25, 22);
+    // Cosmetic wake in the water and a thin trail of ink.
+    const frame = (this.age * 60) | 0;
+    if (frame % 3 === 0) w.fluid.splat(this.x, this.y, this.vx * 0.25, this.vy * 0.25, 22);
+    if (frame % 4 === 0 && this.pearl <= 0 && !this.mini) w.fx.burst(this.x - this.vx * 0.02, this.y - this.vy * 0.02, 'inktrail', this.ink, 1);
   }
 
   onHitEnemy(w: RoomWorld, e: Enemy) {
@@ -265,7 +285,8 @@ export class Bubble extends Entity {
     if (this.popped) return;
     this.popped = true;
     this.dead = true;
-    w.fx.burst(this.x, this.y, 'pop', this.color, this.pearl ? 10 : 5);
+    if (this.pearl > 0) w.fx.burst(this.x, this.y, 'pop', this.color, 10);
+    else w.fx.burst(this.x, this.y, 'ink', this.ink, this.mini ? 1 : 2);
     sfx.pop();
     w.fluid.blast(this.x, this.y, 60 + this.r * 3, 40 + this.r * 2);
     if (this.has('explosive')) {

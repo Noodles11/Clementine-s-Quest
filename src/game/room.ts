@@ -64,6 +64,21 @@ function unpackBits(str: string, out: Uint8Array) {
   }
 }
 
+export interface InkMark {
+  x: number;
+  y: number;
+  /** Surface normal (pointing out of the rock). */
+  nx: number;
+  ny: number;
+  r: number;
+  color: number;
+  seed: number;
+  /** Adjusted onto the drawn rock surface by the renderer. */
+  seated?: boolean;
+}
+
+const MAX_INK_MARKS = 260;
+
 export class RoomWorld implements Solidity {
   run: Run;
   spec: LevelSpec;
@@ -104,6 +119,9 @@ export class RoomWorld implements Solidity {
   dirtyTiles: number[] = [];
   exiting = false;
   bossHurtPlayer = false;
+  /** Ink stains on the rock (cosmetic, newest last). */
+  inkMarks: InkMark[] = [];
+  inkVersion = 0;
   /** Fog of war: tiles Clementine has seen. */
   explored: Uint8Array;
   exploredVersion = 0;
@@ -253,6 +271,18 @@ export class RoomWorld implements Solidity {
     this.fx.burst(cx, cy, 'shards', 0x8a7a6a, 30);
     this.fx.text(cx, cy, 'SECRET!', 0xfff27a, 28);
     sfx.unlock();
+  }
+
+  addInkMark(x: number, y: number, nx: number, ny: number, r: number, color: number) {
+    // Snap onto the rock face so the splat hugs the surface.
+    let sx = x, sy = y;
+    for (let i = 0; i < 6 && !this.solidAt(sx - nx * 2, sy - ny * 2); i++) {
+      sx -= nx * 4;
+      sy -= ny * 4;
+    }
+    this.inkMarks.push({ x: sx, y: sy, nx, ny, r: Math.max(4, r), color, seed: (Math.random() * 1e9) | 0 });
+    if (this.inkMarks.length > MAX_INK_MARKS) this.inkMarks.shift();
+    this.inkVersion++;
   }
 
   /** Mark the tiles around Clementine as seen on the map. */

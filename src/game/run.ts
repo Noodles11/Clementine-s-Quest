@@ -74,7 +74,7 @@ export type SnackEffect = (typeof SNACK_EFFECTS)[number];
 
 export const SNACK_EFFECT_TEXT: Record<SnackEffect, string> = {
   speedup: 'Speed Up!', speeddown: 'Speed Down...', fullheal: 'Full Belly!', ouch: 'Bad Clam! Ouch',
-  luckup: 'Lucky Bite!', rangeup: 'Range Up!', rangedown: 'Range Down...', tearsup: 'Bubbles Up!',
+  luckup: 'Lucky Bite!', rangeup: 'Range Up!', rangedown: 'Range Down...', tearsup: 'Ink Up!',
   foam: 'Foamy!', bombs: 'Ink Refill!',
 };
 

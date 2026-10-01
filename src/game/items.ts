@@ -59,7 +59,7 @@ export interface ItemDef {
   /** Visual costume key drawn on Clementine. */
   costume?: string;
   color: number;
-  /** Bigger bubbles (visual + hitbox). */
+  /** Bigger ink blobs (visual + hitbox). */
   bubbleScale?: number;
   noSink?: boolean;
 }
@@ -103,67 +103,67 @@ export const ITEMS: ItemDef[] = [
     costume: 'barnacles', color: 0xb8a58a,
   },
   {
-    id: 'plankton', name: 'Plankton Swarm', tagline: 'Tiny friends, tiny bubbles',
-    lore: "A cloud of plankton rides your glow and pops little bubbles of their own.",
+    id: 'plankton', name: 'Plankton Swarm', tagline: 'Tiny friends, tiny ink drops',
+    lore: "A cloud of plankton rides your glow and spits little ink drops of their own.",
     kind: 'passive', quality: 2, pools: ['treasure'], flags: ['plankton'], add: { fireRate: 0.3 },
     color: 0x9dff5c,
   },
 
   // ── Shot modifiers ────────────────────────────────────────────
   {
-    id: 'eeltail', name: 'Electric Eel Tail', tagline: 'Shocking bubbles',
-    lore: 'Still twitching. Bubbles leap to nearby enemies with a ZAP.',
+    id: 'eeltail', name: 'Electric Eel Tail', tagline: 'Shocking ink',
+    lore: 'Still twitching. Ink arcs to nearby enemies with a ZAP.',
     kind: 'passive', quality: 3, pools: ['treasure'], tags: ['glow'], flags: ['chain'],
     unlock: 'beat_barnacle', color: 0x6ff0ff,
   },
   {
     id: 'nautilus', name: 'Nautilus Spiral', tagline: 'Round and round',
-    lore: 'Its shell remembers the golden ratio. So will your bubbles.',
+    lore: 'Its shell remembers the golden ratio. So will your ink.',
     kind: 'passive', quality: 2, pools: ['treasure', 'secret'], tags: ['tentacle'], flags: ['spiral'],
     add: { range: 1 }, color: 0xf2a65a,
   },
   {
-    id: 'mirrorscale', name: 'Mirror Scale', tagline: 'Bouncy bubbles',
-    lore: 'A scale so shiny that even bubbles bounce off walls near it.',
+    id: 'mirrorscale', name: 'Mirror Scale', tagline: 'Bouncy ink',
+    lore: 'A scale so shiny that even ink bounces off walls near it.',
     kind: 'passive', quality: 2, pools: ['treasure', 'shop'], flags: ['bounce'], color: 0xd8e8ff,
   },
   {
-    id: 'lure', name: 'Anglerfish Lure', tagline: 'Homing bubbles',
-    lore: 'Everyone follows the light. Especially your bubbles.',
+    id: 'lure', name: 'Anglerfish Lure', tagline: 'Homing ink',
+    lore: 'Everyone follows the light. Especially your ink.',
     kind: 'passive', quality: 3, pools: ['treasure', 'grotto'], tags: ['glow'], flags: ['homing'],
     costume: 'lure', color: 0xfff27a,
   },
   {
-    id: 'swordfish', name: 'Swordfish Bill', tagline: 'Piercing bubbles',
-    lore: 'En garde! Bubbles pass straight through their victims.',
+    id: 'swordfish', name: 'Swordfish Bill', tagline: 'Piercing ink',
+    lore: 'En garde! Ink passes straight through their victims.',
     kind: 'passive', quality: 2, pools: ['treasure', 'boss'], flags: ['piercing'], add: { shotSpeed: 0.2 },
     color: 0x8aa0c8,
   },
   {
-    id: 'ghostjelly', name: 'Ghost Jelly', tagline: 'Spectral bubbles',
-    lore: 'A cousin who drifted a little too far. Bubbles ignore rocks.',
+    id: 'ghostjelly', name: 'Ghost Jelly', tagline: 'Spectral ink',
+    lore: 'A cousin who drifted a little too far. Ink ignores rocks.',
     kind: 'passive', quality: 2, pools: ['treasure', 'secret', 'grotto'], flags: ['spectral'],
     costume: 'ghost', color: 0xc8d8ff,
   },
   {
-    id: 'mitosis', name: 'Mitosis', tagline: 'Bubbles split',
-    lore: 'One becomes two becomes trouble. Bubbles split on impact.',
+    id: 'mitosis', name: 'Mitosis', tagline: 'Ink splits',
+    lore: 'One becomes two becomes trouble. Ink splits on impact.',
     kind: 'passive', quality: 3, pools: ['treasure', 'secret'], flags: ['split'], unlock: 'first_synergy',
     color: 0xff8ae0,
   },
   {
-    id: 'frostkelp', name: 'Frost Kelp', tagline: 'Chilly bubbles',
+    id: 'frostkelp', name: 'Frost Kelp', tagline: 'Chilly ink',
     lore: 'Grows near icy vents. Frozen foes shatter into shards.',
     kind: 'passive', quality: 2, pools: ['treasure', 'shop'], flags: ['freeze'], color: 0x9ef0ff,
   },
   {
-    id: 'firecoral', name: 'Fire Coral', tagline: 'Burning bubbles',
-    lore: "Don't touch it. Seriously. Bubbles set foes ablaze underwater somehow.",
+    id: 'firecoral', name: 'Fire Coral', tagline: 'Burning ink',
+    lore: "Don't touch it. Seriously. Ink sets foes ablaze underwater somehow.",
     kind: 'passive', quality: 2, pools: ['treasure', 'curse'], tags: ['glow'], flags: ['burn'], color: 0xff5a3d,
   },
   {
-    id: 'boomerang', name: 'Boomerang Shrimp', tagline: 'Bubbles come back',
-    lore: 'A mantis shrimp taught these bubbles to always return home.',
+    id: 'boomerang', name: 'Boomerang Shrimp', tagline: 'Ink comes back',
+    lore: 'A mantis shrimp taught this ink to always return home.',
     kind: 'passive', quality: 2, pools: ['treasure', 'shop'], flags: ['boomerang'], add: { range: 1 },
     color: 0xff9a5c,
   },
@@ -181,30 +181,30 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'helix', name: 'Double Helix', tagline: 'Wavy double shot',
-    lore: 'Two bubbles dancing the same dance.',
+    lore: 'Two ink blobs dancing the same dance.',
     kind: 'passive', quality: 2, pools: ['treasure', 'shop'], tags: ['tentacle'], flags: ['wave'],
     unlock: 'transformation', color: 0x5cf2a0,
   },
   {
     id: 'tripletentacle', name: 'Triple Tentacle', tagline: 'Triple shot',
-    lore: 'Three tentacles, three bubbles, three times the fun (a bit weaker each).',
+    lore: 'Three arms, three ink blobs, three times the fun (a bit weaker each).',
     kind: 'passive', quality: 3, pools: ['treasure', 'boss'], tags: ['tentacle'], flags: ['triple'],
     mul: { damage: 0.8, fireRate: 0.85 }, color: 0xff6f6f,
   },
   {
-    id: 'starfish', name: 'Starfish Arm', tagline: 'Growing bubbles',
-    lore: 'It regrew. And regrew. Bubbles grow as they travel.',
+    id: 'starfish', name: 'Starfish Arm', tagline: 'Growing ink',
+    lore: 'It regrew. And regrew. Ink blobs grow as they travel.',
     kind: 'passive', quality: 2, pools: ['treasure', 'secret'], tags: ['tentacle'], flags: ['grow'],
     unlock: 'beat_sirurchin', color: 0xff8a3d,
   },
   {
-    id: 'inksac', name: 'Ink Sac', tagline: 'Explosive bubbles',
-    lore: 'Every bubble a tiny ink bomb. Mind your tentacles.',
+    id: 'inksac', name: 'Ink Sac', tagline: 'Explosive ink',
+    lore: 'Every ink blob a tiny bomb. Mind your arms.',
     kind: 'passive', quality: 4, pools: ['treasure', 'curse'], tags: ['tentacle'], flags: ['explosive'],
     mul: { fireRate: 0.75 }, unlock: 'beat_admiral', color: 0x3a2a5a,
   },
   {
-    id: 'sirensong', name: 'Siren Song', tagline: 'Charming bubbles',
+    id: 'sirensong', name: 'Siren Song', tagline: 'Charming ink',
     lore: 'A melody that makes enemies forget who they were angry at.',
     kind: 'passive', quality: 2, pools: ['treasure', 'grotto'], flags: ['charm'], unlock: 'beat_treasuremimic',
     color: 0xff9ae0,

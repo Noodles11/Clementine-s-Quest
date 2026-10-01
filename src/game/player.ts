@@ -53,40 +53,10 @@ export class Player extends Entity {
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
 
     // ── Movement ─────────────────────────────────────────────
-    let [ix, iy] = input.moveAxis();
-    const l = Math.hypot(ix, iy);
-    // Keyboard diagonals normalize to 1; analog (touch) input keeps its strength.
-    if (l > 1) {
-      ix /= l;
-      iy /= l;
-    }
-    const max = st.movePx;
-    const moving = l > 0.05;
-    this.moving = moving;
-    this.lastMoveDir = [ix, iy];
-
-    // ── Swimming (octopus) ──────────────────────────────────
-    // Setting off is one jet: the mantle squeezes water out of the siphon and
-    // the arms sweep together, so she darts forward. After that she cruises
-    // smoothly, arms trailing. A sharp turn takes a fresh jet.
-    const THRUST = 0.38; // length of the jet surge (s)
-    const SURGE = 0.85; // extra speed at the peak of the jet (fraction of max)
-    this.pulseClock += dt;
-    if (moving) {
-      const a = Math.atan2(iy, ix);
-      const turn = Math.abs(wrapAngle(a - this.pulseAngle));
-      if ((!this.wasMoving && this.pulseClock > 0.35) || (turn > 1.9 && this.pulseClock > 0.6)) this.startPulse(w, a, Math.min(1, l));
-      else this.pulseAngle = a;
-    }
-    this.wasMoving = moving;
-    const surge = moving && this.pulseClock < THRUST ? 1 + SURGE * this.pulseStrength * Math.sin((Math.PI * this.pulseClock) / THRUST) : 1;
-    const accel = moving ? (this.pulseClock < THRUST ? 12 : 7) : 4;
-    this.vx = approach(this.vx, ix * max * surge, accel, dt);
-    // Slow idle sink: eased in so it never fights the player.
-    this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.8);
-    const sinkV = st.noSink ? 0 : 6 * this.sinkBlend;
-    this.vy = approach(this.vy, moving ? iy * max * surge : sinkV, accel, dt);
-    this.pulseKick = Math.max(0, this.pulseKick - dt * 2);
+    const [ix, iy] = input.moveAxis();
+    this.swim(w, ix, iy, dt);
+    const moving = this.moving;
+    const THRUST = Player.THRUST;
 
     moveBox(this, this.vx * dt, this.vy * dt, this.solidity);
     this.x = clamp(this.x, -30, w.widthPx + 30);
@@ -162,6 +132,46 @@ export class Player extends Entity {
       w.fluid.splat(this.x + px * 22 - cx * 6, this.y + py * 22 - cy * 6, px * 170 - cx * 90, py * 170 - cy * 90, 22);
     }
     w.fx.burst(bx, by, 'wake', 0xdff6ff, 4);
+  }
+
+  static readonly THRUST = 0.38;
+
+  /**
+   * Octopus swimming for a desired direction (ix, iy); |i| is the effort.
+   * Setting off is one jet: the mantle squeezes water out of the siphon and
+   * the arms sweep together, so she darts forward. After that she cruises
+   * smoothly, arms trailing. A sharp turn takes a fresh jet. Updates velocity only.
+   */
+  swim(w: RoomWorld, ix: number, iy: number, dt: number) {
+    const st = this.stats;
+    const l = Math.hypot(ix, iy);
+    // Keyboard diagonals normalize to 1; analog (touch) input keeps its strength.
+    if (l > 1) {
+      ix /= l;
+      iy /= l;
+    }
+    const max = st.movePx;
+    const moving = l > 0.05;
+    this.moving = moving;
+    this.lastMoveDir = [ix, iy];
+    const THRUST = Player.THRUST;
+    const SURGE = 0.85; // extra speed at the peak of the jet (fraction of max)
+    this.pulseClock += dt;
+    if (moving) {
+      const a = Math.atan2(iy, ix);
+      const turn = Math.abs(wrapAngle(a - this.pulseAngle));
+      if ((!this.wasMoving && this.pulseClock > 0.35) || (turn > 1.9 && this.pulseClock > 0.6)) this.startPulse(w, a, Math.min(1, l));
+      else this.pulseAngle = a;
+    }
+    this.wasMoving = moving;
+    const surge = moving && this.pulseClock < THRUST ? 1 + SURGE * this.pulseStrength * Math.sin((Math.PI * this.pulseClock) / THRUST) : 1;
+    const accel = moving ? (this.pulseClock < THRUST ? 12 : 7) : 4;
+    this.vx = approach(this.vx, ix * max * surge, accel, dt);
+    // Slow idle sink: eased in so it never fights the player.
+    this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.8);
+    const sinkV = st.noSink ? 0 : 6 * this.sinkBlend;
+    this.vy = approach(this.vy, moving ? iy * max * surge : sinkV, accel, dt);
+    this.pulseKick = Math.max(0, this.pulseKick - dt * 2);
   }
 
   kick() {

@@ -121,6 +121,9 @@ export class FxSystem implements Fx {
         for (let i = 0; i < n; i++)
           W.spawn({ kind: 'bubble', x: x + R.range(-20, 20), y: y + R.range(-10, 10), vx: R.range(-30, 30), vy: R.range(-120, -40), life: R.range(1.5, 3.5), size: R.range(5, 14), gravity: -60, wobble: 12, fluid: 0.6 });
         break;
+      case 'inktrail':
+        W.spawn({ kind: 'ink', x: x + R.range(-2, 2), y: y + R.range(-2, 2), vx: R.range(-8, 8), vy: R.range(-8, 8), life: R.range(0.5, 0.9), size: R.range(5, 8), size1: R.range(14, 22), color, alpha: 0.3, fluid: 0.9 });
+        break;
       case 'ink':
         for (let i = 0; i < n; i++)
           W.spawn({ kind: 'ink', x: x + R.range(-10, 10), y: y + R.range(-10, 10), vx: R.range(-40, 40), vy: R.range(-40, 40), life: R.range(0.8, 1.5), size: R.range(20, 30), size1: R.range(50, 80), color, alpha: 0.6, fluid: 0.8 });

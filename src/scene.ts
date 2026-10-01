@@ -41,7 +41,7 @@ import { OctopusView } from './render/octopus';
 import { TerrainView } from './render/terrain';
 import { tex } from './render/textures';
 import { CameraFilter } from './render/camera';
-import { drawBubble, drawGate, drawProp, drawShot, drawWorldExtras } from './render/worldart';
+import { drawBubble, drawGate, drawInkMark, drawProp, drawShot, drawWorldExtras } from './render/worldart';
 
 export interface SceneHooks {
   onEvent(ev: WorldEvent): void;
@@ -124,6 +124,9 @@ export class GameScene {
   cam = new Container();
   terrain = new TerrainView();
   plantsLayer = new Container();
+  /** Ink stains on the rock. */
+  inkG = new Graphics();
+  private inkDrawn = -1;
   /** Growth in front of Clementine and the creatures. */
   frontPlants = new Container();
   doorsG = new Graphics();
@@ -218,6 +221,7 @@ export class GameScene {
       this.hintLayer,
       this.terrain.container,
       this.plantsLayer,
+      this.inkG,
       this.doorsG,
       this.propsG,
       this.snow.container,
@@ -335,6 +339,7 @@ export class GameScene {
     w.player.x = w.widthPx * 0.5;
     w.player.y = w.heightPx * 0.35;
     this.attractTarget = { x: w.player.x, y: w.player.y };
+    this.attractHover = 1.2;
     this.updateCamera(true);
     this.hud.container.visible = false;
   }
@@ -400,6 +405,8 @@ export class GameScene {
     w.terrainDirty = false;
     this.plantsLayer.removeChildren();
     this.frontPlants.removeChildren();
+    this.inkG.clear();
+    this.inkDrawn = -1;
     this.plants = new PlantSystem(spec.decor, b.menace);
     this.plantsLayer.addChild(this.plants.container);
     this.frontPlants.addChild(this.plants.front);
@@ -672,37 +679,38 @@ export class GameScene {
     this.render(dt);
   }
 
-  /** Title screen: Clementine drifts in open water with gentle octopus jets. */
+  private attractHover = 1.5;
+
+  /**
+   * Title screen: Clementine hovers upright, then sets off with a jet toward a
+   * new spot, cruises there and hovers again — exactly as she swims in game.
+   */
   private attractStep(w: RoomWorld, dt: number) {
     const p = w.player;
-    this.attractClock += dt;
-    if (this.attractClock > 1.1 + Math.sin(this.time * 0.7) * 0.3) {
-      this.attractClock = 0;
-      if (Math.hypot(this.attractTarget.x - p.x, this.attractTarget.y - p.y) < 60)
-        this.attractTarget = { x: w.widthPx * R.range(0.25, 0.75), y: w.heightPx * R.range(0.18, 0.5) };
-      p.startPulse(w, Math.atan2(this.attractTarget.y - p.y, this.attractTarget.x - p.x), 0.55);
+    const tx = this.attractTarget.x - p.x, ty = this.attractTarget.y - p.y;
+    const d = Math.hypot(tx, ty);
+    let ix = 0, iy = 0;
+    if (this.attractHover > 0) {
+      this.attractHover -= dt;
+      if (this.attractHover <= 0)
+        this.attractTarget = { x: w.widthPx * R.range(0.3, 0.7), y: w.heightPx * R.range(0.2, 0.5) };
+    } else if (d < 30) {
+      this.attractHover = R.range(1.8, 3.5);
+    } else {
+      // Ease off on arrival; cruise at a relaxed pace.
+      const effort = Math.min(0.45, d / 200);
+      ix = (tx / d) * effort;
+      iy = (ty / d) * effort;
     }
-    this.swimFree(p, dt, 2.6);
+    p.swim(w, ix, iy, dt);
+    this.glide(p, dt);
     w.fluid.step(dt);
   }
 
-  /** Integrate a pulse-driven swim without terrain collision (cinematic moments only). */
-  private swimFree(p: RoomWorld['player'], dt: number, drag: number) {
-    const st = p.stats;
-    p.pulseClock += dt;
-    if (p.pulseClock < 0.14) {
-      const J = st.movePx * 4 * 0.5 * p.pulseStrength;
-      const acc = J * (Math.PI / 0.28) * Math.sin((Math.PI * p.pulseClock) / 0.14);
-      p.vx += Math.cos(p.pulseAngle) * acc * dt;
-      p.vy += Math.sin(p.pulseAngle) * acc * dt;
-    }
-    const k = Math.exp(-drag * dt);
-    p.vx *= k;
-    p.vy *= k;
+  /** Move without terrain collision (cinematic moments only). */
+  private glide(p: RoomWorld['player'], dt: number) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.moving = true;
-    p.pulseKick = Math.max(0, p.pulseKick - dt * 2);
   }
 
   private introStep(w: RoomWorld, dt: number) {
@@ -717,11 +725,12 @@ export class GameScene {
     const e = k * k * (3 - 2 * k);
     this.zoom = TITLE_ZOOM + (ZOOM - TITLE_ZOOM) * e;
     this.sceneAlpha = Math.min(1, it.t / 1.4);
-    // Strong strokes straight for the opening.
-    if (p.pulseClock >= 0.5) p.startPulse(w, Math.atan2(goalY - p.y, goalX - p.x), 1.15);
+    // One jet to set off, then a smooth dive straight for the opening.
+    const dx = goalX - p.x, dy = goalY - p.y, dl = Math.hypot(dx, dy) || 1;
+    p.swim(w, dx / dl, dy / dl, dt);
     // Keep her lined up with the hole as she approaches it.
     p.vx += (goalX - p.x) * dt * 2.5;
-    this.swimFree(p, dt, 3.2);
+    this.glide(p, dt);
     w.fluid.step(dt);
     if (p.y > w.heightPx - TILE * 0.6 || it.t > 6) it.fade = Math.min(1, it.fade + dt / 0.5);
     if (it.fade >= 1) {
@@ -953,6 +962,43 @@ export class GameScene {
     const glow = this.glowG;
     glow.clear();
     this.jelly?.drawGlow(glow, p, t, neon);
+    if (this.inkDrawn !== w.inkVersion) {
+      this.inkDrawn = w.inkVersion;
+      this.inkG.clear();
+      for (const m of w.inkMarks) {
+        // Seat the stain on the rock as drawn (its outline wanders a little off the tiles).
+        const rock = (x: number, y: number) => this.terrain.visualRockAt(x, y);
+        let { x, y } = m;
+        if (!m.seated) {
+          for (let i = 0; i < 10 && !rock(x - m.nx * 3, y - m.ny * 3); i++) {
+            x -= m.nx * 3;
+            y -= m.ny * 3;
+          }
+          for (let i = 0; i < 10 && rock(x + m.nx * 3, y + m.ny * 3); i++) {
+            x += m.nx * 3;
+            y += m.ny * 3;
+          }
+          // The face's real orientation: away from where the rock is.
+          let sx = 0, sy = 0;
+          for (let k = 0; k < 16; k++) {
+            const a = (k / 16) * Math.PI * 2;
+            if (rock(x + Math.cos(a) * 12, y + Math.sin(a) * 12)) {
+              sx += Math.cos(a);
+              sy += Math.sin(a);
+            }
+          }
+          const l = Math.hypot(sx, sy);
+          if (l > 0.5) {
+            m.nx = -sx / l;
+            m.ny = -sy / l;
+          }
+          m.x = x;
+          m.y = y;
+          m.seated = true;
+        }
+        drawInkMark(this.inkG, m);
+      }
+    }
     const dg = this.doorsG;
     dg.clear();
     if (w.bossFight) for (const gate of w.gates) drawGate(dg, gate, t, glow);
