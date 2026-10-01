@@ -24,7 +24,6 @@ import { moveBox } from './entity';
 
 export type WorldEvent =
   | { type: 'descend' }
-  | { type: 'surface' }
   | { type: 'grotto' }
   | { type: 'grottoExit' }
   | { type: 'died'; by: string }
@@ -690,7 +689,8 @@ export class RoomWorld implements Solidity {
     if (!d.snack) return;
     const name = d.snack;
     const effect = this.run.data.snacks[name];
-    d.snack = null;
+    // Debug runs never run out of snacks.
+    d.snack = this.run.data.debug ? R.pick(Object.keys(this.run.data.snacks)) : null;
     const t = d.temp;
     const p = this.player;
     switch (effect) {
@@ -850,6 +850,18 @@ export class RoomWorld implements Solidity {
     sfx.item();
   }
 
+  /** Debug: hand Clementine any item. */
+  debugGive(id: string) {
+    const old = this.run.giveItem(id);
+    if (old) this.run.p.active = { id, charge: ITEM_BY_ID[id]?.charge ?? 0 };
+    const d = this.run.p;
+    if (d.active) d.active.charge = ITEM_BY_ID[d.active.id]?.charge ?? 0;
+    this.player.stats = this.run.stats;
+    this.events.push({ type: 'item', id });
+    this.checkSynergies();
+    this.fx.burst(this.player.x, this.player.y, 'sparkle', ITEM_BY_ID[id]?.color ?? 0xffffff, 24);
+  }
+
   checkSynergies() {
     const st = this.run.stats;
     for (const s of st.synergies) {
@@ -932,11 +944,8 @@ export class RoomWorld implements Solidity {
       const chance = this.bossHurtPlayer ? 0.33 : 0.66;
       persist.grotto = rng.chance(chance) && this.spec.boss.grottoItems.length > 0;
     }
-    const canDescend = this.depth < this.run.data.maxDepth;
-    for (const pr of this.props) if (pr.kind === 'crack') pr.active = canDescend;
-    const surf = new Prop('surface', cx, a.y0 + TILE * 1.6, 70, 70);
-    surf.active = true;
-    this.props.push(surf);
+    // The rift opens: deeper if this depth is unlocked, otherwise it ends the dive.
+    for (const pr of this.props) if (pr.kind === 'crack') pr.active = true;
     if (persist.grotto) {
       const gp = new Prop('grotto', a.x1 - TILE * 2.5, c.y - 60, 60, 80);
       gp.active = true;
@@ -1088,8 +1097,6 @@ export class RoomWorld implements Solidity {
         if (Math.abs(p.x - pr.x) < pr.w / 2 && p.y > pr.y - 70) this.exit({ type: 'descend' });
         if (R.chance(dt * 20)) this.fx.burst(pr.x + R.range(-pr.w / 2, pr.w / 2), pr.y - 10, 'bubbles', undefined, 1);
         this.fluid.splat(pr.x, pr.y - 30, 0, -240 * dt * 10, 60);
-      } else if (pr.kind === 'surface') {
-        if (dist(p.x, p.y, pr.x, pr.y) < 50) this.exit({ type: 'surface' });
       } else if (pr.kind === 'grotto') {
         if (dist(p.x, p.y, pr.x, pr.y) < 44) this.exit({ type: 'grotto' });
       } else if (pr.kind === 'grottoExit') {

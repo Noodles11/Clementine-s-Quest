@@ -152,7 +152,7 @@ export class UI {
     const p = el('div', 'panel halftone');
     p.style.width = '420px';
     p.append(el('h1', 'title-text screen-title', 'Seeded dive'));
-    p.append(el('p', 'muted', 'Enter an 8-character seed (e.g. KELP 7Q2Z). Seeded dives are for practice and sharing: they never unlock achievements.'));
+    p.append(el('p', 'muted', 'Enter an 8-character seed (e.g. KELP 7Q2Z). Seeded dives are for practice and sharing: they never unlock achievements. Type DEBUG for a debug dive.'));
     const inp = el('input') as HTMLInputElement;
     inp.type = 'text';
     inp.maxLength = 9;
@@ -192,7 +192,7 @@ export class UI {
   }
 
   // ── Pause ────────────────────────────────────────────
-  showPause(info: { seed: string; custom: boolean; depth: number; biome: string; items: string[]; synergies: string[] }, h: { resume: Handler; options: Handler; saveQuit: Handler; abandon: Handler }) {
+  showPause(info: { seed: string; custom: boolean; depth: number; biome: string; items: string[]; synergies: string[] }, h: { resume: Handler; options: Handler; saveQuit: Handler; abandon: Handler; debugItems?: Handler }) {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '520px';
@@ -205,8 +205,36 @@ export class UI {
     this.fillStrip(strip, info.items);
     p.append(strip);
     if (info.synergies.length) p.append(el('p', 'muted', 'Synergies: ' + info.synergies.map((s) => SYNERGIES.find((x) => x.id === s)?.name ?? TRANSFORMATIONS.find((x) => x.id === s)?.name ?? s).join(', ')));
-    p.append(btn('Resume', 'orange back', h.resume), btn('Options', 'gray small', h.options), btn('Save & Quit', 'teal small', h.saveQuit), btn('Abandon Dive', 'gray small', h.abandon));
+    p.append(btn('Resume', 'orange back', h.resume));
+    if (h.debugItems) p.append(btn('Debug · Pick Items', 'teal small', h.debugItems));
+    p.append(btn('Options', 'gray small', h.options), btn('Save & Quit', 'teal small', h.saveQuit), btn('Abandon Dive', 'gray small', h.abandon));
     o.append(p);
+    this.show(o);
+  }
+
+  /** Debug runs: grant any item. Stays open so several can be picked. */
+  showItemPicker(onPick: (id: string) => void, onClose: Handler) {
+    const o = el('div', 'overlay');
+    const panel = el('div', 'panel halftone');
+    panel.style.width = '820px';
+    panel.style.height = '480px';
+    panel.append(el('h1', 'title-text', 'Debug · items'));
+    panel.append(el('p', 'muted', 'Click an item to give it to Clementine. Actives replace the current one.'));
+    const grid = el('div', 'dex');
+    for (const it of ITEMS) {
+      const card = el('div', 'card');
+      card.style.cursor = 'pointer';
+      const img = el('img') as HTMLImageElement;
+      void this.iconFor(it.id).then((u) => (img.src = u));
+      card.append(img, el('div', '', `<b>${esc(it.name)}</b>${esc(it.tagline)}<br/><span class="muted">${it.kind}</span>`));
+      card.addEventListener('click', () => {
+        onPick(it.id);
+        card.classList.add('done');
+      });
+      grid.append(card);
+    }
+    panel.append(grid, btn('Back to the dive', 'orange back', onClose));
+    o.append(panel);
     this.show(o);
   }
 
@@ -235,18 +263,18 @@ export class UI {
     this.show(o);
   }
 
-  showVictory(s: RunSummary, unlocks: string[], h: { again: Handler; title: Handler }) {
+  showVictory(s: RunSummary, unlocks: string[], h: { title: Handler }) {
     const o = el('div', 'overlay');
     const p = el('div', 'panel halftone');
     p.style.width = '560px';
-    p.append(el('h1', 'title-text screen-title', 'Back to the surface'));
-    p.append(el('p', '', `Clementine made it through Depth ${s.depth} and floated home, glowing proudly.`));
+    p.append(el('h1', 'title-text screen-title', 'The dive is over'));
+    p.append(el('p', '', `Clementine slipped into the rift at the bottom of Depth ${s.depth} — as deep as the reef lets her go, for now.`));
     p.append(this.summaryGrid(s));
     if (unlocks.length) p.append(el('p', '', '<b>New:</b> ' + unlocks.map(esc).join(' · ')));
     const strip = el('div', 'itemstrip');
     this.fillStrip(strip, s.items);
     p.append(strip);
-    p.append(btn('Dive Again', 'orange', h.again), btn('Title', 'gray small back', h.title));
+    p.append(btn('Back to Title', 'orange back', h.title));
     o.append(p);
     this.show(o);
   }

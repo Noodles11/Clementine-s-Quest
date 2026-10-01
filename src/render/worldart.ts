@@ -41,18 +41,7 @@ export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: 
         g.moveTo(p.x, y - 40).lineTo(p.x, y - 16).moveTo(p.x - 8, y - 24).lineTo(p.x, y - 14).lineTo(p.x + 8, y - 24).stroke({ width: 4, color: 0xffffff, alpha: 0.7 + Math.sin(t * 5) * 0.3 });
       } else {
         g.poly(pts).fill(0x2a1a2a).stroke({ width: (3) * EW, color: INK, alpha: EA });
-        // Sealed with a glowing "?" rune while the next depth is locked.
-        const sealed = w.run.data.depth >= w.run.data.maxDepth;
-        if (sealed && w.bossDead) glow.circle(p.x, y + 4, 14).fill({ color: 0xb06bff, alpha: 0.5 + Math.sin(t * 2) * 0.2 });
       }
-      break;
-    }
-    case 'surface': {
-      const r = 34 + Math.sin(t * 2) * 3;
-      g.circle(p.x, p.y, r).fill({ color: 0xcffaff, alpha: 0.35 }).stroke({ width: 4, color: 0xffffff });
-      g.ellipse(p.x - r * 0.4, p.y - r * 0.45, 10, 6).fill({ color: 0xffffff, alpha: 0.85 });
-      g.poly([p.x, p.y - 16, p.x - 12, p.y, p.x - 5, p.y, p.x - 5, p.y + 14, p.x + 5, p.y + 14, p.x + 5, p.y, p.x + 12, p.y]).fill(0xffffff).stroke({ width: (2.5) * EW, color: INK, alpha: EA });
-      glow.circle(p.x, p.y, r + 10).fill({ color: 0xcffaff, alpha: 0.35 });
       break;
     }
     case 'grotto':

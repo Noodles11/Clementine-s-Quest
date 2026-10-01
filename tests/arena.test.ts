@@ -36,8 +36,28 @@ describe('boss arena', () => {
     w.onBossKilled(w.boss!);
     w.boss!.dead = true;
     expect(w.bossFight).toBe(false);
-    expect(w.props.find((p) => p.kind === 'crack')?.active).toBe(false); // maxDepth 1 in this run
+    expect(w.props.find((p) => p.kind === 'crack')?.active).toBe(true); // the rift always opens
+    expect(w.props.some((p) => (p.kind as string) === 'surface')).toBe(false);
     input.setTouchMove(0, 0);
     void a;
+  });
+});
+
+describe('debug dive', () => {
+  it('starts stocked: 999 HP, 99 bombs/keys/coins, a snack, all depths', () => {
+    const run = Run.create('ABCDEFGH', true, [], 1);
+    run.makeDebug();
+    expect(run.p.hp).toBe(999);
+    expect(run.p.maxHp).toBe(999);
+    expect(run.p.bombs).toBe(99);
+    expect(run.p.keys).toBe(99);
+    expect(run.p.coins).toBe(99);
+    expect(run.p.snack).toBeTruthy();
+    expect(run.data.maxDepth).toBe(3);
+    const w = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
+    w.debugGive('lure');
+    expect(run.p.items).toContain('lure');
+    w.eatSnack();
+    expect(run.p.snack).toBeTruthy(); // never runs out
   });
 });

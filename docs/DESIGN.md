@@ -836,3 +836,12 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   their shots fizzle there, and nothing hurts Clementine inside. A "Safe waters" note shows on entry.
 - **Boss arena:** creatures from the rest of the reef don't follow Clementine in and can't enter during
   the fight; only the boss and the minions it summons fight inside.
+
+## 25. End of a dive & debug dives
+
+- After a boss falls there is no "back to the surface" bubble any more: only the rewards and the
+  **rift**. If the next depth is unlocked the rift leads down; otherwise entering it ends the run
+  with the summary screen ("The dive is over") and a single button back to the title screen.
+- **Debug dive:** type `DEBUG` as the seed. A normal (random) level, but 999 HP, 99 coins/bombs/keys,
+  a snack that never runs out (all snacks identified), all three depths open, and an item picker
+  (press **`** or use the pause menu) that grants any item. Debug dives never unlock anything.

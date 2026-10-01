@@ -49,6 +49,7 @@ export interface SceneHooks {
   onVictory(): void;
   onPause(): void;
   onRestart(): void;
+  onDebugMenu(): void;
   onAutosave(): void;
   onFloorStart(depth: number): void;
   onBossIntro(boss: Boss): Promise<void>;
@@ -625,6 +626,12 @@ export class GameScene {
     if (!w) return;
 
     if (this.mode === 'play') {
+      if (this.run?.data.debug && input.wasPressed('Backquote')) {
+        this.pause();
+        this.hooks.onDebugMenu();
+        input.endFrame();
+        return;
+      }
       if (input.wasPressed('Escape') || input.wasPressed('KeyP')) {
         this.pause();
         this.hooks.onPause();
@@ -750,16 +757,21 @@ export class GameScene {
       switch (ev.type) {
         case 'descend':
           sfx.descend();
+          if (this.run!.data.depth >= this.run!.data.maxDepth) {
+            // The rift leads nowhere new yet: the dive ends here.
+            this.beginTransition('down', () => {
+              this.mode = 'dead';
+              this.transition = null;
+              this.hooks.onVictory();
+            });
+            break;
+          }
           this.beginTransition('down', () => {
             this.run!.nextFloor();
             this.buildWorld(this.run!.level, LEVEL_ID);
             this.hooks.onAutosave();
             this.hooks.onFloorStart(this.run!.data.depth);
           });
-          break;
-        case 'surface':
-          this.mode = 'dead';
-          this.hooks.onVictory();
           break;
         case 'grotto':
           this.beginTransition('fade', () => {

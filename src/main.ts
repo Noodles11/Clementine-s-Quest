@@ -60,7 +60,8 @@ class Game {
       onDeath: (by) => this.onDeath(by),
       onVictory: () => this.onVictory(),
       onPause: () => this.showPause(),
-      onRestart: () => this.newRun(),
+      onRestart: () => (this.run?.data.debug ? this.newRun(undefined, true, true) : this.newRun()),
+      onDebugMenu: () => this.showDebugItems(() => this.resumePlay()),
       onAutosave: () => this.autosave(),
       onFloorStart: (d) => this.onFloorStart(d),
       onBossIntro: (b) => this.bossIntro(b),
@@ -118,6 +119,10 @@ class Game {
       seeded: () =>
         this.ui.showSeedEntry(
           (v) => {
+            if (v.trim().toUpperCase() === 'DEBUG') {
+              this.newRun(undefined, true, true);
+              return true;
+            }
             const code = normalizeSeedCode(v);
             if (!code) return false;
             this.newRun(code, true);
@@ -159,11 +164,8 @@ class Game {
         synergies: [...run.data.synergies, ...run.data.transformations],
       },
       {
-        resume: () => {
-          this.ui.clear();
-          input.setEnabled(true);
-          this.scene.resume();
-        },
+        resume: () => this.resumePlay(),
+        debugItems: run.data.debug ? () => this.showDebugItems(() => this.showPause()) : undefined,
         options: () => this.ui.showOptions(this.profile.options, (o) => this.setOptions(o), () => this.showPause()),
         saveQuit: () => {
           this.autosave();
@@ -180,13 +182,26 @@ class Game {
     );
   }
 
+  resumePlay() {
+    this.ui.clear();
+    input.setEnabled(true);
+    this.scene.resume();
+  }
+
+  /** Debug dives: pick any item. */
+  showDebugItems(onClose: () => void) {
+    input.setEnabled(false);
+    this.ui.showItemPicker((id) => this.scene.world?.debugGive(id), onClose);
+  }
+
   // ── Runs ───────────────────────────────────────────────
-  newRun(code?: string, custom = false) {
+  newRun(code?: string, custom = false, debug = false) {
     unlockAudio();
     const seed = code ?? randomSeedCode();
     const isCustom = custom || !!SPECIAL_SEEDS[seed];
     this.pendingUnlocks = [];
     const run = Run.create(seed, isCustom, this.profile.achievements, maxDepthFor(this.profile));
+    if (debug) run.makeDebug();
     this.run = run;
     this.profile.stats.runs++;
     saveProfile(this.profile);
@@ -195,6 +210,7 @@ class Game {
       input.setEnabled(true);
       this.scene.startRun(run, true);
       if (SPECIAL_SEEDS[seed]) this.ui.toast('SPECIAL SEED!', SPECIAL_SEEDS[seed]);
+      if (debug) this.ui.toast('DEBUG DIVE', 'Press ` or open the pause menu to pick any item');
       this.autosave();
     };
     if (this.scene.mode === 'attract') {
@@ -370,7 +386,6 @@ class Game {
     const unlocks = this.pendingUnlocks.splice(0);
     const showEnd = () =>
       this.ui.showVictory(s, unlocks.map((u) => ACH_BY_ID[u].reward), {
-        again: () => this.newRun(),
         title: () => {
           this.scene.stop();
           this.showTitle();

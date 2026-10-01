@@ -31,6 +31,9 @@ half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, �
   (explosive ink, charged pearls, beams) chip small holes. Plain ink only leaves stains.
 - Creatures ambush you in their chambers; clearing an encounter drops a reward and charges
   your active item. Plants and boulders in front can hide you and them from view.
+- Every boss guards **The Crack** (the rift). After the fight only rewards and the rift remain;
+  if the next depth is still locked, entering the rift ends the dive.
+- Debug: enter `DEBUG` as a seed for 999 HP, stocked pockets and an item picker (press **`**).
 - Every boss guards **The Crack**. Your first dives end at Depth 1; each new boss you
   defeat unlocks the next depth (Kelp Jungle, then the Sunken Galleon).
 - Items stack: bubble effects combine, 10 named **synergies** add special effects, and

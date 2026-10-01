@@ -65,7 +65,7 @@ export class Pedestal extends Entity {
   }
 }
 
-export type PropKind = 'crack' | 'surface' | 'grotto' | 'grottoExit' | 'shopkeeper';
+export type PropKind = 'crack' | 'grotto' | 'grottoExit' | 'shopkeeper';
 
 export class Prop {
   dead = false;

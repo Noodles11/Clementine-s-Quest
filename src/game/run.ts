@@ -104,6 +104,8 @@ export interface RunData {
   v: 3;
   seedCode: string;
   custom: boolean;
+  /** Debug run: huge health, stocked pockets, pick any item. */
+  debug?: boolean;
   depth: number;
   maxDepth: number;
   unlocked: string[];
@@ -197,6 +199,19 @@ export class Run {
     d.currentRoom = 0;
   }
 
+  /** Turn this run into a debug run (seed "DEBUG"). */
+  makeDebug() {
+    const d = this.data;
+    d.debug = true;
+    d.custom = true;
+    d.maxDepth = 3;
+    const p = d.player;
+    p.maxHp = p.hp = 999;
+    p.coins = p.bombs = p.keys = 99;
+    p.snack = Object.keys(d.snacks)[0];
+    d.identified = Object.keys(d.snacks);
+  }
+
   /** Draw a fresh item (rerolls). Recorded so continuing reproduces pools. */
   drawItem(pool: 'treasure' | 'boss' | 'shop' | 'secret' | 'grotto' | 'curse', rng: Rng): string {
     const id = this.pools.draw(pool, rng);
@@ -246,7 +261,7 @@ export class Run {
 
   /** Cap on max HP plus foam. */
   totalHeartCap() {
-    return 300;
+    return this.data.debug ? 999 : 300;
   }
 
   /** Foam: extra hit points on top of health that soak damage first. */

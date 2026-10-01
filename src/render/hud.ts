@@ -95,8 +95,8 @@ export class Hud {
 
     // Health bar: 100 HP base, foam extends it in pale blue.
     const bx = 104, by = 18;
-    const scale = 2; // px per HP
-    const bw = Math.min(440, d.maxHp * scale);
+    const bw = Math.min(440, d.maxHp * 2);
+    const scale = bw / Math.max(1, d.maxHp); // px per HP
     const fw = Math.min(600 - bw, d.foam * scale);
     const bh = 16;
     g.roundRect(bx - 3, by - 3, bw + fw + 6, bh + 6, 6).fill({ color: 0x06101c, alpha: 0.6 }).stroke({ width: 2.5 * EW, color: INK, alpha: EA });
@@ -110,7 +110,7 @@ export class Hud {
     g.roundRect(bx, by, Math.max(4, bw * frac), bh * 0.4, 3).fill({ color: 0xffffff, alpha: 0.18 });
     if (fw > 0) g.roundRect(bx + bw, by, fw, bh, 4).fill(0xbfeaff).stroke({ width: 1, color: 0x6ab8d8, alpha: 0.8 });
     // Ticks every 25 HP.
-    for (let v = 25; v < d.maxHp; v += 25) g.moveTo(bx + v * scale, by + 2).lineTo(bx + v * scale, by + bh - 2).stroke({ width: 1, color: 0x000000, alpha: 0.25 });
+    for (let v = 25; v < d.maxHp && d.maxHp <= 300; v += 25) g.moveTo(bx + v * scale, by + 2).lineTo(bx + v * scale, by + bh - 2).stroke({ width: 1, color: 0x000000, alpha: 0.25 });
     this.hpText.text = d.foam > 0 ? `${d.hp} / ${d.maxHp}  +${d.foam}` : `${d.hp} / ${d.maxHp}`;
     this.hpText.position.set(bx + 6, by + bh / 2);
 
