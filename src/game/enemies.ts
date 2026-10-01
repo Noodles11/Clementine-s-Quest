@@ -60,6 +60,13 @@ export class Enemy extends Entity {
   display: string;
   lastHitBy: Bubble | null = null;
   spawnGrace = 0.6;
+  /** Where it lives; it drifts back here when it loses interest. */
+  spawnX = 0;
+  spawnY = 0;
+  /** Currently hunting Clementine. */
+  chasing = false;
+  /** Spawned inside the boss arena (boss minions may stay there). */
+  arenaBorn = false;
   /** Encounter group this enemy belongs to (-1: none). */
   groupId = -1;
   /** Champion variant: tougher, tinted, drops a bonus pickup. */
@@ -78,6 +85,8 @@ export class Enemy extends Entity {
     this.kind = kind;
     this.x = x;
     this.y = y;
+    this.spawnX = x;
+    this.spawnY = y;
     this.menace = menace;
     this.attach = attach;
     const info = ENEMY_INFO[kind as EnemyKind];
@@ -176,7 +185,8 @@ export class Enemy extends Entity {
       return;
     }
     if (this.charmed > 0) this.thinkCharmed(w, dt);
-    else this.think(w, dt);
+    else if (this.boss || w.canChase(this)) this.think(w, dt);
+    else this.idle(w, dt);
     this.applyPhysics(w, dt, false);
   }
 
@@ -191,6 +201,28 @@ export class Enemy extends Entity {
     if (best) {
       this.steer(best.x, best.y, 90, dt);
       if (bd < this.r + best.r + 4) best.hurt(w, 8 * dt, null, true);
+    }
+  }
+
+  /**
+   * Lost interest (Clementine is far away, in a safe place or in the boss
+   * arena): stop attacking and wander lazily back home.
+   */
+  idle(_w: RoomWorld, dt: number) {
+    this.tele = 0;
+    if (this.state !== 'disguised') this.state = 'idle';
+    if (this.attach !== 'none' && !this.swimmer && this.gravity === 0) return; // clingers stay put
+    const dx = this.spawnX - this.x, dy = this.spawnY - this.y;
+    const d = Math.hypot(dx, dy);
+    if (this.state === 'disguised') {
+      this.vx *= Math.exp(-4 * dt);
+      return;
+    }
+    if (d > 40) this.steer(this.spawnX, this.spawnY, 45 * this.speedK, dt, 2);
+    else {
+      // Mill about at home.
+      const a = this.age * 0.6 + this.id;
+      this.steer(this.spawnX + Math.cos(a) * 30, this.spawnY + Math.sin(a * 1.3) * 18, 20, dt, 1.5);
     }
   }
 
@@ -428,6 +460,18 @@ class Moray extends Enemy {
     this.vx = this.vy = 0;
   }
   override applyPhysics() {}
+  override idle(_w: RoomWorld, dt: number) {
+    // Back into its burrow.
+    this.state = 'idle';
+    this.tele = 0;
+    this.out = Math.max(0, this.out - dt * 2);
+    this.hidden = this.out < 0.25;
+    const dirx = this.attach === 'left' ? 1 : this.attach === 'right' ? -1 : 0;
+    const diry = this.attach === 'floor' ? -1 : 0;
+    const reach = 150 * (1 + this.menace * 0.3);
+    this.x = this.homeX + dirx * this.out * reach;
+    this.y = this.homeY + diry * this.out * reach;
+  }
 }
 
 class Barracuda extends Enemy {

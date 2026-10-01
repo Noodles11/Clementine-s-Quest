@@ -47,6 +47,10 @@ export const TITLE_ID = -9;
 const ACTIVE_RANGE = 1250;
 /** Encounter groups wake up when Clementine gets this close to their edge. */
 const WAKE_RANGE = 420;
+/** A creature starts hunting Clementine within this distance… */
+const ENGAGE_RANGE = 720;
+/** …and gives up beyond this one. */
+const LEASH_RANGE = 1050;
 
 function packBits(a: Uint8Array): string {
   const bytes = new Uint8Array(Math.ceil(a.length / 8));
@@ -121,6 +125,7 @@ export class RoomWorld implements Solidity {
   dirtyTiles: number[] = [];
   exiting = false;
   bossHurtPlayer = false;
+  private wasSafe = false;
   /** Ink stains on the rock (cosmetic, newest last). */
   inkMarks: InkMark[] = [];
   inkVersion = 0;
@@ -370,6 +375,42 @@ export class RoomWorld implements Solidity {
     this.exploredVersion++;
   }
 
+  /** Barnaby's shop and its surroundings: creatures never come in. */
+  get safeZones() {
+    return (this._safe ??= this.spec.chambers
+      .filter((c) => c.cave === 'shop')
+      .map((c) => ({ x: c.cx * TILE, y: c.cy * TILE, rx: (c.rx + 2) * TILE, ry: (c.ry + 2) * TILE })));
+  }
+  private _safe?: { x: number; y: number; rx: number; ry: number }[];
+
+  inSafeZone(x: number, y: number) {
+    for (const z of this.safeZones) if (((x - z.x) / z.rx) ** 2 + ((y - z.y) / z.ry) ** 2 < 1) return true;
+    return false;
+  }
+
+  /** Places a creature may not swim into. */
+  private forbidden(e: Enemy) {
+    if (e.boss) return false;
+    if (this.inSafeZone(e.x, e.y)) return true;
+    return !e.arenaBorn && this.bossFight && this.inArena(e.x, e.y, 0);
+  }
+
+  /**
+   * Whether a creature keeps hunting Clementine: it notices her when she comes
+   * close and gives up when she gets far away, hides in a safe place, or is in
+   * the boss arena (only the boss's own minions follow her in there).
+   */
+  canChase(e: Enemy) {
+    const p = this.player;
+    const d = dist(p.x, p.y, e.x, e.y);
+    if (!e.chasing && d < ENGAGE_RANGE) e.chasing = true;
+    else if (e.chasing && d > LEASH_RANGE) e.chasing = false;
+    if (!e.chasing) return false;
+    if (this.inSafeZone(p.x, p.y)) return false;
+    if (this.inArena(p.x, p.y, 0) && !e.arenaBorn) return false;
+    return true;
+  }
+
   /** True while Clementine is inside the boss arena. */
   inArena(x: number, y: number, margin = TILE * 1.5) {
     const a = this.arena;
@@ -462,6 +503,7 @@ export class RoomWorld implements Solidity {
 
   // ── Entities ──────────────────────────────────────────────────
   addEnemy(e: Enemy) {
+    e.arenaBorn = this.inArena(e.x, e.y, 0);
     this.enemies.push(e);
     this.events.push({ type: 'enemySeen', kind: e.kind });
   }
@@ -926,7 +968,16 @@ export class RoomWorld implements Solidity {
     for (const e of this.enemies) {
       if (e.dead) continue;
       if (!e.boss && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 > act2) continue;
+      const ox = e.x, oy = e.y;
       e.update(this, dt);
+      // Creatures are turned back at the edge of safe places.
+      if (this.forbidden(e)) {
+        e.x = ox;
+        e.y = oy;
+        e.vx = -e.vx * 0.3;
+        e.vy = -e.vy * 0.3;
+        e.kx = e.ky = 0;
+      }
     }
     // Soft separation between enemies.
     for (let i = 0; i < this.enemies.length; i++) {
@@ -948,8 +999,10 @@ export class RoomWorld implements Solidity {
         }
       }
     }
-    // Contact damage.
+    // Contact damage (never inside safe places).
+    const safe = this.inSafeZone(p.x, p.y);
     for (const e of this.enemies) {
+      if (safe) break;
       if (e.dead || e.charmed > 0 || e.spawnGrace > 0 || e.frozen > 0) continue;
       if (e.hidden && !(e.kind === 'moray' && (e as any).out > 0.2)) continue;
       if (e.kind === 'mimic' && e.state === 'disguised') continue;
@@ -1042,7 +1095,16 @@ export class RoomWorld implements Solidity {
       }
     }
 
+    // Shots fizzle at the edge of safe places.
+    for (const s of this.shots) if (!s.dead && this.inSafeZone(s.x, s.y)) {
+      s.dead = true;
+      this.fx.burst(s.x, s.y, 'pop', s.color, 3);
+    }
     // Stray shots far from the action fade out.
+    if (this.inSafeZone(p.x, p.y) !== this.wasSafe) {
+      this.wasSafe = !this.wasSafe;
+      if (this.wasSafe) this.fx.text(p.x, p.y - 50, 'Safe waters', 0x9ef0c8, 18);
+    }
     const far2 = 1600 * 1600;
     for (const s of this.shots) if ((s.x - p.x) ** 2 + (s.y - p.y) ** 2 > far2) s.dead = true;
 

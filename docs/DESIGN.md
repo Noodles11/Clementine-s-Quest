@@ -827,3 +827,12 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   pufferling/flounder 14, barracuda 16, mimic/moray 18, creature shots 10, urchin beds 8,
   own ink bomb 20, Kelpie's vines 15; bosses 18/22/25 contact and 12/14/16 per shot by depth.
   Creature damage scales ×(1 + 0.75·menace) deeper down; champions hit 25% harder.
+
+## 24. Aggro, safe waters and leashing
+
+- Creatures start hunting Clementine within ~720 px and give up beyond ~1050 px; then they stop
+  attacking and drift back to where they spawned (morays retreat into their burrows).
+- **Barnaby's shop is safe water:** creatures can't swim into it (they are turned back at its edge),
+  their shots fizzle there, and nothing hurts Clementine inside. A "Safe waters" note shows on entry.
+- **Boss arena:** creatures from the rest of the reef don't follow Clementine in and can't enter during
+  the fight; only the boss and the minions it summons fight inside.
