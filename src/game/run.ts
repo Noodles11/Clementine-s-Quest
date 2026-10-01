@@ -50,6 +50,8 @@ export interface RoomPersist {
   groupsCleared?: number[];
   /** Craters blown into the rock: [x, y, r]. */
   holes?: number[][];
+  /** Buried treasures already dug up (indices into the level's list). */
+  dug?: number[];
   /** Packed fog-of-war bitmap. */
   explored?: string;
   /** Where Clementine was when last saved. */

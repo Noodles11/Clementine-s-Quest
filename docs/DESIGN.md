@@ -845,3 +845,13 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
 - **Debug dive:** type `DEBUG` as the seed. A normal (random) level, but 999 HP, 99 coins/bombs/keys,
   a snack that never runs out (all snacks identified), all three depths open, and an item picker
   (press **`** or use the pause menu) that grants any item. Debug dives never unlock anything.
+
+## 26. True map, sealed pockets, buried coins
+
+- **Map:** the minimap and Tab map sample the rock exactly as it is drawn (3 samples per tile),
+  including every crater blown during the run, under the fog of war.
+- **Sealed pockets:** 4–6 per level (more deeper), small round chambers sealed one tile of rock below
+  a corridor floor. Visible through the rock but unreachable; one ink bomb (crater r 72 px) on the floor
+  above opens them. The first holds a treasure item, the rest clams or a handful of collectibles.
+- **Buried coins:** 8–12 per level under faint scratched X marks on reef floors. Blow a hole there and
+  2–3 coins (or a 5-coin) pop out. Dug spots are saved.

@@ -78,6 +78,10 @@ export interface LevelSpec {
   shopkeeper?: { x: number; y: number };
   decor: Decor[];
   poolRemovedAfter: string[];
+  /** Sealed pockets beside a corridor: one ink bomb opens them (px). */
+  pockets?: { x: number; y: number; rx: number; ry: number }[];
+  /** Coins buried just under the rock surface; a faint X marks the spot (px). */
+  buried?: { x: number; y: number; mx: number; my: number; coins: string[] }[];
 }
 
 export interface LevelOptions {
@@ -488,6 +492,60 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     if (spawns.length) groups.push({ id: groups.length, x: ch.cx * TILE, y: ch.cy * TILE, r: Math.max(ch.rx, ch.ry) * TILE * 1.3, spawns });
   }
 
+  // ── Sealed pockets: small chambers one bomb below a corridor floor ──
+  const arenaT = { x0: boss.cx - boss.rx - 3, x1: boss.cx + boss.rx + 3, y0: boss.cy - boss.ry - 3, y1: floorY + 5 };
+  const nearSpecial = (x: number, y: number) =>
+    (x > arenaT.x0 && x < arenaT.x1 && y > arenaT.y0 && y < arenaT.y1) ||
+    chambers.some((c) => c.cave === 'shop' && Math.abs(x - c.cx) < c.rx + 4 && Math.abs(y - c.cy) < c.ry + 4) ||
+    Math.hypot(x - start.cx, y - start.cy) < 6;
+  const prng = stream(seed, 'pockets', depth);
+  const pockets: NonNullable<LevelSpec['pockets']> = [];
+  const PRX = 2.6, PRY = 1.8;
+  const cands: { x: number; f: number }[] = [];
+  for (let f = 4; f < th - 8; f++)
+    for (let x = 6; x < tw - 6; x++)
+      if (at(x, f) === T_ROCK && at(x, f - 1) === T_EMPTY && at(x, f - 2) === T_EMPTY && !nearSpecial(x, f)) cands.push({ x, f });
+  prng.shuffle(cands);
+  const wantPockets = depth === 1 ? 4 : depth === 2 ? 5 : 6;
+  for (const c of cands) {
+    if (pockets.length >= wantPockets) break;
+    const cx = c.x + 0.5, cy = c.f + 1 + PRY;
+    if (pockets.some((q) => Math.hypot(q.x / TILE - cx, q.y / TILE - cy) < 10)) continue;
+    // The wall row and everything around the pocket must be solid rock.
+    let ok = cy + PRY + 2 < th - 3;
+    for (let y = c.f; ok && y <= Math.ceil(cy + PRY + 1.5); y++)
+      for (let x = Math.floor(cx - PRX - 1.5); ok && x <= Math.ceil(cx + PRX + 1.5); x++) if (at(x, y) !== T_ROCK) ok = false;
+    if (!ok) continue;
+    for (let y = c.f + 1; y <= cy + PRY; y++)
+      for (let x = Math.floor(cx - PRX); x <= cx + PRX; x++) {
+        const dx = (x + 0.5 - cx) / PRX, dy = (y + 0.5 - cy) / PRY;
+        if (dx * dx + dy * dy <= 1.05) set(x, y, T_EMPTY);
+      }
+    pockets.push({ x: cx * TILE, y: cy * TILE, rx: PRX * TILE, ry: PRY * TILE });
+    const fy = floorBelow(Math.floor(cx), cy);
+    if (pockets.length === 1) pedestals.push({ x: cx * TILE, y: fy * TILE - 34, itemId: pools.draw('treasure', prng) });
+    else if (prng.chance(0.3)) pickups.push({ kind: prng.chance(0.4) ? 'goldclam' : 'clam', x: cx * TILE, y: (fy - 0.5) * TILE });
+    else for (let i = 0; i < prng.int(3, 5); i++) pickups.push({ kind: prng.pick(['coin', 'coin', 'coin5', 'heart', 'key', 'bomb']), x: (cx + prng.range(-1.6, 1.6)) * TILE, y: (fy - 0.5) * TILE });
+  }
+
+  // ── Buried coins under X marks ────────────────────────────
+  const buried: NonNullable<LevelSpec['buried']> = [];
+  const crng = stream(seed, 'buried', depth);
+  const spots: { x: number; f: number }[] = [];
+  for (let f = 4; f < th - 5; f++)
+    for (let x = 4; x < tw - 4; x++)
+      if (at(x, f) === T_ROCK && at(x, f - 1) === T_EMPTY && at(x - 1, f) === T_ROCK && at(x + 1, f) === T_ROCK && at(x, f + 1) === T_ROCK && at(x, f + 2) === T_ROCK && !nearSpecial(x, f) &&
+        !pockets.some((q) => Math.abs((x + 0.5) * TILE - q.x) < q.rx + TILE * 2 && Math.abs(f * TILE - q.y) < q.ry + TILE * 3))
+        spots.push({ x, f });
+  crng.shuffle(spots);
+  const wantBuried = depth === 1 ? 8 : depth === 2 ? 10 : 12;
+  for (const sp of spots) {
+    if (buried.length >= wantBuried) break;
+    if (buried.some((b) => Math.hypot(b.mx / TILE - sp.x, b.my / TILE - sp.f) < 9)) continue;
+    const coins = crng.chance(0.25) ? ['coin5'] : Array.from({ length: crng.int(2, 3) }, () => 'coin');
+    buried.push({ x: (sp.x + 0.5) * TILE, y: (sp.f + 0.6) * TILE, mx: (sp.x + 0.5) * TILE, my: sp.f * TILE, coins });
+  }
+
   const decor = placeDecor(stream(seed, 'decor', depth), tiles, tw, th, depth, {
     x0: Math.floor(crackX - 4), x1: Math.ceil(crackX + 4), y: floorY,
   });
@@ -504,6 +562,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     },
     groups, pedestals, pickups, shopkeeper, decor,
     poolRemovedAfter: [...pools.removed],
+    pockets, buried,
   };
 }
 

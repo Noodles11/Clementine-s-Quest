@@ -135,6 +135,9 @@ export class RoomWorld implements Solidity {
   private cw: number;
   /** Craters made since the scene last looked (plants there get uprooted). */
   newHoles: { x: number; y: number; r: number }[] = [];
+  /** Coins still buried under X marks. */
+  buried: { i: number; x: number; y: number; mx: number; my: number; coins: string[] }[] = [];
+  buriedVersion = 0;
   /** Fog of war: tiles Clementine has seen. */
   explored: Uint8Array;
   exploredVersion = 0;
@@ -163,6 +166,10 @@ export class RoomWorld implements Solidity {
     this.cw = Math.ceil(this.widthPx / CARVE);
     this.carved = new Uint8Array(this.cw * Math.ceil(this.heightPx / CARVE));
     for (const [hx, hy, hr] of persist.holes ?? []) this.carveMask(hx, hy, hr);
+    const dug = new Set(persist.dug ?? []);
+    (spec.buried ?? []).forEach((b, i) => {
+      if (!dug.has(i)) this.buried.push({ i, ...b });
+    });
     this.clearedGroups = new Set(persist.groupsCleared ?? []);
     this.bossDead = !!persist.bossDead;
     if (persist.explored) unpackBits(persist.explored, this.explored);
@@ -273,6 +280,7 @@ export class RoomWorld implements Solidity {
     this.inkMarks = this.inkMarks.filter((m) => dist(m.x, m.y, x, y) > r + 6);
     if (this.inkMarks.length !== before) this.inkVersion++;
     this.fluid.refreshSolid();
+    this.digUpTreasure();
     // Rubble and silt.
     this.fx.burst(x, y, 'shards', this.biome.rock, Math.round(6 + r / 5));
     this.fx.burst(x, y + r * 0.3, 'sand', undefined, Math.round(4 + r / 10));
@@ -310,6 +318,22 @@ export class RoomWorld implements Solidity {
     sfx.hit();
     const rng = stream(this.run.seed, 'pot', this.depth, this.areaId, i);
     if (rng.chance(0.35)) this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'heart', 'bomb', 'key']), cx, cy, 0, -40);
+  }
+
+  /** Coins buried under an X spill out once the rock above them is blown away. */
+  private digUpTreasure() {
+    const found = this.buried.filter((b) => !this.solidAt(b.x, b.y));
+    if (!found.length) return;
+    const s = this.run.roomState(this.areaId);
+    for (const b of found) {
+      (s.dug ??= []).push(b.i);
+      for (const c of b.coins) this.spawnPickup(c as PickupKind, b.x + R.range(-8, 8), b.y, R.range(-90, 90), R.range(-260, -160));
+      this.fx.burst(b.x, b.y, 'sparkle', 0xfff27a, 18);
+      this.fx.text(b.x, b.y - 30, 'TREASURE!', 0xffe14d, 24);
+      sfx.coin();
+    }
+    this.buried = this.buried.filter((b) => !found.includes(b));
+    this.buriedVersion++;
   }
 
   /** Ink bombs crack open the weak rock sealing secret caves. */
@@ -589,7 +613,7 @@ export class RoomWorld implements Solidity {
           if (this.tileAt(tx, ty) === T_BREAK && dist(x, y, (tx + 0.5) * TILE, (ty + 0.5) * TILE) < r + TILE * 0.5) this.breakTile(tx, ty);
         }
     if (o.fromBomb) this.openSecretNear(x, y, r);
-    if (o.fromBomb) this.carve(x, y, 62);
+    if (o.fromBomb) this.carve(x, y, 72);
     else if (o.carve) this.carve(x, y, o.carve);
     for (const p of this.pickups) {
       const d = dist(x, y, p.x, p.y);

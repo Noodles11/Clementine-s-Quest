@@ -60,3 +60,27 @@ describe('numeric health', () => {
     expect(run.p.hp).toBe(70 + HEAL_HEART);
   });
 });
+
+describe('hidden rewards', () => {
+  it('a bomb on the floor above a pocket opens it; a bomb on an X digs up coins', () => {
+    const run = Run.create('POCKETSS', true, [], 1);
+    const w = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
+    const q = run.level.pockets![0];
+    const wallTop = (Math.round((q.y - q.ry) / TILE) - 1) * TILE; // corridor floor surface
+    // Ink bomb resting on the floor (its centre ~13px above the surface).
+    w.explode(q.x, wallTop - 13, 95, 60, { fromBomb: true });
+    // There is now an open path from the corridor into the pocket.
+    let open = true;
+    for (let y = wallTop - 10; y < q.y; y += 4) if (w.solidAt(q.x, y)) open = false;
+    expect(open).toBe(true);
+
+    const b = w.buried[0];
+    const before = w.pickups.length;
+    w.explode(b.mx, b.my - 13, 95, 60, { fromBomb: true });
+    expect(w.pickups.length).toBeGreaterThan(before);
+    expect(w.buried.some((x) => x.i === b.i)).toBe(false);
+    w.persist();
+    const again = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
+    expect(again.buried.some((x) => x.i === b.i)).toBe(false);
+  });
+});

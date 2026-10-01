@@ -128,6 +128,9 @@ export class GameScene {
   /** Ink stains on the rock. */
   inkG = new Graphics();
   private inkDrawn = -1;
+  /** Faint X marks over buried coins. */
+  xG = new Graphics();
+  private xDrawn = -1;
   /** Growth in front of Clementine and the creatures. */
   frontPlants = new Container();
   doorsG = new Graphics();
@@ -223,6 +226,7 @@ export class GameScene {
       this.terrain.container,
       this.plantsLayer,
       this.inkG,
+      this.xG,
       this.doorsG,
       this.propsG,
       this.snow.container,
@@ -280,6 +284,7 @@ export class GameScene {
     this.dispCanvas = document.createElement('canvas');
     this.dispCtx = this.dispCanvas.getContext('2d')!;
 
+    this.hud.rockAt = (x, y) => this.terrain.visualRockAt(x, y);
     this.fx.onExplosion = (x, y) => {
       for (const s of this.schools) s.scare(x, y, 400, 1.2);
     };
@@ -408,6 +413,8 @@ export class GameScene {
     this.frontPlants.removeChildren();
     this.inkG.clear();
     this.inkDrawn = -1;
+    this.xG.clear();
+    this.xDrawn = -1;
     // Growth that stood where craters were blown is gone.
     const inHole = (x: number, y: number) => w.holes.some((ho) => (x - ho.x) ** 2 + (y - ho.y) ** 2 < (ho.r + 8) ** 2);
     this.plants = new PlantSystem(spec.decor.filter((d) => !inHole(d.x, d.y)), b.menace);
@@ -1017,6 +1024,24 @@ export class GameScene {
           m.seated = true;
         }
         drawInkMark(this.inkG, m);
+      }
+    }
+    if (this.xDrawn !== w.buriedVersion) {
+      this.xDrawn = w.buriedVersion;
+      const g = this.xG;
+      g.clear();
+      const sand = lighten(w.biome.sand, 0.15);
+      for (const b of w.buried) {
+        // Sit the mark on the rock face as drawn.
+        let y = b.my - 20;
+        for (let i = 0; i < 20 && !this.terrain.visualRockAt(b.mx, y + 3); i++) y += 3;
+        y += 7;
+        const s = 7;
+        for (const [col, a, wd, off] of [[0x000000, 0.25, 3.2, 1], [sand, 0.4, 2.2, 0]] as const) {
+          g.moveTo(b.mx - s, y - s * 0.6 + off).lineTo(b.mx + s, y + s * 0.6 + off)
+            .moveTo(b.mx + s, y - s * 0.6 + off).lineTo(b.mx - s, y + s * 0.6 + off)
+            .stroke({ width: wd, color: col, alpha: a, cap: 'round' });
+        }
       }
     }
     const dg = this.doorsG;

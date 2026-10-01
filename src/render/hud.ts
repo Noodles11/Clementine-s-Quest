@@ -13,6 +13,9 @@ import { LEVEL_ID } from '../game/room';
 import { heart } from './creatures';
 import { drawItemIcon, drawPickup } from './icons';
 
+/** Map samples per tile. */
+const MAP_SUB = 3;
+
 function label(size: number, color = 0xffffff, font = FONT_UI) {
   return new Text({
     text: '',
@@ -151,30 +154,64 @@ export class Hud {
   }
 
   /** Repaint the fog-of-war map: open water that has been seen, outlined by its rock. */
+  /** Samples of the drawn rock (true = rock), 3 per tile, so the map matches the reef and its craters. */
+  rockAt: (x: number, y: number) => boolean = () => false;
+  private rockBits = new Uint8Array(0);
+  private rockWorld: RoomWorld | null = null;
+  private rockHoles = 0;
+
+  private sampleRock(w: RoomWorld, x0: number, y0: number, x1: number, y1: number) {
+    const W = w.tw * MAP_SUB, H = w.th * MAP_SUB;
+    const step = TILE / MAP_SUB;
+    for (let y = Math.max(0, y0); y < Math.min(H, y1); y++)
+      for (let x = Math.max(0, x0); x < Math.min(W, x1); x++)
+        this.rockBits[y * W + x] = this.rockAt((x + 0.5) * step, (y + 0.5) * step) ? 1 : 0;
+  }
+
+  private updateRock(w: RoomWorld) {
+    const W = w.tw * MAP_SUB, H = w.th * MAP_SUB;
+    if (this.rockWorld !== w) {
+      this.rockWorld = w;
+      this.rockBits = new Uint8Array(W * H);
+      this.sampleRock(w, 0, 0, W, H);
+      this.rockHoles = w.holes.length;
+      return true;
+    }
+    if (w.holes.length === this.rockHoles) return false;
+    const step = TILE / MAP_SUB;
+    for (const ho of w.holes.slice(this.rockHoles)) {
+      const m = ho.r + TILE;
+      this.sampleRock(w, Math.floor((ho.x - m) / step), Math.floor((ho.y - m) / step), Math.ceil((ho.x + m) / step), Math.ceil((ho.y + m) / step));
+    }
+    this.rockHoles = w.holes.length;
+    return true;
+  }
+
+  /** Repaint the fog-of-war map: open water that has been seen, outlined by its rock. */
   private paintMap(w: RoomWorld) {
+    const W = w.tw * MAP_SUB, H = w.th * MAP_SUB;
     let c = this.mapCanvas;
-    if (c.width !== w.tw || c.height !== w.th) {
+    if (c.width !== W || c.height !== H) {
       // Textures are cached per canvas, so a new size needs a new canvas.
       c = this.mapCanvas = document.createElement('canvas');
-      c.width = w.tw;
-      c.height = w.th;
+      c.width = W;
+      c.height = H;
       this.mapTex = null;
     }
     const ctx = c.getContext('2d')!;
-    const img = ctx.createImageData(w.tw, w.th);
+    const img = ctx.createImageData(W, H);
     const d = img.data;
-    const { tw, th, tiles, explored } = w;
-    for (let y = 0; y < th; y++)
-      for (let x = 0; x < tw; x++) {
-        const i = y * tw + x;
-        if (!explored[i]) continue;
-        const solid = isSolidTile(tiles[i]);
+    const rock = this.rockBits;
+    const { tw, explored } = w;
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        if (!explored[Math.floor(y / MAP_SUB) * tw + Math.floor(x / MAP_SUB)]) continue;
+        const i = y * W + x;
         let r = 0, g = 0, b = 0, a = 0;
-        if (!solid) {
+        if (!rock[i]) {
           r = 40; g = 78; b = 118; a = 200;
         } else {
-          const edge = (x > 0 && !isSolidTile(tiles[i - 1]) && explored[i - 1]) || (x < tw - 1 && !isSolidTile(tiles[i + 1]) && explored[i + 1]) ||
-            (y > 0 && !isSolidTile(tiles[i - tw]) && explored[i - tw]) || (y < th - 1 && !isSolidTile(tiles[i + tw]) && explored[i + tw]);
+          const edge = (x > 0 && !rock[i - 1]) || (x < W - 1 && !rock[i + 1]) || (y > 0 && !rock[i - W]) || (y < H - 1 && !rock[i + W]);
           if (edge) {
             r = 190; g = 214; b = 236; a = 235;
           }
@@ -187,7 +224,7 @@ export class Hud {
     ctx.putImageData(img, 0, 0);
     if (!this.mapTex) {
       this.mapTex = Texture.from(c);
-      this.mapTex.source.scaleMode = 'nearest';
+      this.mapTex.source.scaleMode = 'linear';
       this.mapSprite.texture = this.mapTex;
     } else this.mapTex.source.update();
   }
@@ -197,7 +234,8 @@ export class Hud {
     fr.clear();
     mk.clear();
     mask.clear();
-    if (this.mapWorld !== w || this.mapVersion !== w.exploredVersion) {
+    const rockChanged = this.updateRock(w);
+    if (rockChanged || this.mapWorld !== w || this.mapVersion !== w.exploredVersion) {
       this.mapWorld = w;
       this.mapVersion = w.exploredVersion;
       this.paintMap(w);
@@ -226,7 +264,7 @@ export class Hud {
     fr.roundRect(bx, by, bw, bh, 10).fill({ color: 0x06101c, alpha: big ? 0.88 : 0.55 }).stroke({ width: 2.5 * EW, color: INK, alpha: EA });
     mask.roundRect(bx + 3, by + 3, bw - 6, bh - 6, 8).fill(0xffffff);
     this.mapSprite.position.set(ox, oy);
-    this.mapSprite.scale.set(k);
+    this.mapSprite.scale.set(k / MAP_SUB);
     const at = (x: number, y: number) => [ox + (x / TILE) * k, oy + (y / TILE) * k] as const;
     const inBox = (x: number, y: number) => x > bx + 4 && x < bx + bw - 4 && y > by + 4 && y < by + bh - 4;
     const seen = (x: number, y: number) => {

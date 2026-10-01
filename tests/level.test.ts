@@ -45,7 +45,21 @@ describe('level generation', () => {
         // Every cave and encounter is reachable (secret caves need a bomb).
         const rb = reach(spec, true);
         for (const ch of spec.chambers) expect(rb(ch.cx * TILE, ch.cy * TILE), `chamber ${ch.id} ${ch.kind}/${ch.cave}`).toBe(true);
-        for (const pd of spec.pedestals) expect(rb(pd.x, pd.y), 'pedestal').toBe(true);
+        const inPocket = (x: number, y: number) => (spec.pockets ?? []).some((q) => Math.abs(x - q.x) < q.rx + TILE && Math.abs(y - q.y) < q.ry + TILE);
+        for (const pd of spec.pedestals) if (!inPocket(pd.x, pd.y)) expect(rb(pd.x, pd.y), 'pedestal').toBe(true);
+        // Sealed pockets: not reachable by swimming, but only one tile of rock below a corridor floor.
+        expect((spec.pockets ?? []).length).toBeGreaterThan(0);
+        for (const q of spec.pockets ?? []) {
+          expect(r(q.x, q.y), 'pocket sealed').toBe(false);
+          const ty = Math.round((q.y - q.ry) / TILE) - 1; // wall row
+          expect(isSolidTile(spec.tiles[ty * spec.tw + Math.floor(q.x / TILE)])).toBe(true);
+          expect(rb(q.x, (ty - 0.5) * TILE), 'corridor above pocket').toBe(true);
+        }
+        expect((spec.buried ?? []).length).toBeGreaterThan(3);
+        for (const b of spec.buried ?? []) {
+          expect(isSolidTile(spec.tiles[Math.floor(b.y / TILE) * spec.tw + Math.floor(b.x / TILE)])).toBe(true);
+          expect(rb(b.mx, b.my - TILE * 0.5), 'X is on a reachable floor').toBe(true);
+        }
         expect(spec.chambers.some((ch) => ch.cave === 'shop')).toBe(true);
         expect(spec.pedestals.some((p) => p.itemId && p.price === undefined)).toBe(true);
         // Spawns sit in open water.
