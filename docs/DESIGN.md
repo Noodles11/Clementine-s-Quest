@@ -13,7 +13,7 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 | Topic | Decision |
 |---|---|
-| v1 scope | **Vertical slice**: Depths 1–3, ~28 items (no familiars/trinkets), 6 bosses, ~12 enemies, 10 synergies, 2 transformations. All core systems complete. |
+| v1 scope | **Full dive**: Depths 1–6 plus The Tank (7), 60 items, 12 bosses incl. The Hand, 25 enemies, 14 synergies, 5 transformations (§28). |
 | Run length | **Progressive, Isaac-style.** First runs end after Depth 1. Each first boss kill / goal unlocks the next depth (§5.1). |
 | Resolution | **Smooth HD 960×540** logical, scaled to window. |
 | Camera | **Side view — "fish tank"** (§11.1). Free 8-direction swimming, no platforming. Floor at the bottom, water surface/ceiling at the top. |
@@ -25,7 +25,7 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 | Glow | **Neon bloom** on shots, damage, pickups, synergies (§11.3). |
 | Water | **Living water**: cosmetic fluid sim drives bubbles, fish, plants, currents (§11.4). |
 | Renderer | **PixiJS v8 (WebGL2)** + custom shaders — needed for bloom, refraction, caustics at 60 FPS (§14). |
-| Familiars / trinkets | **Not in v1.** Post-v1. |
+| Familiars / trinkets | **Cut from the plan.** No familiars, no trinkets. |
 | Audio | **Synth SFX only** (WebAudio). Music post-v1. |
 | Meta | **Pure unlocks** (achievements). No Pearls / hub currency. |
 | Characters | **Clementine only** in v1. Roster post-v1. |
@@ -322,13 +322,11 @@ Everything derived from a single **run seed** (see §10).
 | Isaac | Clementine's Quest | Use |
 |---|---|---|
 | Coins | **Sand Dollars** (1/5/10) | Shops, beggars |
-| Keys | **Shell Keys** | Treasure rooms, locked chests |
 | Bombs | **Ink Bombs** | Break rocks, secret walls, damage |
 | Pills | **Sea Snacks** (unidentified until eaten) | Random effect, randomized per seed |
 | Cards/Runes | **Tarot Shells** | One-use effects |
 | Batteries | **Glow Jellies** | Recharge active item |
 | Chests | **Clams** (normal/golden/cursed) | Loot |
-| Trinkets | **Trinkets** (sea glass, bottle caps…) *(post-v1)* | Passive, one slot |
 
 Per-seed randomized **Sea Snack** identities (e.g. "Purple Krill" = +speed this
 run) — a nice seed-memory mechanic.
@@ -343,8 +341,6 @@ Items are **data + modifiers**, not bespoke code:
   explosive, poisoning, freezing, charm, burn, growing, wave-motion, trail,
   multishot(n), charge-shot, laser, bomb-shot`.
 - **Triggers** — `onHit, onKill, onRoomClear, onDamaged, onShoot, onPickup, onFloorStart`.
-- **Familiars** *(post-v1)* — orbiters & followers with their own simple AI.
-  The modifier system keeps a `familiar` hook so they slot in later.
 - **Transform tags** — collecting 3 items with the same tag grants a
   **Transformation** (Isaac-style, e.g. "Guppy").
 
@@ -392,15 +388,6 @@ Golden Clam · Beggar *(post-v1)*. Each item has `quality 0–4`, weight, pool l
 | ★ Ink Sac | Bubbles become **ink bombs** (explosive) |
 | ★ Siren Song | Chance to **charm** enemies |
 
-**Familiars** *(post-v1)*
-| Item | Effect |
-|---|---|
-| Baby Clementine | Mini jelly that copies your shots at 35% damage |
-| Remora Buddy | Follows, picks up coins |
-| Orbiting Krill | 3 krill orbit, block shots, contact damage |
-| Hermit Guard | Blocks projectiles behind you |
-| Clownfish Pal | Shoots when you shoot, gains damage per room cleared |
-
 **Active items (Space; charge by room clears)**
 | Item | Charge | Effect |
 |---|---|---|
@@ -412,9 +399,6 @@ Golden Clam · Beggar *(post-v1)*. Each item has `quality 0–4`, weight, pool l
 | ★ Glow Burst | 1 | Your next 5s bubbles triple; screen flash |
 | Sea Dice | 3 | Re-roll pickups in room |
 | Kraken Summon | 6 | Tentacles slam random enemies |
-
-**Trinkets** *(post-v1)*: Bottle Cap (+coin drops), Rusty Hook (hit enemies bleed),
-Message in a Bottle (reveal a special room each floor), Sailor's Tooth (+range), …
 
 ### 9.4 Synergies (explicit, with special visuals)
 
@@ -429,20 +413,20 @@ Emergent combos + named synergies with unique effects:
 | Frost Kelp + Fire Coral | **Steam Vent** | Frozen enemies hit with fire explode into steam clouds (AoE, blinds) |
 | Boomerang Shrimp + Swordfish Bill | **Tuna Rang** | Piercing boomerang that hits twice & grows on return |
 | Pearl Diver + Mitosis | **Pearl Necklace** | Charged pearl bursts into a ring of 8 pearls |
-| Siren Song + Baby Clementine | **Choir** *(post-v1)* | Charmed enemies become temporary familiars |
 | Sunbeam + Pearl Diver | **Prism Pearl** | Charged pearl fires lasers in 4 directions when it pops |
-| Tidal Wave + Ink Sac | **Black Tide** *(post-v1)* | Wave drags ink bombs along and detonates them |
-| Orbiting Krill + Electric Eel Tail | **Krill Coil** *(post-v1)* | Krill are electrified, zap enemies nearby |
+| Tidal Wave + Ink Sac | **Black Tide** | Wave drags ink bombs along and detonates them |
 | Pufferfish Pout + Starfish Arm | **Big Mad Puff** | Bubbles inflate with spikes & shotgun burst on pop |
 | Ghost Jelly + Anglerfish Lure | **Will-o'-Wisp** | Spectral homing wisps; phase through everything |
-| Clownfish Pal + Coral Crown | **Royal Guard** *(post-v1)* | Clownfish gets a crown, doubles damage |
+| Sea Nettle Sting + Mitosis | **Toxic Bloom** | Split ink carries a double dose of poison |
+| Shark Tooth + Lamprey Mouth | **Feeding Frenzy** | Every kill sends you into a fast-firing frenzy |
+| Cannonball + Rear Fin | **Broadside** | Shots out of the back explode |
 
-**Transformations (3 items with same tag; v1 ships Kraken Form + Neon Rave):**
+**Transformations (3 items with the same tag; all five ship):**
 - **Kraken Form** (tag: tentacle) — 8-way shooting, ink trail.
 - **Neon Rave** (tag: glow) — bubbles cycle colors, +damage, screen pulses to music.
-- **Shark Mode** (tag: predator) — contact damage, speed up, heal on kill (tiny).
-- **Coral Reef** (tag: coral) — every room cleared grows a coral turret.
-- **Pirate** (tag: galleon) — coins deal damage, cannonball active charge.
+- **Shark Mode** (tag: predator) — speed and damage up, heal 2 HP per kill.
+- **Coral Reef** (tag: coral) — the reef mends you: slowly regain health.
+- **Pirate** (tag: galleon) — +1 damage, +2 luck, foes drop more coins.
 
 ## 10. Seeded Runs
 
@@ -865,3 +849,35 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   after the boss falls — instead of individual items. The Tab map shows a legend.
 - **Debug picker:** multi-select. Owned items start highlighted; click to pick or unpick (one active at a
   time), then Apply to make Clementine's items exactly that set.
+
+## 28. Depths 4–7, new mobs and items (familiars and trinkets cut)
+
+**Familiars and trinkets are cut from the plan.** Their synergies (Choir, Krill Coil, Royal Guard) are gone.
+
+**Depths.** Each first boss kill unlocks the next dive. The Hollow Maw unlocks The Tank.
+
+| # | Biome | Feature | Mobs | Bosses |
+|---|---|---|---|---|
+| 4 | Coral Carnival | Bounce pads ("BOING!") | Clown Anemone, Seahorse, Nettle, Stingray | Ringmaster Octo · The Jester Jellies |
+| 5 | Twilight Trench | Dark; Clementine's glow carries further | Lanternfish, Ghost Shrimp, Anglerling, Hatchetfish | Mother Angler (dims the arena) · The Siphonophore |
+| 6 | The Abyss | Deep currents push along tunnels | Viperfish, Gulper (inhales), Isopod (armored, rolls) | The Hollow Maw; its crack is a pipe grate |
+| 7 | The Tank | Glass box in a living room; filter intake pulls and hurts | Toy Diver, Snail (shell blocks shots) | **The Hand** — poke, jab, grab, tap, food, net, drop, slosh |
+
+Mob and boss damage keep scaling with depth. Ghost Shrimp can only be hit while visible.
+Beating The Hand plays the true ending. The run ends; no rewards.
+
+**New passives (25).** Moon Jelly Heart, Shark Tooth, Remora Sucker (magnet), Manta Shawl,
+Cuttlebone, Giant Squid Eye (crits ×3), Coral Polyp, Brain Coral, Pirate's Doubloon (+15 coins),
+Cannonball, Captain's Hook (knockback), Sea Nettle Sting (poison), Stingray Barb (slow),
+Lamprey Mouth (kills heal), Hammerhead (5-pellet shotgun), Rear Fin (shoots backwards),
+Abyssal Glow, Glowing Moss, Fire Urchin Spine (foes burst on death), Oyster Pearl, Sea Sponge,
+Diver's Watch, Dolphin Fin, Brass Compass (landmarks on the map), Lantern Pearl (brighter glow).
+
+**New actives (6).** Tidal Wave, Sea Dice, Kraken Call, Ink Cloud (unseen: foes lose you),
+Whale Song (heal 35), Anchor Drop (digs a shaft straight down).
+
+**New tags.** predator → Shark Mode, galleon → Pirate, coral → Coral Reef.
+
+**Boss unlocks.** Ringmaster → Hammerhead · Jesters → Fire Urchin Spine · Mother Angler → Giant Squid Eye ·
+Siphonophore → Kraken Call · Hollow Maw → Lamprey Mouth.
+

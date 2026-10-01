@@ -80,6 +80,12 @@ export interface LevelSpec {
   poolRemovedAfter: string[];
   /** Sealed pockets beside a corridor: one ink bomb opens them (px). */
   pockets?: { x: number; y: number; rx: number; ry: number }[];
+  /** Coral Carnival: springy anemone pads on floors (px, pad centre on the floor). */
+  bouncers?: { x: number; y: number }[];
+  /** The Abyss: currents flowing along tunnels (px; unit direction; length and half-width). */
+  currents?: { x: number; y: number; dx: number; dy: number; len: number; w: number }[];
+  /** The Tank: the filter intake on the wall that pulls everything toward it. */
+  intake?: { x: number; y: number };
   /** Coins buried just under the rock surface; a faint X marks the spot (px). */
   buried?: { x: number; y: number; mx: number; my: number; coins: string[] }[];
 }
@@ -95,7 +101,7 @@ const CW = 24; // macro cell size in tiles
 const CH = 18;
 const MARGIN = 4;
 
-const MACRO: Record<number, [number, number]> = { 1: [5, 4], 2: [6, 5], 3: [7, 5] };
+const MACRO: Record<number, [number, number]> = { 1: [5, 4], 2: [6, 5], 3: [7, 5], 4: [7, 5], 5: [7, 6], 6: [8, 6] };
 
 export function generateLevel(opts: LevelOptions): LevelSpec {
   const { seed, depth } = opts;
@@ -110,7 +116,7 @@ export function generateLevel(opts: LevelOptions): LevelSpec {
 function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec | null {
   const { depth, seed } = opts;
   const biome = biomeFor(depth);
-  const [MW, MH] = MACRO[Math.min(3, Math.max(1, depth))];
+  const [MW, MH] = MACRO[Math.min(6, Math.max(1, depth))];
   const tw = MW * CW + MARGIN * 2;
   const th = MH * CH + MARGIN * 2;
   const tiles = new Uint8Array(tw * th).fill(T_ROCK);
@@ -546,6 +552,41 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     buried.push({ x: (sp.x + 0.5) * TILE, y: (sp.f + 0.6) * TILE, mx: (sp.x + 0.5) * TILE, my: sp.f * TILE, coins });
   }
 
+  // ── Depth features ────────────────────────────────────────
+  const frng = stream(seed, 'features', depth);
+  const bouncers: NonNullable<LevelSpec['bouncers']> = [];
+  const currents: NonNullable<LevelSpec['currents']> = [];
+  if (biome.feature === 'bounce') {
+    // Springy anemone pads on open floors.
+    const pads: { x: number; f: number }[] = [];
+    for (let f = 4; f < th - 4; f++)
+      for (let x = 4; x < tw - 4; x++)
+        if (at(x, f) === T_ROCK && at(x - 1, f) === T_ROCK && at(x + 1, f) === T_ROCK && at(x, f - 1) === T_EMPTY && at(x, f - 2) === T_EMPTY && at(x, f - 3) === T_EMPTY && !nearSpecial(x, f))
+          pads.push({ x, f });
+    frng.shuffle(pads);
+    for (const pd of pads) {
+      if (bouncers.length >= 14) break;
+      if (bouncers.some((b) => Math.hypot(b.x / TILE - pd.x, b.y / TILE - pd.f) < 8)) continue;
+      bouncers.push({ x: (pd.x + 0.5) * TILE, y: pd.f * TILE });
+    }
+  }
+  if (biome.feature === 'currents') {
+    // Some tunnels carry a strong current one way.
+    for (const [a, bb] of edges) {
+      if (a === bossCell || bb === bossCell || !frng.chance(0.45)) continue;
+      const pts = tunnelPts.get(`${Math.min(a, bb)}-${Math.max(a, bb)}`);
+      if (!pts || pts.length < 10) continue;
+      const dir = frng.chance(0.5) ? 1 : -1;
+      const seq = dir > 0 ? pts : [...pts].reverse();
+      for (let i = 4; i < seq.length - 6; i += 6) {
+        const p0 = seq[i], p1 = seq[i + 4];
+        const L = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+        if (L < 0.5) continue;
+        currents.push({ x: p0.x * TILE, y: p0.y * TILE, dx: (p1.x - p0.x) / L, dy: (p1.y - p0.y) / L, len: L * TILE * 1.4, w: TILE * 1.8 });
+      }
+    }
+  }
+
   const decor = placeDecor(stream(seed, 'decor', depth), tiles, tw, th, depth, {
     x0: Math.floor(crackX - 4), x1: Math.ceil(crackX + 4), y: floorY,
   });
@@ -562,7 +603,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     },
     groups, pedestals, pickups, shopkeeper, decor,
     poolRemovedAfter: [...pools.removed],
-    pockets, buried,
+    pockets, buried, bouncers, currents,
   };
 }
 
@@ -586,6 +627,9 @@ const CLASS: Record<EnemyKind, Attach | 'swim' | 'wall'> = {
   blob: 'swim', jelly: 'swim', pufferling: 'swim', barracuda: 'swim', splitter: 'swim', squidling: 'swim',
   crabby: 'floor', cannoncrab: 'floor', mimic: 'floor', flounder: 'floor',
   urchin: 'none', moray: 'wall',
+  clownanemone: 'none', seahorse: 'swim', nettle: 'swim', stingray: 'swim',
+  lanternfish: 'swim', ghostshrimp: 'swim', anglerling: 'swim', hatchetfish: 'swim',
+  viperfish: 'swim', gulper: 'swim', isopod: 'floor', toydiver: 'floor', snail: 'none',
 };
 
 function placeEnemies(rng: Rng, tiles: Uint8Array, tw: number, th: number, ch: Chamber, depth: number): Spawn[] {
@@ -624,7 +668,7 @@ function placeEnemies(rng: Rng, tiles: Uint8Array, tw: number, th: number, ch: C
     if (!cands.length) cands = candidates('swim');
     if (!cands.length) break;
     const c = rng.pick(cands);
-    const group = def.kind === 'jelly' ? rng.int(3, 4) : 1;
+    const group = def.kind === 'jelly' ? rng.int(3, 4) : def.kind === 'hatchetfish' ? rng.int(4, 5) : 1;
     for (let g = 0; g < group; g++) {
       let x = (c.x + 0.5) * TILE, y = (c.y + 0.5) * TILE;
       if (g) {
@@ -664,6 +708,12 @@ function placeDecor(rng: Rng, tiles: Uint8Array, tw: number, th: number, depth: 
           const maxKelp = Math.max(0.6, (free * TILE - 30) / 60);
           const deep = depth >= 2 && rng.chance(0.4);
           const seed = rng.nextU32();
+          if (depth === 7) {
+            // Plastic everything.
+            if (r < 0.45) out.push({ kind: 'plastic', x: px, y: py, size: rng.range(0.8, 1.6), color: rng.pick(biome.decoColors), seed, attach: 'floor', front });
+            else if (r < 0.55) out.push({ kind: 'shell', x: px, y: py, size: rng.range(0.6, 1), color: rng.pick(biome.decoColors), seed, attach: 'floor' });
+            continue;
+          }
           if (r < 0.3) out.push({ kind: 'kelp', x: px, y: py, size: Math.min(maxKelp, rng.range(0.8, deep ? 3.4 : 2.6)), color: biome.plantColor, seed, attach: 'floor', front });
           else if (r < 0.55) out.push({ kind: 'grass', x: px, y: py, size: rng.range(0.6, 1.2), color: biome.plantColor, seed, attach: 'floor', front });
           else if (r < 0.66) out.push({ kind: 'coral', x: px, y: py, size: rng.range(0.6, 1.4), color: rng.pick(biome.decoColors), seed, attach: 'floor', front });
@@ -719,6 +769,58 @@ export function generateGrotto(seed: number, depth: number, items: string[]): Le
     boss: { kind: 'barnacle', arena: { x0: 0, y0: 0, x1: 0, y1: 0 }, crack: { x0: 0, x1: 0, y: 0 }, gates: [], item: '', grottoItems: [] },
     groups: [], pedestals, pickups: [], decor: placeDecor(rng, tiles, tw, th, depth, { x0: -1, x1: -1, y: -1 }),
     poolRemovedAfter: [],
+  };
+}
+
+/**
+ * The Tank (the twist finale): a glass aquarium. A lobby on the left with a
+ * castle and plastic plants, the open tank on the right where The Hand reaches in.
+ */
+export function generateTank(seed: number, unlocked: Iterable<string>, poolRemoved: Iterable<string>): LevelSpec {
+  const tw = 96, th = 30;
+  const tiles = new Uint8Array(tw * th).fill(T_EMPTY);
+  const rng = stream(seed, 'tank');
+  const floorY = th - 5;
+  const set = (x: number, y: number, v: number) => {
+    if (x >= 0 && y >= 0 && x < tw && y < th) tiles[y * tw + x] = v;
+  };
+  // Glass walls and a gravel floor (with gentle humps).
+  for (let y = 0; y < th; y++) for (const x of [0, 1, tw - 2, tw - 1]) set(x, y, T_ROCK);
+  for (let x = 0; x < tw; x++) {
+    const hump = Math.round(valueNoise1(x * 0.12, seed & 0xfff) * 1.6);
+    for (let y = floorY - hump; y < th; y++) set(x, y, T_ROCK);
+  }
+  // The plastic castle in the lobby.
+  const cx = 14;
+  for (let y = floorY - 9; y < floorY; y++) for (let x = cx - 4; x <= cx + 4; x++) if (!(y > floorY - 4 && Math.abs(x - cx) < 2)) set(x, y, T_ROCK);
+  for (const tx of [cx - 4, cx, cx + 4]) for (let y = floorY - 12; y < floorY - 9; y++) set(tx, y, T_ROCK);
+  const arenaX0 = 34;
+  const pools = new ItemPools(unlocked, poolRemoved);
+  const pedestals: PedestalSpec[] = [{ x: (cx) * TILE, y: (floorY - 1) * TILE - 34 + TILE, itemId: pools.draw('treasure', rng) }];
+  const groups: SpawnGroup[] = [
+    { id: 0, x: 22 * TILE, y: (floorY - 4) * TILE, r: TILE * 8, spawns: [
+      { kind: 'toydiver', x: 20 * TILE, y: (floorY - 1) * TILE, attach: 'floor' },
+      { kind: 'toydiver', x: 27 * TILE, y: (floorY - 1) * TILE, attach: 'floor' },
+      { kind: 'snail', x: 8 * TILE, y: (floorY - 0.5) * TILE, attach: 'floor' },
+      { kind: 'snail', x: 2.5 * TILE, y: 12 * TILE, attach: 'left' },
+    ] },
+  ];
+  // Gates: the left edge of the tank proper is sealed by a current during the fight.
+  const gates: Gate[] = [];
+  for (let y = 4; y < floorY - 1; y += 3) gates.push({ x: (arenaX0 - 1) * TILE, y: y * TILE, nx: 1, ny: 0 });
+  const decor = placeDecor(rng, tiles, tw, th, 7, { x0: -1, x1: -1, y: -1 });
+  return {
+    depth: 7, tw, th, tiles, surface: true, surfaceSpan: { x0: 2, x1: tw - 3 }, chambers: [], edges: [],
+    start: { x: 6 * TILE, y: 6 * TILE },
+    boss: {
+      kind: 'hand',
+      arena: { x0: arenaX0 * TILE, y0: TILE * 1, x1: (tw - 2) * TILE, y1: floorY * TILE },
+      crack: { x0: (tw - 12) * TILE, x1: (tw - 8) * TILE, y: floorY * TILE },
+      gates, item: '', grottoItems: [],
+    },
+    groups, pedestals, pickups: [{ kind: 'heart', x: 24 * TILE, y: (floorY - 1) * TILE }], decor,
+    poolRemovedAfter: [...pools.removed],
+    intake: { x: (tw - 2) * TILE, y: (floorY - 6) * TILE },
   };
 }
 

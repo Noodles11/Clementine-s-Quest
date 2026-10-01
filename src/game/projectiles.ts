@@ -241,8 +241,14 @@ export class Bubble extends Entity {
       e.frozen = 0;
       w.explode(e.x, e.y, 95, dmg * 3, { steam: true, hurtsPlayer: false });
     }
+    if (this.has('crit') && R.chance(0.1 + luck * 0.02)) {
+      dmg *= 3;
+      w.fx.text(e.x, e.y - e.r - 18, 'CRIT!', 0xfff27a, 22);
+    }
     e.hurt(w, dmg, this);
-    e.knock(this.vx, this.vy, this.pearl ? 220 : 90);
+    e.knock(this.vx, this.vy, (this.pearl ? 220 : 90) * (this.has('knockback') ? 3.5 : 1));
+    if (this.has('poison')) e.poisonUp(4, this.baseDmg * (this.syn.has('toxicbloom') ? 0.6 : 0.3) + 1);
+    if (this.has('slow')) e.slow = Math.max(e.slow, 2.2);
     if (this.has('freeze') && R.chance(0.2 + luck * 0.03)) e.freeze(1.6);
     if (this.has('burn') && R.chance(0.3 + luck * 0.03)) e.ignite(3, dmg * 0.45 + 1.5);
     if (this.has('charm') && !e.boss && R.chance(0.15 + luck * 0.03)) e.charmed = 4;
@@ -331,7 +337,9 @@ export class EnemyShot extends Entity {
   life: number;
   dmg: number;
   homing: number;
-  constructor(x: number, y: number, vx: number, vy: number, opts: { r?: number; color?: number; gravity?: number; life?: number; dmg?: number; homing?: number; ghost?: boolean } = {}) {
+  /** Bounces left before it pops on rock (Clown Anemone balls). */
+  bounce: number;
+  constructor(x: number, y: number, vx: number, vy: number, opts: { r?: number; color?: number; gravity?: number; life?: number; dmg?: number; homing?: number; ghost?: boolean; bounce?: number } = {}) {
     super();
     this.x = x;
     this.y = y;
@@ -344,6 +352,7 @@ export class EnemyShot extends Entity {
     this.dmg = opts.dmg ?? 10;
     this.homing = opts.homing ?? 0;
     this.ghost = opts.ghost ?? false;
+    this.bounce = opts.bounce ?? 0;
   }
   update(w: RoomWorld, dt: number) {
     this.age += dt;
@@ -362,6 +371,16 @@ export class EnemyShot extends Entity {
     this.vy += this.gravity * dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    if (!this.ghost && w.solidAt(this.x, this.y) && this.bounce > 0) {
+      this.bounce--;
+      const hx = w.solidAt(this.x, this.y - this.vy * dt), hy = w.solidAt(this.x - this.vx * dt, this.y);
+      this.x -= this.vx * dt;
+      this.y -= this.vy * dt;
+      if (hy || !hx) this.vy = -this.vy * 0.85;
+      if (hx || !hy) this.vx = -this.vx * 0.85;
+      w.fx.burst(this.x, this.y, 'pop', this.color, 2);
+      return;
+    }
     if (!this.ghost && w.solidAt(this.x, this.y)) {
       this.dead = true;
       w.fx.burst(this.x, this.y, 'pop', this.color, 4);

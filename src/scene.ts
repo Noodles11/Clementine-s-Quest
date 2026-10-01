@@ -41,7 +41,7 @@ import { OctopusView } from './render/octopus';
 import { TerrainView } from './render/terrain';
 import { tex } from './render/textures';
 import { CameraFilter } from './render/camera';
-import { drawBubble, drawGate, drawInkMark, drawProp, drawShot, drawWorldExtras } from './render/worldart';
+import { drawBubble, drawFeatures, drawGate, drawInkMark, drawProp, drawShot, drawWorldExtras } from './render/worldart';
 
 export interface SceneHooks {
   onEvent(ev: WorldEvent): void;
@@ -396,7 +396,8 @@ export class GameScene {
   private buildWorld(spec: LevelSpec, areaId: number) {
     const run = this.run!;
     const old = this.world;
-    if (old) old.persist();
+    // A world from the floor above must not leak its map or position into this one.
+    if (old && old.spec.depth === run.data.depth) old.persist();
     const w = new RoomWorld(run, spec, areaId, this.fx, this.options);
     this.world = w;
     if (areaId !== TITLE_ID) run.data.currentRoom = areaId;
@@ -530,6 +531,18 @@ export class GameScene {
     const near = darken(b.waterBottom, 0.15);
     let s = seed;
     const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    if (b.feature === 'tank') {
+      // Outside the glass: a giant, blurry living room.
+      g.rect(0, 0, VIEW_W, VIEW_H).fill({ color: 0x6a5a4a, alpha: 0.55 });
+      g.rect(0, VIEW_H * 0.7, VIEW_W, VIEW_H * 0.3).fill({ color: 0x3a2a22, alpha: 0.6 }); // floor
+      g.roundRect(VIEW_W * 0.08, VIEW_H * 0.45, VIEW_W * 0.42, VIEW_H * 0.3, 40).fill({ color: 0x8a3a3a, alpha: 0.6 }); // sofa
+      g.roundRect(VIEW_W * 0.6, VIEW_H * 0.2, VIEW_W * 0.3, VIEW_H * 0.28, 8).fill({ color: 0x101820, alpha: 0.75 }); // TV
+      g.roundRect(VIEW_W * 0.62, VIEW_H * 0.22, VIEW_W * 0.26, VIEW_H * 0.24, 6).fill({ color: 0x4a8aff, alpha: 0.35 });
+      g.moveTo(VIEW_W * 0.5, VIEW_H * 0.05).lineTo(VIEW_W * 0.5, VIEW_H * 0.3).stroke({ width: 6, color: 0x2a2a2a, alpha: 0.6 }); // lamp
+      g.poly([VIEW_W * 0.44, VIEW_H * 0.05, VIEW_W * 0.56, VIEW_H * 0.05, VIEW_W * 0.53, VIEW_H * -0.05, VIEW_W * 0.47, VIEW_H * -0.05]).fill({ color: 0xffe0a0, alpha: 0.8 });
+      g.circle(VIEW_W * 0.5, VIEW_H * 0.08, 120).fill({ color: 0xffd890, alpha: 0.18 });
+      return;
+    }
     for (const [col, base, amp, alpha] of [[far, VIEW_H * 0.72, 70, 0.55], [near, VIEW_H * 0.85, 50, 0.6]] as const) {
       g.moveTo(0, VIEW_H);
       const off = rnd() * 100;
@@ -549,6 +562,26 @@ export class GameScene {
       g.moveTo(x - 30, y - 10).lineTo(x - 60, y - 230).stroke({ width: 10, color: near, alpha: 0.7 });
       g.moveTo(x + 90, y - 30).lineTo(x + 110, y - 190).stroke({ width: 8, color: near, alpha: 0.7 });
       g.moveTo(x - 60, y - 200).lineTo(x + 40, y - 190).stroke({ width: 5, color: near, alpha: 0.6 });
+    }
+    if (b.depth === 4) {
+      // Distant big-top tents and strings of bulbs.
+      for (let i = 0; i < 3; i++) {
+        const x = rnd() * VIEW_W, w = 160 + rnd() * 120, y = VIEW_H * 0.74;
+        g.poly([x - w / 2, y, x, y - w * 0.8, x + w / 2, y]).fill({ color: near, alpha: 0.6 });
+        g.moveTo(x, y - w * 0.8).lineTo(x, y - w * 0.95).stroke({ width: 3, color: near, alpha: 0.6 });
+      }
+      for (let i = 0; i < 18; i++) g.circle((i / 18) * VIEW_W + 20, VIEW_H * 0.35 + Math.sin(i * 0.8) * 20, 3).fill({ color: [0xff5cae, 0xffe14d, 0x5cf2ff][i % 3], alpha: 0.5 });
+    }
+    if (b.depth === 5) {
+      for (let i = 0; i < 40; i++) g.circle(rnd() * VIEW_W, rnd() * VIEW_H * 0.8, 1 + rnd() * 2).fill({ color: rnd() < 0.5 ? 0x5cf2ff : 0x9dffd8, alpha: 0.35 + rnd() * 0.3 });
+    }
+    if (b.depth === 6) {
+      // Distant glowing eyes.
+      for (let i = 0; i < 7; i++) {
+        const x = rnd() * VIEW_W, y = rnd() * VIEW_H * 0.7, d = 6 + rnd() * 8;
+        g.circle(x, y, 2.2).fill({ color: 0xff3d6a, alpha: 0.55 });
+        g.circle(x + d, y, 2.2).fill({ color: 0xff3d6a, alpha: 0.55 });
+      }
     }
     if (b.depth === 1) {
       for (let i = 0; i < 6; i++) {
@@ -802,6 +835,16 @@ export class GameScene {
         case 'autosave':
           this.hooks.onAutosave();
           break;
+        case 'finale':
+          // Let the final K.O. land, then roll the ending.
+          this.hooks.onEvent(ev);
+          setTimeout(() => {
+            if (this.world === w && this.mode === 'play') {
+              this.mode = 'dead';
+              this.hooks.onVictory();
+            }
+          }, 2500);
+          break;
         case 'died':
           this.mode = 'dead';
           this.fx.shake(20);
@@ -907,9 +950,9 @@ export class GameScene {
       const v = Math.round(clamp(k, 0, 1) * 255);
       return (v << 16) | (v << 8) | v;
     };
-    this.ambient.tint = gray(lightK);
+    this.ambient.tint = gray(lightK * (1 - w.bossDark * 0.7));
     this.bgWater.tint = gray(1 - df * (0.55 - w.menace * 0.5));
-    this.bgSil.alpha = this.sceneAlpha * clamp(1 - df * 1.6, 0, 1);
+    this.bgSil.alpha = this.sceneAlpha * (w.biome.feature === 'tank' ? 1 : clamp(1 - df * 1.6, 0, 1));
     this.rays.alpha = clamp(1.1 - df * 1.8, 0, 1);
     this.glowCam.scale.set(this.zoom);
     this.cam.x = -Math.round(this.camX * this.zoom);
@@ -1110,6 +1153,7 @@ export class GameScene {
     for (const b of w.bubbles) drawBubble(prj, glow, b, t, neon);
     for (const s of w.shots) drawShot(prj, glow, s, t);
     drawWorldExtras(prj, glow, w, t);
+    drawFeatures(this.propsG, glow, w, t, view);
     this.fx.drawGlow(glow);
 
     this.renderLights(w, neon);
@@ -1129,7 +1173,8 @@ export class GameScene {
     const m = w.menace;
     // Clementine is the key practical light: warm, breathing bioluminescence.
     const breathe = 0.85 + Math.sin(this.time * 2.2) * 0.15 + p.shootFlash * 0.25;
-    lights.push({ x: p.x, y: p.y, r: (230 + m * 120) * breathe, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.5 + m * 0.5) });
+    const reach = (w.biome.glowRadius ?? 1) * (p.stats.flags.has('lantern') ? 1.5 : 1);
+    lights.push({ x: p.x, y: p.y, r: (230 + m * 120) * breathe * reach, c: neon ? 0xffc8ff : 0xffc890, a: Math.min(1, 0.5 + m * 0.5) });
     for (const b of w.bubbles) if (lights.length < 70) lights.push({ x: b.x, y: b.y, r: 60 + b.r * 3, c: b.color, a: 0.4 });
     for (const s of w.shots) if (lights.length < 110) lights.push({ x: s.x, y: s.y, r: 44, c: s.color, a: 0.3 });
     for (const pd of w.pedestals) if (pd.itemId && vis(pd.x, pd.y, 150)) lights.push({ x: pd.x, y: pd.y, r: 150, c: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, a: 0.5 });

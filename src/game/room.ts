@@ -24,6 +24,7 @@ import { moveBox } from './entity';
 
 export type WorldEvent =
   | { type: 'descend' }
+  | { type: 'finale' }
   | { type: 'grotto' }
   | { type: 'grottoExit' }
   | { type: 'died'; by: string }
@@ -124,6 +125,9 @@ export class RoomWorld implements Solidity {
   dirtyTiles: number[] = [];
   exiting = false;
   bossHurtPlayer = false;
+  private regen = 0;
+  /** 0..1: a boss has put the lights out (Mother Angler). */
+  bossDark = 0;
   private wasSafe = false;
   /** Ink stains on the rock (cosmetic, newest last). */
   inkMarks: InkMark[] = [];
@@ -431,6 +435,7 @@ export class RoomWorld implements Solidity {
     if (!e.chasing && d < ENGAGE_RANGE) e.chasing = true;
     else if (e.chasing && d > LEASH_RANGE) e.chasing = false;
     if (!e.chasing) return false;
+    if (p.hidden > 0) return false;
     if (this.inSafeZone(p.x, p.y)) return false;
     if (this.inArena(p.x, p.y, 0) && !e.arenaBorn) return false;
     return true;
@@ -466,6 +471,52 @@ export class RoomWorld implements Solidity {
         p.vy += g.ny * push * dt * 4;
       }
       if (((this.time * 60) | 0) % 6 === 0) this.fluid.splat(g.x - g.nx * 20, g.y - g.ny * 20, g.nx * 60, g.ny * 60, TILE * 0.9);
+    }
+  }
+
+  /** Springy pads (Carnival), deep currents (Abyss) and the tank's filter intake. */
+  bounceAnim = new Map<number, number>();
+  private applyFeatures(dt: number) {
+    const p = this.player;
+    const spec = this.spec;
+    if (spec.bouncers) {
+      spec.bouncers.forEach((b, i) => {
+        const a = this.bounceAnim.get(i) ?? 0;
+        if (a > 0) this.bounceAnim.set(i, Math.max(0, a - dt * 3));
+        if (Math.abs(p.x - b.x) < 30 && p.y > b.y - 44 && p.y < b.y && p.vy > -200) {
+          p.vy = -760;
+          p.vx *= 1.2;
+          this.bounceAnim.set(i, 1);
+          this.fx.text(b.x, b.y - 50, 'BOING!', 0xff5cae, 20);
+          this.fluid.blast(b.x, b.y - 20, 240, 80);
+          sfx.splash();
+        }
+      });
+    }
+    if (spec.currents) {
+      for (const c of spec.currents) {
+        const rx = p.x - c.x, ry = p.y - c.y;
+        const along = rx * c.dx + ry * c.dy;
+        const lat = Math.abs(rx * c.dy - ry * c.dx);
+        if (along < 0 || along > c.len || lat > c.w) continue;
+        const k = 1 - lat / c.w;
+        p.x += c.dx * 230 * k * dt;
+        p.y += c.dy * 230 * k * dt;
+        p.vx += c.dx * 300 * k * dt;
+        p.vy += c.dy * 300 * k * dt;
+      }
+      if (((this.time * 60) | 0) % 5 === 0)
+        for (const c of spec.currents) if (Math.abs(c.x - p.x) < 900 && Math.abs(c.y - p.y) < 600) this.fluid.splat(c.x + c.dx * c.len * 0.5, c.y + c.dy * c.len * 0.5, c.dx * 120, c.dy * 120, c.w);
+    }
+    if (spec.intake) {
+      const d = dist(p.x, p.y, spec.intake.x, spec.intake.y);
+      if (d < 520 && d > 1) {
+        const k = (1 - d / 520) * 260 * dt;
+        p.vx += ((spec.intake.x - p.x) / d) * k * 3;
+        p.vy += ((spec.intake.y - p.y) / d) * k * 3;
+        if (d < 70) this.hurtPlayer(8, 'the filter intake');
+      }
+      if (R.chance(dt * 12)) this.fluid.splat(spec.intake.x - 60, spec.intake.y, 160, 0, 60);
     }
   }
 
@@ -695,6 +746,80 @@ export class RoomWorld implements Solidity {
         }
         this.fx.text(p.x, p.y - 40, 'CHOMP-SHUFFLE!', 0xb88adf, 24);
         sfx.item();
+        break;
+      }
+      case 'tidalwave': {
+        const [dx, dy] = Math.hypot(...p.lastShootDir) > 0 ? p.lastShootDir : [p.vx >= 0 ? 1 : -1, 0];
+        for (const e of this.enemies) {
+          if (e.dead) continue;
+          const rx = e.x - p.x, ry = e.y - p.y;
+          const along = rx * dx + ry * dy, lat = Math.abs(rx * dy - ry * dx);
+          if (along > -20 && along < 720 && lat < 170) {
+            e.hurt(this, 22 + this.run.stats.damage * 3, null);
+            e.knock(dx, dy, 700);
+          }
+        }
+        for (let i = 1; i <= 8; i++) this.fluid.splat(p.x + dx * i * 80, p.y + dy * i * 80, dx * 900, dy * 900, 120);
+        if (this.run.stats.synergies.has('blacktide'))
+          for (let i = 1; i <= 5; i++) this.explode(p.x + dx * i * 130, p.y + dy * i * 130, 80, 40, { ink: true });
+        this.fx.text(p.x + dx * 80, p.y + dy * 80 - 30, 'WHOOOSH!', 0x5cb8ff, 30);
+        this.fx.shake(8);
+        sfx.splash();
+        break;
+      }
+      case 'seadice': {
+        const near = this.pickups.filter((pk) => !pk.dead && !pk.opened && dist(pk.x, pk.y, p.x, p.y) < 700);
+        if (!near.length) { ok = false; break; }
+        const kinds: PickupKind[] = ['coin', 'coin5', 'heart', 'halfheart', 'bomb', 'foam', 'snack', 'glowjelly', 'clam'];
+        for (const pk of near) {
+          pk.kind = R.pick(kinds.filter((k) => k !== pk.kind));
+          if (pk.kind === 'snack') pk.snack = this.randomSnack();
+          this.fx.burst(pk.x, pk.y, 'sparkle', 0xf2ead8, 8);
+        }
+        this.fx.text(p.x, p.y - 40, 'ROLL THE BONES!', 0xf2ead8, 22);
+        sfx.item();
+        break;
+      }
+      case 'krakensummon': {
+        const targets = this.enemies.filter((e) => !e.dead && e.hittable() && dist(e.x, e.y, p.x, p.y) < 800)
+          .sort((a, b) => dist(a.x, a.y, p.x, p.y) - dist(b.x, b.y, p.x, p.y)).slice(0, 6);
+        if (!targets.length) { ok = false; break; }
+        for (const e of targets) {
+          e.hurt(this, 45, null);
+          e.stun = Math.max(e.stun, 1);
+          this.fx.burst(e.x, e.y, 'ink', 0x3a1a5a, 3);
+          this.fx.lightning(e.x, e.y - 300, e.x, e.y, 0x9a6bff);
+        }
+        this.fx.text(p.x, p.y - 50, 'KRAKEN!', 0x9a6bff, 34);
+        this.fx.shake(14);
+        sfx.bossRoar();
+        break;
+      }
+      case 'inkcloud':
+        p.hidden = 4;
+        for (const e of this.enemies) e.chasing = false;
+        this.addZone(p.x, p.y, 110, 4, 'ink');
+        this.fx.burst(p.x, p.y, 'ink', 0x14081e, 6);
+        this.fx.text(p.x, p.y - 40, 'POOF!', 0xb8a0d8, 24);
+        sfx.splash();
+        break;
+      case 'whalesong':
+        if (d.hp >= d.maxHp) { ok = false; break; }
+        this.run.heal(35);
+        this.fx.ring(p.x, p.y, 220, 0x8ab8d8);
+        this.fx.text(p.x, p.y - 40, '+35', 0x7aff9a, 26);
+        sfx.heart();
+        break;
+      case 'anchor': {
+        // Punch a shaft straight down through the reef.
+        let y = p.y + 30;
+        for (let i = 0; i < 9; i++, y += 34) {
+          this.carve(p.x, y, 30);
+          for (const e of this.enemies) if (!e.dead && Math.abs(e.x - p.x) < 40 && Math.abs(e.y - y) < 40) e.hurt(this, 40, null);
+        }
+        this.fx.shake(12);
+        this.fx.text(p.x, p.y + 60, 'KLONNNG!', 0x9aa8b8, 28);
+        sfx.explosion();
         break;
       }
       case 'glowburst':
@@ -928,6 +1053,22 @@ export class RoomWorld implements Solidity {
     this.fx.light(e.x, e.y, 120, 0xffffff, 0.7, 0.2);
     this.fluid.blast(e.x, e.y, 200, 70);
     sfx.kill();
+    const st = this.run.stats;
+    if (!e.boss) {
+      if (st.flags.has('leech')) this.run.heal(3);
+      if (st.transformations.has('shark')) this.run.heal(2);
+      if (st.synergies.has('frenzy')) this.player.frenzy = 3;
+      if (st.transformations.has('pirate') && R.chance(0.25)) this.spawnPickup('coin', e.x, e.y, 0, -60);
+      if (st.flags.has('volatile')) {
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + R.next();
+          this.addBubble(new Bubble({
+            x: e.x, y: e.y, vx: Math.cos(a) * 320, vy: Math.sin(a) * 320, dmg: st.damage * 0.6, radius: 6,
+            range: 200, flags: new Set(), synergies: new Set(), transformations: new Set(), luck: 0, mini: true, color: 0xff5c3d,
+          }));
+        }
+      }
+    }
     if (e.frozen > 0) {
       // Frozen foes shatter into ice shards.
       for (let i = 0; i < 8; i++) {
@@ -961,6 +1102,12 @@ export class RoomWorld implements Solidity {
     for (const e of this.enemies) if (!e.dead && !e.boss && dist(e.x, e.y, b.x, b.y) < 1200) e.die(this);
     this.shots.length = 0;
     this.events.push({ type: 'bossDefeated', kind: b.bossKind });
+    if (b.bossKind === 'hand') {
+      // The true ending: no rewards, no rift — the tank goes back to the sea.
+      this.fx.text(b.x, b.y - 100, 'OW! IT STINGS!', 0xffffff, 40);
+      this.events.push({ type: 'finale' });
+      return;
+    }
     this.setupBossRewards(true);
     this.events.push({ type: 'autosave' });
   }
@@ -1005,7 +1152,26 @@ export class RoomWorld implements Solidity {
     if (this.areaId === LEVEL_ID) {
       this.updateGroups();
       if (!this.bossDead && !this.bossFight && this.inArena(p.x, p.y)) this.bossPending = true;
+      this.applyFeatures(dt);
     }
+
+    p.hidden = Math.max(0, p.hidden - dt);
+    if (this.run.stats.transformations.has('coralreef')) {
+      this.regen += dt;
+      if (this.regen >= 4) {
+        this.regen = 0;
+        this.run.heal(2);
+      }
+    }
+    if (this.run.stats.flags.has('magnet'))
+      for (const pk of this.pickups) {
+        if (pk.dead || pk.kind === 'clam' || pk.kind === 'goldclam') continue;
+        const d = dist(pk.x, pk.y, p.x, p.y);
+        if (d < 280 && d > 1) {
+          pk.vx += ((p.x - pk.x) / d) * 900 * dt;
+          pk.vy += ((p.y - pk.y) / d) * 900 * dt;
+        }
+      }
 
     // Spikes.
     if (this.spikeAt(p.x, p.y + p.hh)) this.hurtPlayer(Math.round(8 * (1 + this.menace)), 'Urchin Spikes');

@@ -18,6 +18,10 @@ export class Player extends Entity {
   invuln = 0;
   shield = 0;
   glowBurst = 0;
+  /** Feeding Frenzy: faster fire after a kill. */
+  frenzy = 0;
+  /** Ink Cloud: hidden from creatures. */
+  hidden = 0;
   /** Visual state consumed by the renderer. */
   pulse = 0;
   pulseKick = 0;
@@ -81,7 +85,8 @@ export class Player extends Entity {
     const allowDiag = w.options.diagonalShooting || st.transformations.has('kraken');
     const [sx, sy] = input.shootAxis(allowDiag);
     const shooting = sx !== 0 || sy !== 0;
-    const fireDelay = st.fireDelay / (this.glowBurst > 0 ? 3 : 1);
+    this.frenzy = Math.max(0, this.frenzy - dt);
+    const fireDelay = st.fireDelay / (this.glowBurst > 0 ? 3 : 1) / (this.frenzy > 0 ? 1.6 : 1);
     this.fireCd -= dt;
     const charged = st.flags.has('charge') || st.flags.has('laser');
     if (shooting) {
@@ -206,7 +211,9 @@ export class Player extends Entity {
     const st = this.stats;
     const dirs: [number, number, number][] = []; // dx, dy, wavePhase
     const a = Math.atan2(dy, dx);
-    if (st.flags.has('triple')) {
+    if (st.flags.has('shotgun')) {
+      for (const o of [-0.34, -0.17, 0, 0.17, 0.34]) dirs.push([Math.cos(a + o), Math.sin(a + o), 0]);
+    } else if (st.flags.has('triple')) {
       for (const o of [-0.2, 0, 0.2]) dirs.push([Math.cos(a + o), Math.sin(a + o), 0]);
     } else dirs.push([dx, dy, 0]);
     const out: Bubble[] = [];
@@ -215,6 +222,16 @@ export class Player extends Entity {
         out.push(this.baseBubble(w, ddx, ddy, { wavePhase: 0 }));
         out.push(this.baseBubble(w, ddx, ddy, { wavePhase: Math.PI }));
       } else out.push(this.baseBubble(w, ddx, ddy));
+    }
+    if (st.flags.has('shotgun')) for (const b of out) {
+      b.dmg *= 0.55;
+      b.range *= 0.6;
+    }
+    if (st.flags.has('rear')) {
+      // A shot out of the back as well (Broadside: it explodes).
+      const flags = new Set(st.flags);
+      if (st.synergies.has('broadside')) flags.add('explosive');
+      out.push(this.baseBubble(w, -dx, -dy, { dmg: st.damage * 0.7, flags }));
     }
     if (st.flags.has('plankton')) {
       for (const s of [-1, 1]) {

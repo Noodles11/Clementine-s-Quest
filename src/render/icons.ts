@@ -187,6 +187,153 @@ export function drawItemIcon(g: Graphics, id: string, x: number, y: number, s = 
       g.circle(x - 4 * k, y - 4 * k, 2 * k).fill(INK);
       g.circle(x + 4 * k, y - 4 * k, 2 * k).fill(INK);
       break;
+    case 'moonheart':
+      heart(g, x, y, s * 0.75, c);
+      g.circle(x - 3 * k, y - 3 * k, 3 * k).fill({ color: 0xffffff, alpha: 0.6 });
+      break;
+    case 'sharktooth':
+      g.poly([x - 9 * k, y - 10 * k, x + 9 * k, y - 10 * k, x + 2 * k, y + 14 * k, x - 1 * k, y + 14 * k]).fill(c).stroke(O);
+      g.moveTo(x - 6 * k, y - 7 * k).lineTo(x - 1 * k, y + 8 * k).stroke({ width: 1.5, color: 0xffffff, alpha: 0.7 });
+      break;
+    case 'remora':
+      g.ellipse(x, y, 14 * k, 6 * k).fill(c).stroke(O);
+      for (let i = 0; i < 5; i++) g.moveTo(x - 8 * k + i * 4 * k, y - 6 * k).lineTo(x - 8 * k + i * 4 * k, y - 2 * k).stroke({ width: 1.5, color: INK });
+      g.circle(x + 8 * k, y, 1.6 * k).fill(INK);
+      break;
+    case 'mantashawl':
+      g.moveTo(x - 15 * k, y + 2 * k).quadraticCurveTo(x, y - 14 * k, x + 15 * k, y + 2 * k).quadraticCurveTo(x, y + 6 * k, x - 15 * k, y + 2 * k).fill(c).stroke(O);
+      g.moveTo(x, y + 4 * k).lineTo(x - 2 * k, y + 15 * k).stroke(O);
+      break;
+    case 'cuttlebone':
+      g.ellipse(x, y, 7 * k, 14 * k).fill(c).stroke(O);
+      for (let i = 0; i < 5; i++) g.moveTo(x - 5 * k, y - 8 * k + i * 4 * k).lineTo(x + 5 * k, y - 8 * k + i * 4 * k).stroke({ width: 1, color: darken(c, 0.3) });
+      break;
+    case 'squideye':
+      g.circle(x, y, 13 * k).fill(0xffffff).stroke(O);
+      g.circle(x, y, 8 * k).fill(c);
+      g.circle(x, y, 4 * k).fill(INK);
+      g.circle(x - 3 * k, y - 3 * k, 2 * k).fill(0xffffff);
+      break;
+    case 'coralpolyp':
+    case 'braincoral':
+      if (id === 'braincoral') {
+        g.circle(x, y, 12 * k).fill(c).stroke(O);
+        for (let i = 0; i < 4; i++) g.moveTo(x - 9 * k, y - 6 * k + i * 4 * k).bezierCurveTo(x - 3 * k, y - 10 * k + i * 4 * k, x + 3 * k, y - 2 * k + i * 4 * k, x + 9 * k, y - 6 * k + i * 4 * k).stroke({ width: 1.5, color: darken(c, 0.35) });
+      } else {
+        for (const o of [-6, 0, 6]) g.moveTo(x + o * k, y + 12 * k).lineTo(x + o * 1.3 * k, y - 8 * k).stroke({ width: 4 * k, color: c, cap: 'round' });
+        for (const o of [-6, 0, 6]) g.circle(x + o * 1.3 * k, y - 9 * k, 3 * k).fill(lighten(c, 0.4));
+      }
+      break;
+    case 'doubloon':
+      g.circle(x, y, 13 * k).fill(c).stroke(O);
+      g.circle(x, y, 9 * k).stroke({ width: 1.5, color: darken(c, 0.3) });
+      g.moveTo(x - 4 * k, y - 5 * k).lineTo(x + 4 * k, y + 5 * k).moveTo(x + 4 * k, y - 5 * k).lineTo(x - 4 * k, y + 5 * k).stroke({ width: 2, color: darken(c, 0.35) });
+      break;
+    case 'cannonball':
+      g.circle(x, y + 2 * k, 12 * k).fill(c).stroke(O);
+      g.circle(x - 4 * k, y - 3 * k, 3 * k).fill({ color: 0xffffff, alpha: 0.35 });
+      g.moveTo(x + 6 * k, y - 8 * k).quadraticCurveTo(x + 12 * k, y - 14 * k, x + 8 * k, y - 16 * k).stroke({ width: 2, color: 0x8a6a3a });
+      break;
+    case 'hook':
+      g.moveTo(x + 4 * k, y - 14 * k).lineTo(x + 4 * k, y + 4 * k).arc(x - 2 * k, y + 4 * k, 6 * k, 0, Math.PI).lineTo(x - 8 * k, y)
+        .stroke({ width: 4 * k, color: c, cap: 'round' });
+      g.roundRect(x, y - 16 * k, 9 * k, 6 * k, 2).fill(0x5a3a2a);
+      break;
+    case 'seanettle':
+      g.ellipse(x, y - 5 * k, 11 * k, 7 * k).fill({ color: c, alpha: 0.85 }).stroke(O);
+      for (let i = 0; i < 4; i++) g.moveTo(x - 6 * k + i * 4 * k, y + 1 * k).quadraticCurveTo(x - 9 * k + i * 4 * k, y + 8 * k, x - 5 * k + i * 4 * k, y + 15 * k).stroke({ width: 1.6, color: c });
+      break;
+    case 'stingbarb':
+      g.poly([x - 13 * k, y + 13 * k, x + 13 * k, y - 13 * k, x + 7 * k, y - 4 * k, x - 10 * k, y + 13 * k]).fill(c).stroke(O);
+      for (let i = 0; i < 3; i++) g.moveTo(x - 2 * k + i * 4 * k, y + 2 * k - i * 4 * k).lineTo(x - 6 * k + i * 4 * k, y - 1 * k - i * 4 * k).stroke({ width: 1.5, color: INK });
+      break;
+    case 'lamprey':
+      g.circle(x, y, 13 * k).fill(c).stroke(O);
+      for (let r = 10; r >= 4; r -= 3) for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + r;
+        g.circle(x + Math.cos(a) * r * k, y + Math.sin(a) * r * k, 1.1 * k).fill(0xffffff);
+      }
+      g.circle(x, y, 3 * k).fill(INK);
+      break;
+    case 'hammerhead':
+      g.roundRect(x - 15 * k, y - 6 * k, 30 * k, 8 * k, 4 * k).fill(c).stroke(O);
+      g.ellipse(x, y + 6 * k, 6 * k, 9 * k).fill(c).stroke(O);
+      g.circle(x - 12 * k, y - 2 * k, 2 * k).fill(INK);
+      g.circle(x + 12 * k, y - 2 * k, 2 * k).fill(INK);
+      break;
+    case 'rearfin':
+      g.poly([x - 12 * k, y + 10 * k, x + 2 * k, y - 14 * k, x + 12 * k, y + 10 * k]).fill(c).stroke(O);
+      g.moveTo(x - 4 * k, y + 2 * k).lineTo(x - 12 * k, y + 2 * k).moveTo(x - 9 * k, y - 1 * k).lineTo(x - 12 * k, y + 2 * k).lineTo(x - 9 * k, y + 5 * k).stroke({ width: 2, color: 0xffffff });
+      break;
+    case 'abyssglow':
+    case 'biomoss':
+      g.circle(x, y, 12 * k).fill({ color: c, alpha: 0.35 });
+      for (let i = 0; i < 7; i++) {
+        const a = i * 0.9;
+        g.circle(x + Math.cos(a) * (i % 3) * 4 * k, y + Math.sin(a) * (i % 3) * 4 * k, (id === 'biomoss' ? 3 : 2.4) * k).fill(c);
+      }
+      g.circle(x, y, 12 * k).stroke(O);
+      break;
+    case 'firespine':
+      g.poly([x - 3 * k, y + 14 * k, x, y - 14 * k, x + 3 * k, y + 14 * k]).fill(c).stroke(O);
+      g.circle(x, y - 14 * k, 4 * k).fill(0xffe14d);
+      break;
+    case 'oysterpearl':
+      g.ellipse(x, y + 5 * k, 14 * k, 6 * k).fill(0x9aa0a8).stroke(O);
+      g.circle(x, y, 7 * k).fill(c).stroke(O);
+      g.circle(x - 2 * k, y - 2 * k, 2 * k).fill(0xffffff);
+      break;
+    case 'sponge':
+      g.roundRect(x - 12 * k, y - 10 * k, 24 * k, 20 * k, 5 * k).fill(c).stroke(O);
+      for (let i = 0; i < 7; i++) g.circle(x - 7 * k + (i % 4) * 5 * k, y - 4 * k + Math.floor(i / 4) * 8 * k, 1.8 * k).fill(darken(c, 0.35));
+      break;
+    case 'divewatch':
+      g.roundRect(x - 4 * k, y - 15 * k, 8 * k, 30 * k, 3 * k).fill(0x3a3a48);
+      g.circle(x, y, 10 * k).fill(c).stroke(O);
+      g.circle(x, y, 7 * k).fill(0x10202a);
+      g.moveTo(x, y).lineTo(x, y - 5 * k).moveTo(x, y).lineTo(x + 4 * k, y + 1 * k).stroke({ width: 1.5, color: 0x9effd8 });
+      break;
+    case 'dolphinfin':
+      g.moveTo(x - 12 * k, y + 10 * k).quadraticCurveTo(x - 2 * k, y - 4 * k, x + 4 * k, y - 14 * k).quadraticCurveTo(x + 6 * k, y + 2 * k, x + 12 * k, y + 10 * k).closePath().fill(c).stroke(O);
+      break;
+    case 'compass':
+      g.circle(x, y, 13 * k).fill(c).stroke(O);
+      g.circle(x, y, 9 * k).fill(0xf2ead8);
+      g.poly([x, y - 8 * k, x + 3 * k, y, x - 3 * k, y]).fill(0xd93b3b);
+      g.poly([x, y + 8 * k, x + 3 * k, y, x - 3 * k, y]).fill(0x3a3a48);
+      break;
+    case 'lanternpearl':
+      g.circle(x, y, 14 * k).fill({ color: c, alpha: 0.35 });
+      g.circle(x, y, 8 * k).fill(c).stroke(O);
+      g.circle(x - 2 * k, y - 2 * k, 2.5 * k).fill(0xffffff);
+      break;
+    case 'tidalwave':
+      g.moveTo(x - 14 * k, y + 10 * k).quadraticCurveTo(x - 10 * k, y - 14 * k, x + 8 * k, y - 10 * k).quadraticCurveTo(x - 2 * k, y - 6 * k, x + 2 * k, y + 2 * k).quadraticCurveTo(x + 8 * k, y + 8 * k, x + 14 * k, y + 10 * k).closePath().fill(c).stroke(O);
+      break;
+    case 'seadice':
+      g.roundRect(x - 11 * k, y - 11 * k, 22 * k, 22 * k, 5 * k).fill(c).stroke(O);
+      for (const [dx, dy] of [[-5, -5], [5, 5], [0, 0], [5, -5], [-5, 5]] as const) g.circle(x + dx * k, y + dy * k, 1.8 * k).fill(INK);
+      break;
+    case 'krakensummon':
+      for (let i = 0; i < 3; i++) {
+        const bx = x - 8 * k + i * 8 * k;
+        g.moveTo(bx, y + 14 * k).quadraticCurveTo(bx + 6 * k, y, bx - 2 * k, y - 12 * k).stroke({ width: 5 * k, color: c, cap: 'round' });
+      }
+      break;
+    case 'inkcloud':
+      for (const [dx, dy, r] of [[-6, 2, 8], [5, -2, 9], [2, 6, 7]] as const) g.circle(x + dx * k, y + dy * k, r * k).fill(c);
+      g.circle(x - 3 * k, y - 4 * k, 2 * k).fill({ color: 0xffffff, alpha: 0.4 });
+      break;
+    case 'whalesong':
+      g.ellipse(x - 2 * k, y + 2 * k, 13 * k, 8 * k).fill(c).stroke(O);
+      g.poly([x + 10 * k, y + 2 * k, x + 16 * k, y - 6 * k, x + 16 * k, y + 8 * k]).fill(c);
+      for (let i = 1; i <= 2; i++) g.arc(x - 14 * k, y, i * 5 * k, -2.4, -0.9).stroke({ width: 1.5, color: 0xffffff });
+      break;
+    case 'anchor':
+      g.moveTo(x, y - 12 * k).lineTo(x, y + 12 * k).moveTo(x - 7 * k, y - 6 * k).lineTo(x + 7 * k, y - 6 * k).stroke({ width: 3.5 * k, color: c, cap: 'round' });
+      g.arc(x, y + 2 * k, 11 * k, 0.3, Math.PI - 0.3).stroke({ width: 3.5 * k, color: c, cap: 'round' });
+      g.circle(x, y - 14 * k, 3 * k).stroke({ width: 2.5 * k, color: c });
+      break;
     case 'glowburst':
       g.poly([x + 2 * k, y - 15 * k, x - 9 * k, y + 2 * k, x - 1 * k, y + 2 * k, x - 3 * k, y + 15 * k, x + 9 * k, y - 3 * k, x + 1 * k, y - 3 * k]).fill(c).stroke(O);
       break;

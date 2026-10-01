@@ -197,7 +197,8 @@ export class PlantSystem {
     }
     for (const w of this.wobblies) {
       w.g.visible = inView(w.d, v, 120);
-      if (!w.g.visible) continue;
+      // Plastic plants never sway: deliberately uncanny next to living water.
+      if (!w.g.visible || w.d.kind === 'plastic') continue;
       fluid.sample(w.d.x, w.d.y - 16, tmp);
       w.va += (-w.a * 60 + tmp.x * 0.004) * dt;
       w.va *= Math.exp(-5 * dt);
@@ -369,6 +370,17 @@ function drawStatic(g: Graphics, d: Decor, rng: Rng, menace: number) {
         g.moveTo(0, oy).lineTo(ex, ey).stroke({ width: w, color: col, cap: 'round' });
         g.circle(ex, ey, w * 0.32).fill(darken(col, 0.5));
       }
+      break;
+    }
+    case 'plastic': {
+      // A cheap aquarium plant: glossy, flat, perfectly symmetrical.
+      for (let i = -2; i <= 2; i++) {
+        const h = (34 - Math.abs(i) * 6) * s, ang = i * 0.28;
+        const tx = Math.sin(ang) * h, ty = -Math.cos(ang) * h;
+        g.moveTo(0, 0).quadraticCurveTo(tx * 0.3 - 6 * s, ty * 0.5, tx, ty).quadraticCurveTo(tx * 0.3 + 6 * s, ty * 0.5, 0, 0).fill(col).stroke({ width: 1.2, color: darken(col, 0.4) });
+        g.moveTo(0, 0).lineTo(tx * 0.9, ty * 0.9).stroke({ width: 1, color: lighten(col, 0.4), alpha: 0.8 });
+      }
+      g.roundRect(-7 * s, -3 * s, 14 * s, 6 * s, 2).fill(0x2a2a2a);
       break;
     }
     case 'barrel': {

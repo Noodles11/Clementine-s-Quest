@@ -32,7 +32,8 @@ export type DecorKind =
   | 'starfish'
   | 'pot'
   | 'chain'
-  | 'barrel';
+  | 'barrel'
+  | 'plastic';
 
 export interface Decor {
   kind: DecorKind;

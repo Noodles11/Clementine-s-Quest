@@ -10,7 +10,11 @@ export type SynergyId =
   | 'necklace'
   | 'prism'
   | 'bigmadpuff'
-  | 'wisp';
+  | 'wisp'
+  | 'blacktide'
+  | 'toxicbloom'
+  | 'frenzy'
+  | 'broadside';
 
 export interface SynergyDef {
   id: SynergyId;
@@ -31,6 +35,10 @@ export const SYNERGIES: SynergyDef[] = [
   { id: 'prism', name: 'Prism Pearl', needs: ['sunbeam', 'pearldiver'], desc: 'Charged pearls fire beams in 4 directions', color: 0xc8a0ff },
   { id: 'bigmadpuff', name: 'Big Mad Puff', needs: ['pout', 'starfish'], desc: 'Grown ink bursts into spikes', color: 0xffc23d },
   { id: 'wisp', name: "Will-o'-Wisp", needs: ['ghostjelly', 'lure'], desc: 'Spectral homing wisps hunt hard', color: 0xc8d8ff },
+  { id: 'blacktide', name: 'Black Tide', needs: ['tidalwave', 'inksac'], desc: 'The wave drags ink bombs along and sets them off', color: 0x3a2a6a },
+  { id: 'toxicbloom', name: 'Toxic Bloom', needs: ['seanettle', 'mitosis'], desc: 'Split ink carries a double dose of poison', color: 0x9dff5c },
+  { id: 'frenzy', name: 'Feeding Frenzy', needs: ['sharktooth', 'lamprey'], desc: 'Every kill sends you into a fast-firing frenzy', color: 0xff3d5a },
+  { id: 'broadside', name: 'Broadside', needs: ['cannonball', 'rearfin'], desc: 'Shots out of the back explode', color: 0xd9583b },
 ];
 
 export function activeSynergies(items: readonly string[]): Set<SynergyId> {
@@ -40,7 +48,7 @@ export function activeSynergies(items: readonly string[]): Set<SynergyId> {
   return out;
 }
 
-export type TransformationId = 'kraken' | 'neonrave';
+export type TransformationId = 'kraken' | 'neonrave' | 'shark' | 'pirate' | 'coralreef';
 
 export interface TransformationDef {
   id: TransformationId;
@@ -53,6 +61,9 @@ export interface TransformationDef {
 export const TRANSFORMATIONS: TransformationDef[] = [
   { id: 'kraken', name: 'KRAKEN FORM', tag: 'tentacle', desc: '8-way shooting, +1 damage, ink trail slows foes', color: 0x9a6bff },
   { id: 'neonrave', name: 'NEON RAVE', tag: 'glow', desc: 'Rainbow ink, +damage, the reef pulses', color: 0xff5cf0 },
+  { id: 'shark', name: 'SHARK MODE', tag: 'predator', desc: 'Faster and fiercer; every kill heals a little', color: 0x7a8aa0 },
+  { id: 'pirate', name: 'PIRATE', tag: 'galleon', desc: '+1 damage, +2 luck, foes drop more coins', color: 0xffd23d },
+  { id: 'coralreef', name: 'CORAL REEF', tag: 'coral', desc: 'The reef mends you: slowly regain health', color: 0xff8a6a },
 ];
 
 export function activeTransformations(items: readonly string[]): Set<TransformationId> {

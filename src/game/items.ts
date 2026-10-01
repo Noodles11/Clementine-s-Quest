@@ -21,9 +21,21 @@ export type ShotFlag =
   | 'explosive'
   | 'wave'
   | 'plankton'
-  | 'charm';
+  | 'charm'
+  | 'poison'
+  | 'slow'
+  | 'crit'
+  | 'rear'
+  | 'shotgun'
+  | 'leech'
+  | 'knockback'
+  | 'volatile'
+  // Not shot behaviours, but carried the same way:
+  | 'magnet'
+  | 'compass'
+  | 'lantern';
 
-export type ItemTag = 'tentacle' | 'glow';
+export type ItemTag = 'tentacle' | 'glow' | 'predator' | 'galleon' | 'coral';
 
 export interface StatBlock {
   damage: number;
@@ -34,7 +46,7 @@ export interface StatBlock {
   luck: number;
 }
 
-export type ActiveId = 'conch' | 'bubbleshield' | 'treasuremap' | 'mimicclam' | 'glowburst';
+export type ActiveId = 'conch' | 'bubbleshield' | 'treasuremap' | 'mimicclam' | 'glowburst' | 'tidalwave' | 'seadice' | 'krakensummon' | 'inkcloud' | 'whalesong' | 'anchor';
 
 export interface ItemDef {
   id: string;
@@ -62,6 +74,8 @@ export interface ItemDef {
   /** Bigger ink blobs (visual + hitbox). */
   bubbleScale?: number;
   noSink?: boolean;
+  /** Coins granted on pickup. */
+  coins?: number;
 }
 
 export const ITEMS: ItemDef[] = [
@@ -210,6 +224,134 @@ export const ITEMS: ItemDef[] = [
     color: 0xff9ae0,
   },
 
+
+  // ── Deeper finds (Depths 4–7) ─────────────────────────────────
+  {
+    id: 'moonheart', name: 'Moon Jelly Heart', tagline: 'Max HP up, speed up',
+    lore: 'Still beating softly, in time with the tides.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'boss'], hearts: 1, add: { speed: 0.15 }, color: 0xc8d8ff,
+  },
+  {
+    id: 'sharktooth', name: 'Shark Tooth', tagline: 'Damage up',
+    lore: 'Sharks lose thousands of these. This one is still sharp.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], tags: ['predator'], add: { damage: 0.8 }, color: 0xe8e4d8,
+  },
+  {
+    id: 'remora', name: 'Remora Sucker', tagline: 'Pickups come to you',
+    lore: 'It never lets go of anything shiny.',
+    kind: 'passive', quality: 1, pools: ['treasure', 'shop'], flags: ['magnet'], add: { luck: 0.5 }, color: 0x9ab4a0,
+  },
+  {
+    id: 'mantashawl', name: 'Manta Shawl', tagline: 'Speed and range up',
+    lore: 'Glide, don’t swim.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], add: { speed: 0.25, range: 1 }, color: 0x5a6a8a,
+  },
+  {
+    id: 'cuttlebone', name: 'Cuttlebone', tagline: 'Shot speed and damage up',
+    lore: 'Light, strong, and endlessly chewed by parrots.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], add: { shotSpeed: 0.35, damage: 0.4 }, color: 0xf2ead8,
+  },
+  {
+    id: 'squideye', name: 'Giant Squid Eye', tagline: 'Critical hits',
+    lore: 'The size of a dinner plate. It sees the weak spot.',
+    kind: 'passive', quality: 3, pools: ['treasure', 'secret'], flags: ['crit'], add: { luck: 1 }, unlock: 'beat_motherangler', color: 0x5cf2ff,
+  },
+  {
+    id: 'coralpolyp', name: 'Coral Polyp', tagline: 'Fire rate up',
+    lore: 'A tiny reef, waiting to happen.',
+    kind: 'passive', quality: 1, pools: ['treasure', 'shop'], tags: ['coral'], add: { fireRate: 0.4 }, color: 0xff8a6a,
+  },
+  {
+    id: 'braincoral', name: 'Brain Coral', tagline: 'Luck and fire rate up',
+    lore: 'It is thinking. About you.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'secret'], tags: ['coral'], add: { luck: 1, fireRate: 0.3 }, color: 0xd8a070,
+  },
+  {
+    id: 'doubloon', name: "Pirate's Doubloon", tagline: 'Luck up, +15 coins',
+    lore: 'Cursed? Probably. Shiny? Definitely.',
+    kind: 'passive', quality: 1, pools: ['treasure', 'secret', 'curse'], tags: ['galleon'], add: { luck: 2 }, coins: 15, color: 0xffd23d,
+  },
+  {
+    id: 'cannonball', name: 'Cannonball', tagline: 'Big, heavy ink',
+    lore: 'You will need a bigger ink sac.',
+    kind: 'passive', quality: 3, pools: ['treasure', 'boss'], tags: ['galleon'], mul: { damage: 1.3 }, add: { shotSpeed: -0.2 }, bubbleScale: 1.35, color: 0x3a3a48,
+  },
+  {
+    id: 'hook', name: "Captain's Hook", tagline: 'Knockback and damage up',
+    lore: 'Its owner is still looking for it. And for you.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'curse'], tags: ['galleon'], flags: ['knockback'], add: { damage: 0.5 }, color: 0xc8c8d0,
+  },
+  {
+    id: 'seanettle', name: 'Sea Nettle Sting', tagline: 'Poison ink',
+    lore: 'A sting that keeps on stinging.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'curse'], flags: ['poison'], color: 0x9dff5c,
+  },
+  {
+    id: 'stingbarb', name: 'Stingray Barb', tagline: 'Numbing ink',
+    lore: 'Foes it touches move like they are wading through syrup.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], flags: ['slow'], add: { range: 0.5 }, color: 0x8a9ab0,
+  },
+  {
+    id: 'lamprey', name: 'Lamprey Mouth', tagline: 'Kills heal you',
+    lore: 'Rings and rings of tiny teeth. Ew. Useful, though.',
+    kind: 'passive', quality: 3, pools: ['treasure', 'curse'], tags: ['predator'], flags: ['leech'], unlock: 'beat_hollowmaw', color: 0x8a5a6a,
+  },
+  {
+    id: 'hammerhead', name: 'Hammerhead', tagline: 'Shotgun spread',
+    lore: 'Wide head, wide aim.',
+    kind: 'passive', quality: 3, pools: ['treasure', 'boss'], tags: ['predator'], flags: ['shotgun'], mul: { fireRate: 0.7 }, unlock: 'beat_ringmaster', color: 0x7a8aa0,
+  },
+  {
+    id: 'rearfin', name: 'Rear Fin', tagline: 'Also shoots backwards',
+    lore: 'For when the danger is behind you. It always is.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], flags: ['rear'], color: 0x5cb8a0,
+  },
+  {
+    id: 'abyssglow', name: 'Abyssal Glow', tagline: 'Damage and range up',
+    lore: 'Light that has never seen the sun.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'secret'], tags: ['glow'], add: { damage: 0.6, range: 1 }, color: 0x5c8aff,
+  },
+  {
+    id: 'biomoss', name: 'Glowing Moss', tagline: 'Fire rate up',
+    lore: 'Soft, green, and faintly humming.',
+    kind: 'passive', quality: 1, pools: ['treasure', 'shop'], tags: ['glow', 'coral'], add: { fireRate: 0.3 }, color: 0x9dffd8,
+  },
+  {
+    id: 'firespine', name: 'Fire Urchin Spine', tagline: 'Foes burst on death',
+    lore: 'Everything it kills goes out with a bang.',
+    kind: 'passive', quality: 3, pools: ['treasure', 'curse'], flags: ['volatile'], unlock: 'beat_jesters', color: 0xff5c3d,
+  },
+  {
+    id: 'oysterpearl', name: 'Oyster Pearl', tagline: 'Max HP and luck up',
+    lore: 'Took the oyster ten years. Took you ten seconds.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'boss'], hearts: 1, add: { luck: 1 }, color: 0xfff6e8,
+  },
+  {
+    id: 'sponge', name: 'Sea Sponge', tagline: 'Foam up',
+    lore: 'Soaks up hits like it soaks up water.',
+    kind: 'passive', quality: 1, pools: ['treasure', 'shop'], foam: 4, color: 0xe8c84a,
+  },
+  {
+    id: 'divewatch', name: "Diver's Watch", tagline: 'Fire rate up',
+    lore: 'Tick, tick, tick, shoot.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'shop'], add: { fireRate: 0.5, damage: -0.2 }, color: 0xc8c8d0,
+  },
+  {
+    id: 'dolphinfin', name: 'Dolphin Fin', tagline: 'Speed up, no sinking',
+    lore: 'Sleek, smug, and always smiling.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'boss'], add: { speed: 0.3 }, noSink: true, color: 0x8ab8d8,
+  },
+  {
+    id: 'compass', name: 'Brass Compass', tagline: 'Landmarks on the map',
+    lore: 'It always points to something worth finding.',
+    kind: 'passive', quality: 1, pools: ['shop', 'secret'], flags: ['compass'], color: 0xd8a84a,
+  },
+  {
+    id: 'lanternpearl', name: 'Lantern Pearl', tagline: 'You glow brighter',
+    lore: 'Carry it into the Trench and the dark will step aside.',
+    kind: 'passive', quality: 2, pools: ['treasure', 'secret', 'boss'], tags: ['glow'], flags: ['lantern'], add: { range: 0.5 }, color: 0xfff6c0,
+  },
+
   // ── Actives ───────────────────────────────────────────────────
   {
     id: 'conch', name: 'Conch Horn', tagline: 'BWAAAAMP!',
@@ -235,6 +377,36 @@ export const ITEMS: ItemDef[] = [
     id: 'glowburst', name: 'Glow Burst', tagline: 'Overcharge!',
     lore: 'Glow so hard it hurts. Triple fire rate for a few seconds.',
     kind: 'active', quality: 3, pools: ['treasure', 'shop'], tags: ['glow'], charge: 2, unlock: 'die_5', color: 0xfff27a,
+  },
+  {
+    id: 'tidalwave', name: 'Tidal Wave', tagline: 'Everything, that way',
+    lore: 'Summon the sea itself and point.',
+    kind: 'active', quality: 3, pools: ['treasure', 'boss'], charge: 4, color: 0x5cb8ff,
+  },
+  {
+    id: 'seadice', name: 'Sea Dice', tagline: 'Reroll the pickups',
+    lore: 'Carved from whalebone. Always lands on something.',
+    kind: 'active', quality: 1, pools: ['shop', 'secret'], charge: 3, color: 0xf2ead8,
+  },
+  {
+    id: 'krakensummon', name: 'Kraken Call', tagline: 'Release the arms',
+    lore: 'Something huge answers. It is on your side. Probably.',
+    kind: 'active', quality: 4, pools: ['treasure', 'secret', 'boss'], tags: ['tentacle'], charge: 5, unlock: 'beat_siphonophore', color: 0x9a6bff,
+  },
+  {
+    id: 'inkcloud', name: 'Ink Cloud', tagline: 'Vanish',
+    lore: 'The oldest trick in the octopus book.',
+    kind: 'active', quality: 2, pools: ['treasure', 'shop'], tags: ['tentacle'], charge: 2, color: 0x2a1a3a,
+  },
+  {
+    id: 'whalesong', name: 'Whale Song', tagline: 'Heal 35 HP',
+    lore: 'A low hum from far away that makes everything feel better.',
+    kind: 'active', quality: 2, pools: ['treasure', 'shop', 'grotto'], charge: 4, color: 0x8ab8d8,
+  },
+  {
+    id: 'anchor', name: 'Anchor Drop', tagline: 'Dig straight down',
+    lore: 'Heavy enough to punch through the reef. And through anything under it.',
+    kind: 'active', quality: 2, pools: ['treasure', 'shop'], tags: ['galleon'], charge: 2, color: 0x6a6a78,
   },
 ];
 

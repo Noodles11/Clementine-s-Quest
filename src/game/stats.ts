@@ -46,6 +46,14 @@ export function computeStats(items: readonly string[], temp: Partial<StatBlock> 
   const transformations = activeTransformations(items);
   if (transformations.has('kraken')) s.damage += 1;
   if (transformations.has('neonrave')) mul.damage *= 1.2;
+  if (transformations.has('shark')) {
+    s.speed += 0.15;
+    s.damage += 0.5;
+  }
+  if (transformations.has('pirate')) {
+    s.damage += 1;
+    s.luck += 2;
+  }
 
   for (const k of KEYS) s[k] *= mul[k];
 

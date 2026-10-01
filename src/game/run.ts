@@ -2,7 +2,7 @@
 
 import { Rng, stream } from '../core/rng';
 import { seedToNumber } from '../gen/seed';
-import { generateGrotto, generateLevel, type LevelSpec } from '../gen/level';
+import { generateGrotto, generateLevel, generateTank, type LevelSpec } from '../gen/level';
 import { ItemPools } from './pools';
 import { ITEM_BY_ID, type StatBlock } from './items';
 import { computeStats, type DerivedStats } from './stats';
@@ -177,7 +177,9 @@ export class Run {
 
   buildFloor() {
     const d = this.data;
-    this.level = generateLevel({ seed: this.seed, depth: d.depth, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
+    this.level = d.depth >= 7
+      ? generateTank(this.seed, d.unlocked, d.floorPoolStart)
+      : generateLevel({ seed: this.seed, depth: d.depth, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
     // Pool state continues from level generation plus anything rerolled since.
     this.pools = new ItemPools(d.unlocked, [...this.level.poolRemovedAfter, ...d.poolRemoved]);
   }
@@ -294,6 +296,7 @@ export class Run {
     p.items.push(id);
     if (def.hearts) this.addContainer(def.hearts);
     if (def.foam) this.addFoam(def.foam * FOAM_PER_HALF);
+    if (def.coins) p.coins = Math.min(99, p.coins + def.coins);
     this.recompute();
     return null;
   }

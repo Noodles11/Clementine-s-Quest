@@ -34,10 +34,11 @@ half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, �
 - Every boss guards **The Crack** (the rift). After the fight only rewards and the rift remain;
   if the next depth is still locked, entering the rift ends the dive.
 - Debug: enter `DEBUG` as a seed for 999 HP, stocked pockets and an item picker (press **`**).
-- Your first dives end at Depth 1; each new boss you
-  defeat unlocks the next depth (Kelp Jungle, then the Sunken Galleon).
-- Items stack: bubble effects combine, 10 named **synergies** add special effects, and
-  three related items trigger a **transformation**.
+- Your first dives end at Depth 1; each new boss you defeat unlocks the next depth:
+  Kelp Jungle, Sunken Galleon, Coral Carnival (bounce pads), Twilight Trench (dark),
+  The Abyss (strong currents) — and, below the Hollow Maw, a pipe to somewhere very different.
+- 60 items. Ink effects combine, 14 named **synergies** add special effects, and
+  three items sharing a tag trigger one of 5 **transformations**.
 - The deeper you go, the darker the water and the meaner the sea gets.
 - Runs are **seeded** (8-character codes like `KELP 7Q2Z`); seeded dives never unlock achievements.
 - Progress saves automatically (browser storage). Use **Save Code** on the title screen to back it up.

@@ -31,7 +31,7 @@ const SEEDS = [1, 2, 3, 42, 1337, 0xdeadbeef, 777777, 31337, 99, 123456];
 describe('level generation', () => {
   it('builds a big, connected reef with a reachable boss at the bottom', () => {
     for (const seed of SEEDS)
-      for (const depth of [1, 2, 3]) {
+      for (const depth of [1, 2, 3, 4, 5, 6]) {
         const spec = generateLevel({ seed, depth, unlocked: UNLOCKS, poolRemoved: [] });
         expect(spec.tw * spec.th).toBeGreaterThan(8000);
         expect(isSolidTile(spec.tiles[Math.floor(spec.start.y / TILE) * spec.tw + Math.floor(spec.start.x / TILE)])).toBe(false);

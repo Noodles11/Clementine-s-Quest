@@ -236,7 +236,7 @@ export class OctopusView {
     fg.clear();
     g.clear();
     ng.clear();
-    this.container.alpha = p.invuln > 0 && Math.floor(t * 20) % 2 === 0 ? 0.5 : 1;
+    this.container.alpha = (p.invuln > 0 && Math.floor(t * 20) % 2 === 0 ? 0.5 : 1) * (p.hidden > 0 ? 0.45 : 1);
     if (p.pulseKick > 0.95 && t - this.lastKick > 0.25) {
       this.waves.push(t);
       this.lastKick = t;

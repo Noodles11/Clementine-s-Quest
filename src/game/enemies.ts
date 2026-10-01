@@ -22,6 +22,19 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; lore: string; hp: num
   cannoncrab: { name: 'Cannon Crab', lore: 'Found a cannon. Loves it.', hp: 22, color: 0xd9583b },
   mimic: { name: 'Mimic Clam', lore: 'Not a treasure chest. Definitely not.', hp: 30, color: 0xb88adf },
   squidling: { name: 'Squidling', lore: 'Squirts ink and runs. Classic squid.', hp: 16, color: 0xff8ac8 },
+  clownanemone: { name: 'Clown Anemone', lore: 'Juggles bouncy balls at anyone who comes near. Never smiles.', hp: 22, color: 0xff5cae },
+  seahorse: { name: 'Seahorse Lancer', lore: 'Stands tall, fires in threes, never breaks formation.', hp: 18, color: 0xffb347 },
+  nettle: { name: 'Sea Nettle', lore: 'A drifting jelly with a curtain of stinging threads.', hp: 16, color: 0xffa060 },
+  stingray: { name: 'Stingray', lore: 'Glides along the floor. Mind the barb.', hp: 24, color: 0x8a9ab0 },
+  lanternfish: { name: 'Lanternfish', lore: 'Its glowing spots hunt you down in the dark.', hp: 16, color: 0x6ab8ff },
+  ghostshrimp: { name: 'Ghost Shrimp', lore: 'Clear as water — until it is right next to you.', hp: 14, color: 0xd8f0ff },
+  anglerling: { name: 'Anglerling', lore: 'Dangles a pretty light. Waits. Bites.', hp: 26, color: 0x5a4a6a },
+  hatchetfish: { name: 'Hatchetfish', lore: 'Silver blades that hunt in shoals.', hp: 6, color: 0xc8d0e0 },
+  viperfish: { name: 'Viperfish', lore: 'Fangs too long to close its own mouth. Never stops.', hp: 26, color: 0x3a4a6a },
+  gulper: { name: 'Gulper Eel', lore: 'Mostly mouth. Inhales whatever swims by.', hp: 40, color: 0x2a2236 },
+  isopod: { name: 'Giant Isopod', lore: 'Armored in front, patient forever.', hp: 36, color: 0xb8a8a0 },
+  toydiver: { name: 'Plastic Diver', lore: 'A toy that bubbles. Nobody wound it up.', hp: 24, color: 0xffd23d },
+  snail: { name: 'Tank Snail', lore: 'Licks the glass clean. Hides in its shell when poked.', hp: 20, color: 0xc8925a },
 };
 
 export class Enemy extends Entity {
@@ -34,6 +47,8 @@ export class Enemy extends Entity {
   frozen = 0;
   burn = 0;
   burnDps = 0;
+  poison = 0;
+  poisonDps = 0;
   charmed = 0;
   stun = 0;
   flash = 0;
@@ -150,6 +165,10 @@ export class Enemy extends Entity {
     if (this.boss) t *= 0.3;
     this.frozen = Math.max(this.frozen, t);
   }
+  poisonUp(t: number, dps: number) {
+    this.poison = Math.max(this.poison, t);
+    this.poisonDps = Math.max(this.poisonDps, dps);
+  }
   ignite(t: number, dps: number) {
     this.burn = Math.max(this.burn, t);
     this.burnDps = Math.max(this.burnDps, dps);
@@ -167,6 +186,12 @@ export class Enemy extends Entity {
     this.flash = Math.max(0, this.flash - dt);
     this.slow = Math.max(0, this.slow - dt);
     this.spawnGrace = Math.max(0, this.spawnGrace - dt);
+    if (this.poison > 0) {
+      this.poison -= dt;
+      this.hurt(w, this.poisonDps * dt, null, true);
+      if (R.chance(dt * 8)) w.fx.burst(this.x + R.range(-8, 8), this.y - 4, 'bubbles', 0x9dff5c, 1);
+      if (this.dead) return;
+    }
     if (this.burn > 0) {
       this.burn -= dt;
       this.hurt(w, this.burnDps * dt, null, true);
@@ -269,6 +294,8 @@ export class Enemy extends Entity {
 
 /** Contact damage per creature at Depth 1, in HP. */
 const CONTACT_DMG: Partial<Record<EnemyKind, number>> = {
+  clownanemone: 10, seahorse: 10, nettle: 10, stingray: 16, lanternfish: 10, ghostshrimp: 14, anglerling: 22,
+  hatchetfish: 6, viperfish: 18, gulper: 24, isopod: 14, toydiver: 12, snail: 8,
   blob: 10, jelly: 6, pufferling: 14, splitter: 10, squidling: 8, barracuda: 16,
   crabby: 12, cannoncrab: 12, mimic: 18, flounder: 14, urchin: 12, moray: 18,
 };
@@ -691,6 +718,450 @@ class Squidling extends Enemy {
   }
 }
 
+// ── Coral Carnival ───────────────────────────────────────────────
+
+class ClownAnemone extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.swimmer = false;
+    if (this.attach === 'none') this.attach = 'floor';
+    this.r = 18;
+    this.cd = R.range(1, 2.5);
+  }
+  override knock() {}
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.cd -= dt;
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0) {
+      this.tele = 0;
+      this.cd = 2.8 - this.menace;
+      const up = this.attach === 'ceil' ? 1 : -1;
+      for (const s of [-1, 1]) {
+        const vx = clamp((p.x - this.x) * 0.9, -260, 260) + s * 70;
+        w.shots.push(new EnemyShot(this.x, this.y + up * 16, vx, up * R.range(260, 360), {
+          color: R.pick([0xff5cae, 0xffe14d, 0x5cf2ff]), r: 9, gravity: 420 * -up, life: 6, bounce: 3, dmg: this.shotDmg,
+        }));
+      }
+      w.fx.text(this.x, this.y + up * 30, 'HONK!', 0xff5cae, 18);
+      sfx.enemyShoot();
+    }
+  }
+}
+
+class Seahorse extends Enemy {
+  burst = 0;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 15;
+    this.hw = 10;
+    this.hh = 16;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const a = Math.atan2(p.y - this.y, p.x - this.x);
+    const keep = 260;
+    this.steer(p.x - Math.cos(a) * keep, p.y - Math.sin(a) * keep + Math.sin(this.anim * 2) * 30, 70 * this.speedK, dt, 1.5);
+    this.facing = Math.sign(p.x - this.x) || 1;
+    this.cd -= dt;
+    if (this.burst > 0) {
+      this.t -= dt;
+      if (this.t <= 0) {
+        this.burst--;
+        this.t = 0.14;
+        this.shoot(w, a, 300 * (1 + this.menace * 0.3), { color: 0xffb347, r: 6 });
+        sfx.enemyShoot();
+      }
+      return;
+    }
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0 && dist(p.x, p.y, this.x, this.y) < 460) {
+      this.tele = 0;
+      this.burst = 3;
+      this.t = 0;
+      this.cd = 2.4 - this.menace;
+    }
+  }
+}
+
+class Nettle extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 14;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    // Slow, pulsing drift toward her; the curtain of threads below stings.
+    this.t -= dt;
+    if (this.t <= 0) {
+      this.t = 1.1;
+      const a = Math.atan2(p.y - 60 - this.y, p.x - this.x);
+      this.vx += Math.cos(a) * 70 * this.speedK;
+      this.vy += Math.sin(a) * 70 * this.speedK;
+      this.anim = 0;
+    }
+    this.vx *= Math.exp(-1.6 * dt);
+    this.vy *= Math.exp(-1.6 * dt);
+    const dx = p.x - this.x, dy = p.y - this.y;
+    if (dy > 0 && dy < 80 && Math.abs(dx) < 16 + dy * 0.15) w.hurtPlayer(this.contactDmg * 0.8, this.display);
+  }
+}
+
+class Stingray extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 18;
+    this.hw = 24;
+    this.hh = 8;
+    this.facing = R.chance(0.5) ? 1 : -1;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.cd -= dt;
+    if (this.state === 'lash') {
+      this.t -= dt;
+      this.tele = 1 - this.t / this.teleTime;
+      this.vx *= 0.9;
+      this.vy *= 0.9;
+      if (this.t <= 0) {
+        this.tele = 0;
+        this.state = 'idle';
+        this.cd = 2 - this.menace;
+        const a = Math.atan2(p.y - this.y, p.x - this.x);
+        for (const o of [-0.12, 0, 0.12]) this.shoot(w, a + o, 380, { color: 0xc8d0e0, r: 5 });
+        sfx.enemyShoot();
+      }
+      return;
+    }
+    // Glide back and forth just above the floor.
+    let floor = this.y;
+    for (let i = 0; i < 12 && !w.solidAt(this.x, floor + 20); i++) floor += 16;
+    const ty = floor - 10;
+    this.vx += (this.facing * 150 * this.speedK - this.vx) * Math.min(1, 2 * dt);
+    this.vy += ((ty - this.y) * 2 - this.vy) * Math.min(1, 3 * dt);
+    if (w.solidAt(this.x + this.facing * 30, this.y)) this.facing = -this.facing as 1 | -1;
+    if (this.cd <= 0 && Math.abs(p.x - this.x) < 220 && p.y < this.y) {
+      this.state = 'lash';
+      this.t = this.teleTime;
+    }
+  }
+  override onWall() {
+    this.facing = -this.facing as 1 | -1;
+  }
+}
+
+// ── Twilight Trench ──────────────────────────────────────────────
+
+class Lanternfish extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 14;
+    this.cd = R.range(1, 2);
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const a = Math.atan2(p.y - this.y, p.x - this.x);
+    this.steer(p.x - Math.cos(a) * 300, p.y - Math.sin(a) * 300, 60 * this.speedK, dt, 1.2);
+    this.facing = Math.sign(p.x - this.x) || 1;
+    this.cd -= dt;
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0) {
+      this.tele = 0;
+      this.cd = 2.8 - this.menace;
+      this.shoot(w, a, 150, { color: 0x6ab8ff, r: 9, homing: 1.6 + this.menace, life: 5 });
+      sfx.enemyShoot();
+    }
+  }
+}
+
+class GhostShrimp extends Enemy {
+  fade = 0;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 13;
+  }
+  override hittable() {
+    return this.fade > 0.35;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const d = dist(p.x, p.y, this.x, this.y);
+    this.fade += ((d < 190 || this.state === 'dash' ? 1 : 0.08) - this.fade) * Math.min(1, dt * 4);
+    this.cd -= dt;
+    if (this.state === 'dash') {
+      this.t -= dt;
+      if (this.t <= 0) {
+        this.state = 'idle';
+        this.cd = 1.4 - this.menace * 0.5;
+      }
+      return;
+    }
+    this.steer(p.x + Math.sin(this.anim) * 80, p.y + Math.cos(this.anim * 0.7) * 50, 90 * this.speedK, dt, 2);
+    this.facing = Math.sign(p.x - this.x) || 1;
+    if (this.cd <= 0 && d < 200) {
+      const a = Math.atan2(p.y - this.y, p.x - this.x);
+      this.vx = Math.cos(a) * 420;
+      this.vy = Math.sin(a) * 420;
+      this.state = 'dash';
+      this.t = 0.4;
+    }
+  }
+}
+
+class Anglerling extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 20;
+    this.hw = this.hh = 16;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const d = dist(p.x, p.y, this.x, this.y);
+    this.cd -= dt;
+    this.facing = Math.sign(p.x - this.x) || this.facing;
+    if (this.state === 'aim') {
+      this.t -= dt;
+      this.tele = 1 - this.t / this.teleTime;
+      this.vx *= 0.8;
+      this.vy *= 0.8;
+      if (this.t <= 0) {
+        const a = Math.atan2(p.y - this.y, p.x - this.x);
+        this.vx = Math.cos(a) * 520;
+        this.vy = Math.sin(a) * 520;
+        this.state = 'bite';
+        this.t = 0.45;
+        this.tele = 0;
+        w.fx.text(this.x, this.y - 28, 'CHOMP!', 0xff3d5a, 20);
+      }
+    } else if (this.state === 'bite') {
+      this.t -= dt;
+      if (this.t <= 0) {
+        this.state = 'lurk';
+        this.cd = 2 - this.menace;
+      }
+    } else {
+      // Lurk: hang almost still, letting the lure do the work.
+      this.vx *= Math.exp(-2 * dt);
+      this.vy += (Math.sin(this.anim * 1.4) * 12 - this.vy) * Math.min(1, dt);
+      if (this.cd <= 0 && d < 230) {
+        this.state = 'aim';
+        this.t = this.teleTime;
+      }
+    }
+  }
+}
+
+class Hatchetfish extends Enemy {
+  side = R.chance(0.5) ? 1 : -1;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 9;
+    this.hw = this.hh = 8;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    // Flank: circle in from the side, then cut through.
+    const a = this.anim * 1.4 + this.id;
+    const close = dist(p.x, p.y, this.x, this.y) < 120;
+    const tx = close ? p.x : p.x + this.side * 140 + Math.cos(a) * 40;
+    const ty = close ? p.y : p.y + Math.sin(a) * 60;
+    this.steer(tx, ty, (close ? 210 : 150) * this.speedK, dt, 3);
+  }
+}
+
+// ── The Abyss ────────────────────────────────────────────────────
+
+class Viperfish extends Enemy {
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 15;
+    this.hw = 20;
+    this.hh = 10;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.cd -= dt;
+    if (this.state === 'lunge') {
+      this.t -= dt;
+      if (this.t <= 0) {
+        this.state = 'idle';
+        this.cd = 1.1;
+      }
+      return;
+    }
+    this.steer(p.x, p.y, 135 * this.speedK, dt, 2.5);
+    if (this.cd <= 0 && dist(p.x, p.y, this.x, this.y) < 200) {
+      const a = Math.atan2(p.y - this.y, p.x - this.x);
+      this.vx = Math.cos(a) * 480;
+      this.vy = Math.sin(a) * 480;
+      this.state = 'lunge';
+      this.t = 0.3;
+    }
+  }
+}
+
+class Gulper extends Enemy {
+  open = 0;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.r = 24;
+    this.hw = this.hh = 20;
+    this.cd = 2;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const d = dist(p.x, p.y, this.x, this.y);
+    this.facing = Math.sign(p.x - this.x) || this.facing;
+    this.cd -= dt;
+    if (this.state === 'inhale') {
+      this.t -= dt;
+      this.open = Math.min(1, this.open + dt * 3);
+      this.vx *= 0.9;
+      this.vy *= 0.9;
+      // Suck Clementine (and the water) into the mouth.
+      if (d < 360 && d > 1) {
+        const k = (1 - d / 360) * 520 * dt;
+        p.vx += ((this.x - p.x) / d) * k * 4;
+        p.vy += ((this.y - p.y) / d) * k * 4;
+        w.fluid.splat(p.x, p.y, (this.x - p.x) * 0.6, (this.y - p.y) * 0.6, 40);
+      }
+      if (this.t <= 0) {
+        this.state = 'snap';
+        this.t = 0.3;
+        if (d < this.r + 40) w.hurtPlayer(this.contactDmg * 1.2, this.display);
+        w.fx.text(this.x, this.y - 30, 'GULP!', 0xb06bff, 24);
+        sfx.hit();
+      }
+      return;
+    }
+    if (this.state === 'snap') {
+      this.t -= dt;
+      this.open = Math.max(0, this.open - dt * 6);
+      if (this.t <= 0) {
+        this.state = 'idle';
+        this.cd = 3 - this.menace;
+      }
+      return;
+    }
+    this.open = Math.max(0, this.open - dt);
+    this.steer(p.x, p.y, 50 * this.speedK, dt, 1);
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0 && d < 340) {
+      this.tele = 0;
+      this.state = 'inhale';
+      this.t = 1.5;
+      sfx.splash();
+    }
+  }
+}
+
+class Isopod extends Crabby {
+  rolling = 0;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.hw = 20;
+    this.hh = 11;
+    this.r = 18;
+    this.cd = 3;
+  }
+  override hurt(w: RoomWorld, dmg: number, src: Bubble | null, silent = false) {
+    // Hits on the armored front glance off.
+    const front = src && Math.sign(src.vx) === -this.facing && this.rolling <= 0;
+    if (front) {
+      dmg *= 0.25;
+      if (!silent) w.fx.burst(this.x + this.facing * 18, this.y, 'pop', 0xffffff, 2);
+    }
+    super.hurt(w, dmg, src, silent);
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.cd -= dt;
+    if (this.rolling > 0) {
+      this.rolling -= dt;
+      this.vx = this.facing * 360;
+      return;
+    }
+    if (this.grounded) {
+      const dx = p.x - this.x;
+      this.facing = Math.sign(dx) || this.facing;
+      this.vx += (this.facing * 55 * this.speedK - this.vx) * Math.min(1, 3 * dt);
+      if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+      if (this.cd <= 0 && Math.abs(dx) < 420 && Math.abs(p.y - this.y) < 120) {
+        this.tele = 0;
+        this.rolling = 1.2;
+        this.cd = 3.2 - this.menace;
+        w.fx.text(this.x, this.y - 26, 'ROLL!', 0xb8a8a0, 18);
+      }
+    }
+  }
+  override onWall(w: RoomWorld) {
+    if (this.rolling > 0) {
+      this.rolling = 0;
+      this.stun = 0.8;
+      w.fx.shake(3);
+    }
+  }
+}
+
+// ── The Tank ─────────────────────────────────────────────────────
+
+class ToyDiver extends Crabby {
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.cd -= dt;
+    if (this.grounded) {
+      const dx = p.x - this.x;
+      this.facing = Math.sign(dx) || 1;
+      // Stiff little hops, like a wind-up toy.
+      if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+      if (this.cd <= 0) {
+        this.tele = 0;
+        this.cd = 1.8 - this.menace * 0.5;
+        this.vy = -360;
+        this.vx = this.facing * 120;
+        for (let i = 0; i < 4; i++) this.shoot(w, -Math.PI / 2 + this.facing * (0.35 + i * 0.15), 200 + i * 30, { color: 0xe8fbff, r: 6, gravity: -60, life: 3 });
+        sfx.enemyShoot();
+      } else this.vx *= 0.8;
+    }
+  }
+}
+
+class Snail extends Enemy {
+  shell = 0;
+  constructor(...a: ConstructorParameters<typeof Enemy>) {
+    super(...a);
+    this.swimmer = false;
+    if (this.attach === 'none') this.attach = 'floor';
+    this.r = 16;
+  }
+  override knock() {}
+  override invulnerable() {
+    return this.shell > 0;
+  }
+  override hurt(w: RoomWorld, dmg: number, src: Bubble | null, silent = false) {
+    super.hurt(w, dmg, src, silent);
+    if (!this.dead && this.shell <= 0) this.shell = 1.4;
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    this.shell = Math.max(0, this.shell - dt);
+    if (this.shell > 0) return;
+    // Creep along the surface it clings to, toward Clementine.
+    const horiz = this.attach === 'floor' || this.attach === 'ceil';
+    const dir = horiz ? Math.sign(p.x - this.x) : Math.sign(p.y - this.y);
+    const nx = this.x + (horiz ? dir * 22 * dt * this.speedK : 0);
+    const ny = this.y + (horiz ? 0 : dir * 22 * dt * this.speedK);
+    const below = this.attach === 'floor' ? 1 : this.attach === 'ceil' ? -1 : 0;
+    const side = this.attach === 'left' ? -1 : this.attach === 'right' ? 1 : 0;
+    // Only move while still hugging the surface.
+    if (w.solidAt(nx + side * 20, ny + below * 20) && !w.solidAt(nx, ny)) {
+      this.x = nx;
+      this.y = ny;
+    }
+    if (horiz) this.facing = dir || this.facing;
+  }
+}
+
 export function createEnemy(kind: EnemyKind, x: number, y: number, menace: number, attach: Attach): Enemy {
   switch (kind) {
     case 'blob': return new Blob(kind, x, y, menace, attach);
@@ -705,6 +1176,19 @@ export function createEnemy(kind: EnemyKind, x: number, y: number, menace: numbe
     case 'cannoncrab': return new CannonCrab(kind, x, y, menace, attach);
     case 'mimic': return new Mimic(kind, x, y, menace, attach);
     case 'squidling': return new Squidling(kind, x, y, menace, attach);
+    case 'clownanemone': return new ClownAnemone(kind, x, y, menace, attach);
+    case 'seahorse': return new Seahorse(kind, x, y, menace, attach);
+    case 'nettle': return new Nettle(kind, x, y, menace, attach);
+    case 'stingray': return new Stingray(kind, x, y, menace, attach);
+    case 'lanternfish': return new Lanternfish(kind, x, y, menace, attach);
+    case 'ghostshrimp': return new GhostShrimp(kind, x, y, menace, attach);
+    case 'anglerling': return new Anglerling(kind, x, y, menace, attach);
+    case 'hatchetfish': return new Hatchetfish(kind, x, y, menace, attach);
+    case 'viperfish': return new Viperfish(kind, x, y, menace, attach);
+    case 'gulper': return new Gulper(kind, x, y, menace, attach);
+    case 'isopod': return new Isopod(kind, x, y, menace, attach);
+    case 'toydiver': return new ToyDiver(kind, x, y, menace, attach);
+    case 'snail': return new Snail(kind, x, y, menace, attach);
   }
 }
 

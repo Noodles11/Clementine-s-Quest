@@ -274,7 +274,7 @@ class Game {
       const a = ACH_BY_ID[id];
       this.ui.toast(`★ ${a.name}`, `Unlocked: ${a.reward}`);
       sfx.unlock();
-      if (id === 'dive2' || id === 'dive3') this.pendingUnlocks.push(id);
+      if (/^dive\d$/.test(id) || id === 'tank') this.pendingUnlocks.push(id);
       saveProfile(this.profile);
     }
   }
@@ -314,8 +314,8 @@ class Game {
         run.data.bossesBeaten.push(kind);
         this.ui.banner(BOSS_NAMES[kind].name, 'Defeated · colour floods back into the reef', '#ff9a2e');
         this.achieve(`beat_${kind}`);
-        if (run.data.depth === 1) this.achieve('dive2');
-        if (run.data.depth === 2) this.achieve('dive3');
+        if (run.data.depth <= 5) this.achieve(`dive${run.data.depth + 1}`);
+        if (kind === 'hollowmaw') this.achieve('tank');
         if (!run.data.custom) {
           if (kind === 'admiral') {
             p.counters.admiral = (p.counters.admiral ?? 0) + 1;
@@ -396,8 +396,29 @@ class Game {
           this.showTitle();
         },
       });
-    if (unlocks.length) {
-      const d = unlocks.includes('dive3') ? 3 : 2;
+    const deepest = unlocks.filter((u) => /^dive\d$/.test(u)).map((u) => Number(u.slice(4))).sort().pop();
+    if (run.data.depth >= 7) {
+      // The true ending.
+      this.ui.showCutscene(
+        [
+          { cap: 'The Hand jerked back. "OW! It stings!" A net clattered into the gravel.', sfx: 'YOWCH!', bg: 'linear-gradient(#bfe8ff,#3a8ab8)' },
+          { cap: 'The tank was carried to the shore... and tipped back into the sea.', sfx: 'SPLOOSH!', bg: 'linear-gradient(#ffd8a0,#2a7ab8)' },
+          { cap: 'Clementine and every rescued creature poured out. The pipe was sealed.', sfx: 'BLUB BLUB', bg: 'linear-gradient(#46a9ba,#0d4a66)' },
+          { cap: 'And the Great Current began to sing again.', sfx: '~♪~', bg: 'linear-gradient(#ff9a5c,#5a3f8a)' },
+        ],
+        showEnd,
+      );
+    } else if (unlocks.includes('tank')) {
+      this.ui.showCutscene(
+        [
+          { cap: 'The Hollow Maw coughed up something hard: a rusty metal grate.', sfx: 'KLANK!', bg: 'linear-gradient(#2a2236,#05040a)' },
+          { cap: 'The Crack was never a crack. It was a pipe. And it was pulling.', sfx: 'SHLUUURP!', bg: 'linear-gradient(#3a4a6a,#05040a)' },
+          { cap: 'Light at the end of it... fluorescent light. Next time, the pipe takes you in.', sfx: '???', bg: 'linear-gradient(#dff6ff,#3a8ab8)' },
+        ],
+        showEnd,
+      );
+    } else if (deepest) {
+      const d = deepest;
       const b = BIOMES[d - 1];
       this.ui.showCutscene(
         [

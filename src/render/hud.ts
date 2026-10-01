@@ -326,7 +326,7 @@ export class Hud {
         if (!kind) continue;
         const cx = ch.cx * TILE, cy = ch.cy * TILE;
         const known = seen(cx, cy) || seen(cx - ch.rx * TILE * 0.6, cy) || seen(cx + ch.rx * TILE * 0.6, cy) ||
-          (run.data.mapRevealed && kind !== 'secret');
+          ((run.data.mapRevealed || run.stats.flags.has('compass')) && kind !== 'secret');
         if (known) marks.push({ kind, x: cx, y: cy });
       }
       if (w.bossDead) {

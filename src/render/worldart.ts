@@ -28,7 +28,17 @@ export function drawGate(g: Graphics, gate: Gate, t: number, glow?: Graphics) {
 export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: number) {
   switch (p.kind) {
     case 'crack': {
+      if (w.depth === 7) break; // no rift in the tank
       const x0 = p.x - p.w / 2, x1 = p.x + p.w / 2, y = p.y;
+      if (w.depth === 6 && p.active) {
+        // The Crack was a pipe all along: a rusty grate over a dark intake.
+        g.ellipse(p.x, y + 6, p.w / 2 + 10, 20).fill(0x5a4a3a).stroke({ width: 3 * EW, color: INK, alpha: EA });
+        g.ellipse(p.x, y + 6, p.w / 2, 14).fill(0x05040a);
+        for (let i = -3; i <= 3; i++) g.moveTo(p.x + i * (p.w / 8), y - 6).lineTo(p.x + i * (p.w / 8), y + 18).stroke({ width: 3, color: 0x8a5a3a });
+        g.moveTo(p.x - p.w / 2, y + 6).lineTo(p.x + p.w / 2, y + 6).stroke({ width: 3, color: 0x8a5a3a });
+        glow.ellipse(p.x, y + 4, p.w / 2, 18).fill({ color: 0xdff6ff, alpha: 0.25 + Math.sin(t * 5) * 0.1 });
+        break;
+      }
       const pts: number[] = [];
       const n = 10;
       for (let i = 0; i <= n; i++) pts.push(x0 + (i / n) * (x1 - x0), y + (i % 2 ? 6 : -2) + (i === 0 || i === n ? -2 : 0));
@@ -72,6 +82,40 @@ export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: 
 }
 
 /** Clementine's shots: wobbling blobs of ink with a smeared tail. */
+/** Depth features: anemone pads, abyssal currents, the tank's filter intake. */
+export function drawFeatures(g: Graphics, glow: Graphics, w: RoomWorld, t: number, view: { x0: number; y0: number; x1: number; y1: number }) {
+  const inV = (x: number, y: number, m: number) => x > view.x0 - m && x < view.x1 + m && y > view.y0 - m && y < view.y1 + m;
+  const spec = w.spec;
+  spec.bouncers?.forEach((b, i) => {
+    if (!inV(b.x, b.y, 80)) return;
+    const a = w.bounceAnim.get(i) ?? 0;
+    const sq = 1 - a * 0.45;
+    for (let k = 0; k < 9; k++) {
+      const ang = Math.PI + 0.25 + (k / 8) * (Math.PI - 0.5);
+      const L = (22 + (k % 2) * 6) * sq;
+      g.moveTo(b.x + Math.cos(ang) * 8, b.y - 4).lineTo(b.x + Math.cos(ang) * L, b.y - 4 + Math.sin(ang) * L).stroke({ width: 5, color: k % 2 ? 0xff5cae : 0xffb3e0, cap: 'round' });
+    }
+    g.ellipse(b.x, b.y - 4, 20, 8 * sq).fill(shade(0xd84a9a)).stroke({ width: 2 * EW, color: INK, alpha: EA });
+    glow.ellipse(b.x, b.y - 10, 28, 14).fill({ color: 0xff5cae, alpha: 0.25 + a * 0.4 });
+  });
+  for (const c of spec.currents ?? []) {
+    if (!inV(c.x, c.y, c.len + 40)) continue;
+    for (let i = 0; i < 5; i++) {
+      const ph = (t * 0.9 + i / 5) % 1;
+      const off = (i / 4 - 0.5) * c.w * 1.4;
+      const sx = c.x + c.dx * c.len * ph - c.dy * off, sy = c.y + c.dy * c.len * ph + c.dx * off;
+      g.moveTo(sx, sy).lineTo(sx + c.dx * 40, sy + c.dy * 40).stroke({ width: 1.6, color: 0x9ef0ff, alpha: 0.4 * Math.sin(ph * Math.PI) });
+    }
+  }
+  if (spec.intake && inV(spec.intake.x, spec.intake.y, 200)) {
+    const { x, y } = spec.intake;
+    g.roundRect(x - 70, y - 40, 70, 80, 10).fill(shade(0x9aa8b8)).stroke({ width: 3 * EW, color: INK, alpha: EA });
+    for (let i = 0; i < 6; i++) g.rect(x - 64, y - 32 + i * 12, 58, 5).fill(0x2a3038);
+    g.roundRect(x - 20, y - 400, 20, 360, 6).fill(shade(0xb8c8d8)).stroke({ width: 2 * EW, color: INK, alpha: EA });
+    glow.circle(x - 34, y, 50 + Math.sin(t * 8) * 4).fill({ color: 0xdff6ff, alpha: 0.12 });
+  }
+}
+
 export function drawBubble(g: Graphics, glow: Graphics, b: Bubble, t: number, neon: boolean) {
   let col = b.color;
   if (neon) col = hsl(b.hue + t * 0.8, 1, 0.65);
@@ -194,13 +238,23 @@ export function drawWorldExtras(g: Graphics, glow: Graphics, w: RoomWorld, t: nu
         g.moveTo(w.arena.x0, h.y);
         for (let x = w.arena.x0; x <= w.arena.x1; x += 30) g.lineTo(x, h.y + Math.sin(x * 0.05 + t * 20) * 6);
         g.stroke({ width: h.size, color: h.color });
-        glow.moveTo(w.arena.x0, h.y).lineTo(w.arena.x1, h.y).stroke({ width: h.size * 2, color: 0x5cd65c, alpha: 0.5 });
+        glow.moveTo(w.arena.x0, h.y).lineTo(w.arena.x1, h.y).stroke({ width: h.size * 2, color: h.color, alpha: 0.5 });
       }
     } else if (h.kind === 'vline') {
       if (warn) g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
       else {
         g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: (h.size + 6) * EW, color: INK, alpha: EA });
         g.moveTo(h.x, w.arena.y0).lineTo(h.x, w.arena.y1).stroke({ width: h.size, color: h.color });
+      }
+    } else {
+      // Circle: a shrinking shadow ring, then the strike.
+      if (warn) {
+        const k = h.age / h.warn;
+        g.circle(h.x, h.y, h.size * (1.4 - k * 0.4)).stroke({ width: 4, color: blink ? 0xff3d5a : 0xffffff, alpha: 0.7 });
+        g.circle(h.x, h.y, h.size).fill({ color: 0x000000, alpha: 0.15 + k * 0.2 });
+      } else {
+        g.circle(h.x, h.y, h.size).fill({ color: h.color, alpha: 0.45 });
+        glow.circle(h.x, h.y, h.size * 1.2).fill({ color: h.color, alpha: 0.35 });
       }
     }
   }
