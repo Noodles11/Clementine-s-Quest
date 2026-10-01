@@ -208,7 +208,9 @@ export class RoomWorld implements Solidity {
       this.props.push(new Prop('crack', (c.x0 + c.x1) / 2, c.y, c.x1 - c.x0, 40));
       if (this.bossDead) this.setupBossRewards(false);
     } else if (areaId === GROTTO_ID) {
-      this.props.push(new Prop('grottoExit', TILE * 6.5, spec.start.y - 10));
+      const exit = new Prop('grottoExit', TILE * 6.5, spec.start.y - 10);
+      exit.active = true;
+      this.props.push(exit);
     } else if (areaId === TITLE_ID) {
       const c = spec.boss.crack;
       this.props.push(new Prop('crack', (c.x0 + c.x1) / 2, c.y, c.x1 - c.x0, 40));
