@@ -893,3 +893,14 @@ Siphonophore → Kraken Call · Hollow Maw → Lamprey Mouth.
 - **Item captions list real effects.** Picking up an item shows its name, tagline, and one line per
   effect with numbers (e.g. "+0.8 damage", "×1.5 damage", "20% chance to freeze foes for 1.6s",
   "Recharges after 3 encounters"). The Sea-pedia and debug picker show the same text.
+
+## 30. Ink dash
+
+- **Shift** (touch: 💨): one hard mantle squeeze shoots Clementine ~3.4× swim speed along the
+  held direction, or where her head points when hovering (upright = straight up).
+- She coasts 0.24 s, untouchable for 0.32 s; cooldown 0.85 s. No hurt-blink during the dash.
+- She leaves an ink cloud where she was: dense puffs that billow out, drift up and dissolve in
+  2 s. Creatures inside are slowed.
+- Animation: the mantle squeezes 1.5× harder than a swim stroke, the arms flare wide and then whip
+  shut into a tight bundle; a water jet, wake bubbles and a soft violet flash mark the burst.
+

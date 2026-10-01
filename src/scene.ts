@@ -508,7 +508,7 @@ export class GameScene {
     const lines: [string, number, number][] = [
       ['W A S D  to swim', 0.26, 0.3],
       ['ARROWS  to shoot', 0.26, 0.42],
-      ['E  ink bomb   ·   SPACE  active   ·   Q  snack', 0.5, 0.62],
+      ['SHIFT  ink dash   ·   E  ink bomb   ·   SPACE  active   ·   Q  snack', 0.5, 0.62],
       ['Let go and you slowly sink~', 0.74, 0.3],
     ];
     for (const [txt, fx, fy] of lines) {

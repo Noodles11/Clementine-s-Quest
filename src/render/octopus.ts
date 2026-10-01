@@ -97,7 +97,8 @@ export class OctopusView {
   private mantle(p: Player, t: number) {
     const k = p.pulseKick;
     const ph = 1 - k;
-    const jet = k <= 0 ? 0 : ph < 0.2 ? ph / 0.2 : Math.max(0, 1 - (ph - 0.2) / 0.6);
+    // A dash squeezes the mantle much harder than a swim stroke.
+    const jet = (k <= 0 ? 0 : ph < 0.2 ? ph / 0.2 : Math.max(0, 1 - (ph - 0.2) / 0.6)) * (p.dashT > 0 ? 1.5 : 1);
     const breathe = Math.sin(t * 2 * Math.PI * 0.55) * 0.06 * (1 - jet);
     return { jet, breathe };
   }
@@ -112,7 +113,7 @@ export class OctopusView {
     const my = -(1 - k) + (speed > 1 ? (p.vy / speed) * k : 0);
     const sway = Math.sin(t * 0.8) * 0.06 * (1 - k);
     const target = Math.atan2(mx, -my) + sway;
-    this.axis += wrapAngle(target - this.axis) * Math.min(1, dt * (p.pulseClock < 0.3 ? 9 : 5));
+    this.axis += wrapAngle(target - this.axis) * Math.min(1, dt * (p.dashT > 0 ? 20 : p.pulseClock < 0.3 ? 9 : 5));
     if (Math.abs(p.vx) > 30) this.face = p.vx > 0 ? 1 : -1;
     else if (p.shootFlash > 0 && p.lastShootDir[0]) this.face = p.lastShootDir[0] > 0 ? 1 : -1;
 
@@ -120,7 +121,9 @@ export class OctopusView {
     let spreadT = p.moving ? 0.45 : 1;
     if (p.moving && p.pulseClock < 0.09) spreadT = 1.45;
     else if (p.moving && p.pulseClock < 0.42) spreadT = 0.06;
-    this.spread += (spreadT - this.spread) * Math.min(1, dt * (p.pulseClock < 0.42 ? 16 : 4));
+    // Dash: a wide flare, then the arms whip shut into a tight streamlined bundle.
+    if (p.dashT > 0) spreadT = p.pulseClock < 0.05 ? 1.9 : 0;
+    this.spread += (spreadT - this.spread) * Math.min(1, dt * (p.dashT > 0 ? 30 : p.pulseClock < 0.42 ? 16 : 4));
 
     const dt2 = dt * dt;
     const ML = this.ML;

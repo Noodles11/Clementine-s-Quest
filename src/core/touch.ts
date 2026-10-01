@@ -37,6 +37,7 @@ export class TouchControls {
         <button class="tbtn" data-code="KeyQ" aria-label="Eat snack">🍬</button>
         <button class="tbtn" data-code="Space" aria-label="Use active item">★</button>
         <button class="tbtn bomb" data-code="KeyE" aria-label="Drop ink bomb">💣</button>
+        <button class="tbtn" data-code="ShiftLeft" aria-label="Ink dash">💨</button>
       </div>
       <button class="tbtn pause" data-code="Escape" aria-label="Pause">❚❚</button>
       <button class="tbtn map" data-hold="Tab" aria-label="Map">▦</button>`;

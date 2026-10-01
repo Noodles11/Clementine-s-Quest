@@ -208,6 +208,22 @@ export function drawWorldExtras(g: Graphics, glow: Graphics, w: RoomWorld, t: nu
   for (const z of w.zones) {
     const k = 1 - z.age / z.life;
     if (z.kind === 'ink') g.ellipse(z.x, z.y, z.r, z.r * 0.6).fill({ color: 0x1a0a2a, alpha: 0.45 * k });
+    else if (z.kind === 'cloud') {
+      // Dash ink: dense puffs that billow outwards, drift up and thin away.
+      const age = z.age / z.life;
+      const grow = 0.55 + Math.sqrt(age) * 0.75;
+      const seed = (z.x * 7.3 + z.y * 3.1) | 0;
+      for (let i = 0; i < 9; i++) {
+        const h = Math.sin((seed + i) * 12.9898) * 43758.5453;
+        const fr = h - Math.floor(h);
+        const a = (i / 9) * Math.PI * 2 + fr * 1.3;
+        const d = (i === 0 ? 0 : 0.35 + fr * 0.35) * z.r * grow;
+        const px = z.x + Math.cos(a) * d, py = z.y + Math.sin(a) * d * 0.8 - age * 14;
+        const pr = z.r * (0.42 + fr * 0.25) * grow;
+        g.circle(px, py, pr * 1.25).fill({ color: 0x24123a, alpha: 0.18 * k });
+        g.circle(px, py, pr).fill({ color: 0x14081e, alpha: 0.6 * Math.pow(k, 1.4) });
+      }
+    }
     else g.circle(z.x, z.y, z.r).fill({ color: 0xffffff, alpha: 0.25 * k });
   }
   for (const b of w.bombs) {

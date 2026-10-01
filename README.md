@@ -13,6 +13,7 @@ Full design: [`docs/DESIGN.md`](docs/DESIGN.md).
 |---|---|
 | Swim | **W A S D** (let go and you slowly sink) |
 | Shoot | **Arrow keys** |
+| Ink dash | **Shift** (swim direction, or where her head points) |
 | Ink bomb (sinks!) | **E** |
 | Active item | **Space** |
 | Eat sea snack | **Q** |
@@ -21,7 +22,7 @@ Full design: [`docs/DESIGN.md`](docs/DESIGN.md).
 
 **Touch (phones/tablets, landscape):** drag on the left half to swim, drag on the right
 half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, 🍬 snack,
-❚❚ pause, ▦ map.
+💨 dash, ❚❚ pause, ▦ map.
 
 - Each depth is one big reef labyrinth. The camera follows Clementine; explore the tunnels
   to find treasure caves, Barnaby's shop, bomb-able secret caves and — always somewhere at

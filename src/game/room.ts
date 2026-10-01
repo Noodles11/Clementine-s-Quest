@@ -586,7 +586,7 @@ export class RoomWorld implements Solidity {
   addBubble(b: Bubble) {
     this.bubbles.push(b);
   }
-  addZone(x: number, y: number, r: number, life: number, kind: 'ink' | 'steam', dps = 0) {
+  addZone(x: number, y: number, r: number, life: number, kind: 'ink' | 'steam' | 'cloud', dps = 0) {
     this.zones.push(new Zone(x, y, r, life, kind, dps));
   }
   spawnPickup(kind: PickupKind, x: number, y: number, vx = 0, vy = 0) {
@@ -626,11 +626,18 @@ export class RoomWorld implements Solidity {
     sfx.bossRoar();
   }
 
+  /** The ink Clementine squirts as she dashes away: a billowing cloud that slowly dissolves. */
+  inkCloud(x: number, y: number, dx: number, dy: number) {
+    this.addZone(x - dx * 6, y - dy * 6, 44, 2, 'cloud');
+    this.fx.burst(x - dx * 10, y - dy * 10, 'ink', 0x1a0a2a, 8);
+    this.fluid.splat(x, y, -dx * 200, -dy * 200, 40);
+  }
+
   // ── Player interaction ───────────────────────────────────────
   /** Damage Clementine by `amount` hit points. */
   hurtPlayer(amount: number, by: string) {
     const p = this.player;
-    if (p.invuln > 0 || p.shield > 0 || this.exiting) return;
+    if (p.untouchable || this.exiting) return;
     if (this.boss && !this.boss.dead) this.bossHurtPlayer = true;
     amount = Math.round(amount);
     const died = this.run.damage(amount);
@@ -1233,7 +1240,7 @@ export class RoomWorld implements Solidity {
       if (s.dead) continue;
       const rr = s.r + p.r - 3;
       if ((s.x - p.x) ** 2 + (s.y - p.y) ** 2 < rr * rr) {
-        if (p.shield > 0 || p.invuln > 0) {
+        if (p.untouchable) {
           if (p.shield > 0) {
             s.dead = true;
             this.fx.burst(s.x, s.y, 'pop', 0xa0e8ff, 3);

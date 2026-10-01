@@ -493,7 +493,7 @@ export class Zone {
     public y: number,
     public r: number,
     public life: number,
-    public kind: 'ink' | 'steam',
+    public kind: 'ink' | 'steam' | 'cloud',
     public dps = 0,
   ) {}
   update(w: RoomWorld, dt: number) {
@@ -505,7 +505,7 @@ export class Zone {
     for (const e of w.enemies) {
       if (e.dead) continue;
       if (dist(e.x, e.y, this.x, this.y) < this.r + e.r) {
-        if (this.kind === 'ink') e.slow = Math.max(e.slow, 0.3);
+        if (this.kind !== 'steam') e.slow = Math.max(e.slow, 0.3);
         if (this.dps > 0) e.hurt(w, this.dps * dt, null, true);
       }
     }

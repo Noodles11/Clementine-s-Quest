@@ -35,6 +35,12 @@ export class Player extends Entity {
   lastMoveDir: [number, number] = [0, 0];
   inkTrail = 0;
   sizeMul = 1;
+  /** Ink dash: time left in the burst, cooldown, brief invulnerability. */
+  dashT = 0;
+  dashCd = 0;
+  dashInvuln = 0;
+  /** Body axis (0 = head up), eased like the drawn octopus: where her head points. */
+  headAxis = 0;
   /** Solidity that lets the player pass through open door mouths. */
   solidity!: Solidity;
 
@@ -55,10 +61,22 @@ export class Player extends Entity {
     this.glowBurst = Math.max(0, this.glowBurst - dt);
     this.shootFlash = Math.max(0, this.shootFlash - dt * 4);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 2.5);
+    this.dashCd = Math.max(0, this.dashCd - dt);
+    this.dashInvuln = Math.max(0, this.dashInvuln - dt);
 
     // ── Movement ─────────────────────────────────────────────
     const [ix, iy] = input.moveAxis();
-    this.swim(w, ix, iy, dt);
+    if ((input.wasPressed('ShiftLeft') || input.wasPressed('ShiftRight')) && this.dashCd <= 0) this.dash(w, ix, iy);
+    if (this.dashT > 0) {
+      // Coasting on the jet: the burst bleeds off, steering waits.
+      this.dashT -= dt;
+      this.pulseClock += dt;
+      const k = Math.exp(-3.5 * dt);
+      this.vx *= k;
+      this.vy *= k;
+      this.pulseKick = Math.max(0, this.pulseKick - dt * 2);
+    } else this.swim(w, ix, iy, dt);
+    this.updateHead(dt);
     const moving = this.moving;
     const THRUST = Player.THRUST;
 
@@ -140,6 +158,57 @@ export class Player extends Entity {
   }
 
   static readonly THRUST = 0.38;
+  static readonly DASH_TIME = 0.24;
+  static readonly DASH_CD = 0.85;
+  static readonly DASH_INVULN = 0.32;
+
+  /** Track where her head points, matching the drawn body: upright at rest, mantle-first when swimming. */
+  private updateHead(dt: number) {
+    const max = this.stats?.movePx ?? 250;
+    const speed = Math.hypot(this.vx, this.vy);
+    const k = clamp((speed - 40) / (max * 0.6), 0, 1) * (this.moving ? 1 : 0.6);
+    const mx = speed > 1 ? (this.vx / speed) * k : 0;
+    const my = -(1 - k) + (speed > 1 ? (this.vy / speed) * k : 0);
+    this.headAxis += wrapAngle(Math.atan2(mx, -my) - this.headAxis) * Math.min(1, dt * 7);
+  }
+
+  /**
+   * Ink dash: one hard mantle squeeze shoots her away along the swim direction
+   * (or where her head points when hovering), leaving a cloud of ink behind.
+   */
+  dash(w: RoomWorld, ix: number, iy: number) {
+    let dx = ix, dy = iy;
+    const l = Math.hypot(dx, dy);
+    if (l > 0.05) {
+      dx /= l;
+      dy /= l;
+    } else {
+      dx = Math.sin(this.headAxis);
+      dy = -Math.cos(this.headAxis);
+    }
+    w.inkCloud(this.x, this.y, dx, dy);
+    const sp = this.stats.movePx * 3.4;
+    this.vx = dx * sp;
+    this.vy = dy * sp;
+    this.dashT = Player.DASH_TIME;
+    this.dashCd = Player.DASH_CD;
+    this.dashInvuln = Player.DASH_INVULN;
+    this.moving = true;
+    this.wasMoving = true;
+    this.sinkBlend = 0;
+    this.startPulse(w, Math.atan2(dy, dx), 1);
+    // A deeper squeeze than a swim stroke.
+    w.fluid.blast(this.x - dx * 20, this.y - dy * 20, 340, 140);
+    w.fluid.splat(this.x - dx * 26, this.y - dy * 26, -dx * 520, -dy * 520, 44);
+    w.fx.light(this.x, this.y, 150, 0xc8a0ff, 0.8, 0.25);
+    w.fx.burst(this.x - dx * 14, this.y - dy * 14, 'wake', 0xdff6ff, 8);
+    sfx.splash();
+  }
+
+  /** Untouchable: hurt cooldown, bubble shield or the start of a dash. */
+  get untouchable() {
+    return this.invuln > 0 || this.shield > 0 || this.dashInvuln > 0;
+  }
 
   /**
    * Octopus swimming for a desired direction (ix, iy); |i| is the effort.
