@@ -68,9 +68,9 @@ export class OctopusView {
 
   constructor(x: number, y: number, size = 1) {
     this.size = size;
-    this.ML = 24 * size;
-    this.W = 10.5 * size;
-    this.container.addChild(this.farG, this.bodyG, this.nearG);
+    this.ML = 27 * size;
+    this.W = 12 * size;
+    this.container.addChild(this.farG, this.nearG, this.bodyG);
     const bases = [-1.15, -0.8, -0.45, -0.15, 0.15, 0.45, 0.8, 1.15];
     bases.forEach((b, i) => {
       const pts: Pt[] = [];
@@ -124,7 +124,8 @@ export class OctopusView {
 
     const dt2 = dt * dt;
     const ML = this.ML;
-    const crown = 0.36 * ML;
+    // Arms root well inside the head so it always covers their bases.
+    const crown = 0.26 * ML;
     const jetting = p.moving && p.pulseClock < 0.42;
     const kPose = jetting ? 4 : cruising ? 1.4 : 5;
     // Cruising arms ripple in a travelling wave; hovering arms curl and reach slowly.
@@ -133,7 +134,7 @@ export class OctopusView {
     for (const a of this.arms) {
       const pts = a.pts;
       // Anchor around the arm crown.
-      const ax = Math.sin(a.base) * this.W * 0.42;
+      const ax = Math.sin(a.base) * this.W * 0.3;
       const [bx, by] = this.tr(p, ax, crown);
       pts[0].x = pts[0].px = bx;
       pts[0].y = pts[0].py = by;
@@ -267,8 +268,8 @@ export class OctopusView {
     for (let i = 0; i < M; i++) {
       const phi = (i / M) * Math.PI * 2;
       const up = Math.cos(phi);
-      const ry = (up > 0 ? 0.74 * ML * ryK : 0.58 * ML);
-      const rx = W * (up > 0 ? rxK * (1 + 0.22 * up) : 0.95 - 0.1 * up * up);
+      const ry = up > 0 ? 0.74 * ML * ryK : 0.74 * ML;
+      const rx = W * (up > 0 ? rxK * (1 + 0.22 * up) : 1 - 0.18 * up * up);
       let lx = Math.sin(phi) * rx;
       const ly = cy - up * ry;
       // The mantle sac droops back behind the head.
@@ -304,7 +305,7 @@ export class OctopusView {
     const [bx, by] = this.tr(p, W * 0.55, -0.24 * ML);
     g.circle(bx, by, 1.4 * this.size).fill(lighten(skin, 0.15));
 
-    // Near arms in front of the head.
+    // Near arms: in front of the far ones, but their roots tuck under the head.
     for (const a of this.arms) if (a.near) this.drawArm(ng, a, p, t, false);
 
     // Item traits as subtle physical changes.
