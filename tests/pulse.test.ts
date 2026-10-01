@@ -6,8 +6,8 @@ import { NullFx } from '../src/game/fx';
 import { DEFAULT_OPTIONS } from '../src/core/save';
 import { input } from '../src/core/input';
 
-describe('jellyfish propulsion', () => {
-  it('moves in pulses: speed surges then glides, averaging the speed stat', () => {
+describe('jellyfish swimming', () => {
+  it('swims smoothly with a small surge after each bell pulse', () => {
     const run = Run.create('PULSETST', true, [], 1);
     const w = new RoomWorld(run, generateTitleLevel(3), TITLE_ID, NullFx, DEFAULT_OPTIONS);
     w.player.x = 200;
@@ -25,6 +25,7 @@ describe('jellyfish propulsion', () => {
     console.log({ avg: Math.round(avg), min: Math.round(min), max: Math.round(max) });
     expect(avg).toBeGreaterThan(w.player.stats.movePx * 0.75);
     expect(avg).toBeLessThan(w.player.stats.movePx * 1.25);
-    expect(max - min).toBeGreaterThan(w.player.stats.movePx * 0.4); // clearly pulsating, not a jet
+    expect(min).toBeGreaterThan(w.player.stats.movePx * 0.85); // continuous: never stalls between strokes
+    expect(max - min).toBeGreaterThan(w.player.stats.movePx * 0.1); // but each push surges a little
   });
 });

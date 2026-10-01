@@ -65,33 +65,25 @@ export class Player extends Entity {
     this.moving = moving;
     this.lastMoveDir = [ix, iy];
 
-    // ── Jellyfish propulsion ────────────────────────────────
-    // No constant thrust: each bell contraction delivers one impulse, then she
-    // glides and slows in the water while the bell refills.
-    const PERIOD = 0.5; // one strong stroke every half second
-    const THRUST = 0.14; // short, powerful contraction (s)
-    const DRAG = 4; // water brakes her hard between strokes
+    // ── Swimming ────────────────────────────────────────────
+    // Smooth, continuous steering. The bell still contracts every half second,
+    // pushing water out from the cap, and each push adds a small surge forward.
+    const PERIOD = 0.5;
+    const THRUST = 0.2; // length of the surge after each contraction (s)
+    const SURGE = 0.32; // extra speed at the peak of a surge (fraction of max)
     this.pulseClock += dt;
     if (moving) {
       const a = Math.atan2(iy, ix);
-      // Strokes come every half second; the first stroke after resting comes a bit sooner.
       if (this.pulseClock >= PERIOD || (!this.wasMoving && this.pulseClock > 0.3)) this.startPulse(w, a, Math.min(1, l));
     }
     this.wasMoving = moving;
-    if (this.pulseClock < THRUST) {
-      // Impulse chosen so the average swim speed matches the speed stat.
-      const J = max * DRAG * PERIOD * this.pulseStrength;
-      const acc = J * (Math.PI / (2 * THRUST)) * Math.sin((Math.PI * this.pulseClock) / THRUST);
-      this.vx += Math.cos(this.pulseAngle) * acc * dt;
-      this.vy += Math.sin(this.pulseAngle) * acc * dt;
-    }
-    const drag = Math.exp(-(moving ? DRAG : 3.2) * dt);
-    this.vx *= drag;
-    this.vy *= drag;
+    const surge = moving && this.pulseClock < THRUST ? 1 + SURGE * this.pulseStrength * Math.sin((Math.PI * this.pulseClock) / THRUST) : 1;
+    const accel = moving ? 9 : 5;
+    this.vx = approach(this.vx, ix * max * surge, accel, dt);
     // Slow idle sink: eased in so it never fights the player.
     this.sinkBlend = moving ? 0 : Math.min(1, this.sinkBlend + dt / 0.8);
     const sinkV = st.noSink ? 0 : 6 * this.sinkBlend;
-    if (!moving) this.vy += (sinkV - this.vy) * Math.min(1, dt * 1.5) * this.sinkBlend;
+    this.vy = approach(this.vy, moving ? iy * max * surge : sinkV, accel, dt);
     // Idle: a slow, gentle resting pulse (visual only).
     if (!moving && this.pulseClock > 2.2) {
       this.pulseClock = THRUST;
