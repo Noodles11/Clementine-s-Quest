@@ -881,3 +881,15 @@ Whale Song (heal 35), Anchor Drop (digs a shaft straight down).
 **Boss unlocks.** Ringmaster → Hammerhead · Jesters → Fire Urchin Spine · Mother Angler → Giant Squid Eye ·
 Siphonophore → Kraken Call · Hollow Maw → Lamprey Mouth.
 
+
+## 29. Realistic creatures; item effect captions
+
+- **Creatures are drawn from real anatomy** (`src/render/mobs.ts`, helpers in `fauna.ts`): countershaded
+  fish with rayed fins, scales, gill covers and lateral lines; jointed crabs with chelae; long-spined
+  urchins; translucent moon jellies, sea nettles and salps; a glass shrimp with visible organs.
+  No cartoon faces. Menace shows as darker, drained colors and amber-to-red irises.
+- Renamed to match: Blubber Blob → **Spanish Dancer** (nudibranch), Splitter Slime → **Salp Chain**,
+  Mimic Clam → **Giant Clam**.
+- **Item captions list real effects.** Picking up an item shows its name, tagline, and one line per
+  effect with numbers (e.g. "+0.8 damage", "×1.5 damage", "20% chance to freeze foes for 1.6s",
+  "Recharges after 3 encounters"). The Sea-pedia and debug picker show the same text.

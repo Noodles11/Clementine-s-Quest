@@ -10,19 +10,19 @@ import { Bubble, EnemyShot } from './projectiles';
 import type { RoomWorld } from './room';
 
 export const ENEMY_INFO: Record<EnemyKind, { name: string; lore: string; hp: number; color: number }> = {
-  blob: { name: 'Blubber Blob', lore: 'A gumdrop of goo. Wants a hug. Hugs hurt.', hp: 10, color: 0x7ee0a0 },
+  blob: { name: 'Spanish Dancer', lore: 'A frilly sea slug that swims like a twirling skirt. Its touch stings.', hp: 10, color: 0xe0503a },
   jelly: { name: 'Jelly Swarm', lore: 'Tiny stinging drifters with bad manners.', hp: 4, color: 0xd99cff },
   crabby: { name: 'Crabby', lore: 'Scuttles sideways, leaps upwards, complains constantly.', hp: 14, color: 0xff6a4d },
   urchin: { name: 'Sea Urchin', lore: 'Never moves. Never needs to.', hp: 12, color: 0x7a4dff },
   pufferling: { name: 'Pufferling', lore: 'Puffs up when nervous. Is always nervous.', hp: 16, color: 0xffd24d },
   moray: { name: 'Moray Pop-up', lore: 'Lives in a hole. Hates visitors.', hp: 20, color: 0x7fae4a },
   barracuda: { name: 'Barracuda', lore: 'All teeth, no brakes.', hp: 18, color: 0x9ab4c8 },
-  splitter: { name: 'Splitter Slime', lore: 'Hit it once, meet its twin.', hp: 14, color: 0x5cd6ff },
+  splitter: { name: 'Salp Chain', lore: 'Glassy barrels strung together. Break the chain and each one swims on.', hp: 14, color: 0x9ad8f0 },
   flounder: { name: 'Sand Flounder', lore: 'Flat, sneaky, and very rude.', hp: 12, color: 0xc8a676 },
   cannoncrab: { name: 'Cannon Crab', lore: 'Found a cannon. Loves it.', hp: 22, color: 0xd9583b },
-  mimic: { name: 'Mimic Clam', lore: 'Not a treasure chest. Definitely not.', hp: 30, color: 0xb88adf },
+  mimic: { name: 'Giant Clam', lore: 'Shows a pearl. Snaps shut on whoever reaches for it.', hp: 30, color: 0xb88adf },
   squidling: { name: 'Squidling', lore: 'Squirts ink and runs. Classic squid.', hp: 16, color: 0xff8ac8 },
-  clownanemone: { name: 'Clown Anemone', lore: 'Juggles bouncy balls at anyone who comes near. Never smiles.', hp: 22, color: 0xff5cae },
+  clownanemone: { name: 'Clown Anemone', lore: 'A bubble-tip anemone and its fierce clownfish lodger. Flings bouncing stingers.', hp: 22, color: 0xff5cae },
   seahorse: { name: 'Seahorse Lancer', lore: 'Stands tall, fires in threes, never breaks formation.', hp: 18, color: 0xffb347 },
   nettle: { name: 'Sea Nettle', lore: 'A drifting jelly with a curtain of stinging threads.', hp: 16, color: 0xffa060 },
   stingray: { name: 'Stingray', lore: 'Glides along the floor. Mind the barb.', hp: 24, color: 0x8a9ab0 },

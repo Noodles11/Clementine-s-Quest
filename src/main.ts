@@ -10,7 +10,8 @@ import {
 } from './core/save';
 import { ACH_BY_ID, grant, maxDepthFor } from './game/achievements';
 import { ITEM_BY_ID } from './game/items';
-import { Run, type RunData } from './game/run';
+import { itemEffects } from './game/itemtext';
+import { HP_PER_CONTAINER, Run, type RunData } from './game/run';
 import { SYNERGIES, TRANSFORMATIONS } from './game/synergies';
 import { BIOMES, BOSS_NAMES, biomeFor, type BossKind } from './gen/biomes';
 import { normalizeSeedCode, randomSeedCode, SPECIAL_SEEDS } from './gen/seed';
@@ -285,10 +286,10 @@ class Game {
       case 'item': {
         const def = ITEM_BY_ID[ev.id];
         if (def) {
-          this.ui.banner(def.name, def.tagline, '#' + def.color.toString(16).padStart(6, '0'));
+          this.ui.banner(def.name, def.tagline, '#' + def.color.toString(16).padStart(6, '0'), itemEffects(def));
           if (!p.seenItems.includes(ev.id)) p.seenItems.push(ev.id);
           p.stats.itemsTaken[ev.id] = (p.stats.itemsTaken[ev.id] ?? 0) + 1;
-        } else this.ui.banner('Heart Container', 'Health up', '#ff4d6d');
+        } else this.ui.banner('Heart Container', 'Health up', '#ff4d6d', [`+${HP_PER_CONTAINER} max HP`]);
         saveProfile(p);
         break;
       }

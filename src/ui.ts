@@ -5,6 +5,7 @@ import { ACHIEVEMENTS } from './game/achievements';
 import { BOSS_NAMES, BIOMES, type BossKind } from './gen/biomes';
 import { ENEMY_INFO } from './game/enemies';
 import { ITEMS, ITEM_BY_ID } from './game/items';
+import { itemEffectText } from './game/itemtext';
 import { SYNERGIES, TRANSFORMATIONS } from './game/synergies';
 import type { Options, Profile } from './core/save';
 import { formatSeed } from './gen/seed';
@@ -236,6 +237,7 @@ export class UI {
       card.style.cursor = 'pointer';
       const img = el('img') as HTMLImageElement;
       void this.iconFor(it.id).then((u) => (img.src = u));
+      card.title = itemEffectText(it.id);
       card.append(img, el('div', '', `<b>${esc(it.name)}</b>${esc(it.tagline)}<br/><span class="muted">${it.kind}</span>`));
       card.addEventListener('click', () => {
         if (selected.has(it.id)) selected.delete(it.id);
@@ -374,16 +376,20 @@ export class UI {
     });
   }
 
-  banner(title: string, sub: string, color = '#1b1030') {
+  banner(title: string, sub: string, color = '#1b1030', effects: string[] = []) {
     this.popups.querySelectorAll('.banner').forEach((b) => b.remove());
     const b = el('div', 'banner');
     const bub = el('div', 'bubble');
     const h = el('h2', '', esc(title));
     h.style.color = color;
     bub.append(h, el('p', '', esc(sub)));
+    if (effects.length) bub.append(el('ul', 'effects', effects.map((e) => `<li>${esc(e)}</li>`).join('')));
     b.append(bub);
+    // Longer captions stay up long enough to read.
+    const life = effects.length ? 3100 + effects.length * 900 : 3100;
+    b.style.animationDuration = `${life + 100}ms`;
     this.popups.append(b);
-    setTimeout(() => b.remove(), 3100);
+    setTimeout(() => b.remove(), life);
   }
 
   floorTitle(depth: number, name: string, sub: string) {
@@ -497,7 +503,7 @@ export class UI {
           const img = el('img') as HTMLImageElement;
           void this.iconFor(it.id).then((u) => (img.src = u));
           const lockTxt = it.unlock && !p.achievements.includes(it.unlock) ? '<br/><i>Locked</i>' : '';
-          card.append(img, el('div', '', seen ? `<b>${esc(it.name)}</b>${esc(it.tagline)}<br/><span class="muted">${esc(it.lore)}</span>` : `<b>???</b>Not found yet${lockTxt}`));
+          card.append(img, el('div', '', seen ? `<b>${esc(it.name)}</b>${esc(it.tagline)}<br/><span class="fx">${esc(itemEffectText(it.id))}</span><br/><span class="muted">${esc(it.lore)}</span>` : `<b>???</b>Not found yet${lockTxt}`));
           grid.append(card);
         }
         body.replaceChildren(grid);
