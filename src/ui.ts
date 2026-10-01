@@ -137,7 +137,7 @@ export class UI {
     left.append(menu);
     const dives = el('div', 'dives');
     for (let d = 1; d <= MAX_DEPTH_V1; d++) {
-      const unlocked = d === 1 || p.achievements.includes(`dive${d}`);
+      const unlocked = d <= 6 || p.achievements.includes('tank');
       dives.append(el('div', `dive ${unlocked ? '' : 'locked'}`, unlocked ? `${d} · ${BIOMES[d - 1].name}` : `${d} · ???`));
     }
     const prog = el('div', 'progress', `Runs ${p.stats.runs} · Wins ${p.stats.wins} · Achievements ${p.achievements.length}/${ACHIEVEMENTS.length}`);
@@ -184,7 +184,7 @@ export class UI {
       <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> squirt ink. <kbd>Shift</kbd> ink dash: a burst of speed, briefly untouchable, leaving an ink cloud behind. <kbd>E</kbd> drop an ink bomb (it sinks!).<br/>
       <kbd>Space</kbd> use your active item. <kbd>Q</kbd> eat your sea snack. <kbd>Esc</kbd> pause. Hold <kbd>R</kbd> to restart.</p>
       <p>Clear rooms to open the doors. Find the <b>treasure room</b> (gold door), the <b>shop</b> (Barnaby the hermit crab) and the <b>boss</b>.
-      Bosses guard <b>The Crack</b> — beat them to dive deeper. Your first dives end after one depth; every new boss you beat unlocks the next.</p>
+      Every depth is three reefs, each guarded by its own boss at <b>The Crack</b> — beat it to dive on. One run can reach the Abyss; beat the Hollow Maw twice to open what lies below.</p>
       <p>Items combine: many ink effects stack, and some pairs trigger <b>synergies</b>. Collect three related items to <b>transform</b>.
       Bomb suspicious cracked walls for secrets. The deeper you go, the darker and meaner the sea gets.</p>`));
     p.append(btn('Got it!', 'orange back', onBack));
@@ -392,9 +392,9 @@ export class UI {
     setTimeout(() => b.remove(), life);
   }
 
-  floorTitle(depth: number, name: string, sub: string) {
+  floorTitle(label: string, name: string, sub: string) {
     const f = el('div', 'floor-title');
-    f.append(el('div', 'depth', `DEPTH ${depth}`), el('div', 'name', esc(name)), el('div', 'sub', esc(sub)));
+    f.append(el('div', 'depth', esc(label)), el('div', 'name', esc(name)), el('div', 'sub', esc(sub)));
     this.popups.append(f);
     setTimeout(() => f.remove(), 2900);
   }

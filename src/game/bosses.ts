@@ -930,6 +930,521 @@ class TheHand extends Boss {
   }
 }
 
+// ── Third reefs: one more boss for every biome ──────────────────
+
+/** Keeps a swimming boss inside its arena. */
+function clampArena(b: Boss, w: RoomWorld, dt: number, mx = 70, my = 70) {
+  const a = w.arena;
+  b.x = clamp(b.x + b.vx * dt, a.x0 + mx, a.x1 - mx);
+  b.y = clamp(b.y + b.vy * dt, a.y0 + my, a.y1 - my);
+}
+
+/** A giant grouper: cruises, opens its huge mouth to suck her in, spits gravel, rams. */
+class Grouper extends Boss {
+  open = 0;
+  constructor(x: number, y: number, m: number, d: number) {
+    super('grouper', x, y, m, d, 230);
+    this.r = 44;
+    this.hw = 52;
+    this.hh = 34;
+    this.cd = 2;
+    this.t = 3.5;
+  }
+  override introMove(_w: RoomWorld, dt: number) {
+    this.y -= 70 * dt;
+  }
+  override knock() {}
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    this.t -= dt;
+    this.cd -= dt;
+    if (this.state === 'gulp') {
+      this.open = Math.min(1, this.open + dt * 3);
+      this.vx *= Math.exp(-4 * dt);
+      this.vy *= Math.exp(-4 * dt);
+      const mx = this.x + this.facing * 40, my = this.y + 4;
+      const d = Math.max(1, dist(p.x, p.y, mx, my));
+      if (d < 420) {
+        const pull = (240 + ph * 60) * dt * 4;
+        p.vx += ((mx - p.x) / d) * pull;
+        p.vy += ((my - p.y) / d) * pull;
+      }
+      if (R.chance(dt * 20)) w.fluid.splat(mx + this.facing * 120, my, -this.facing * 260, 0, 60);
+      if (d < 44) w.hurtPlayer(this.contactDmg, this.display);
+      if (this.t <= 0) {
+        // Spit the gravel it swallowed.
+        const a = Math.atan2(p.y - my, p.x - mx);
+        const n = 4 + ph * 2;
+        for (let i = 0; i < n; i++) this.shoot(w, a + (i - (n - 1) / 2) * 0.16, 240 + R.range(-30, 30), { color: 0xb8a58a, r: 7 });
+        w.fx.text(this.x, this.y - 60, 'PTOOEY!', 0xb8a58a, 26);
+        sfx.enemyShoot();
+        this.state = 'cruise';
+        this.t = 4 - ph * 0.6;
+      }
+      return;
+    }
+    this.open = Math.max(0, this.open - dt * 2);
+    if (this.state === 'ram') {
+      if (this.t <= 0) {
+        this.state = 'cruise';
+        this.t = 3;
+      }
+      return;
+    }
+    this.steer(p.x - this.facing * 140, p.y, 70 + ph * 15, dt, 1.2);
+    this.facing = Math.sign(p.x - this.x) || this.facing;
+    if (this.t < this.teleTime) this.tele = 1 - Math.max(0, this.t) / this.teleTime;
+    if (this.t <= 0) {
+      this.tele = 0;
+      if (ph >= 2 && R.chance(0.45)) {
+        const a = Math.atan2(p.y - this.y, p.x - this.x);
+        this.vx = Math.cos(a) * 520;
+        this.vy = Math.sin(a) * 520;
+        this.state = 'ram';
+        this.t = 0.9;
+        w.fx.text(this.x, this.y - 60, 'RAM!', 0xffc23d, 26);
+      } else {
+        this.state = 'gulp';
+        this.t = 1.5 + ph * 0.2;
+        w.fx.text(this.x, this.y - 60, 'GLLLLLUP', 0x9ad8f0, 26);
+        sfx.bossRoar();
+      }
+      if (ph === 3 && this.livingMinions(w) < 3) w.addEnemy(createEnemy('blob', this.x, this.y - 60, this.menace, 'none'));
+    }
+  }
+  override applyPhysics(w: RoomWorld, dt: number) {
+    clampArena(this, w, dt, 80, 60);
+  }
+}
+
+/** A sea otter floating on its back: cracks urchins on its belly, throws them, dives. */
+class Otter extends Boss {
+  base = { x: 0, y: 0 };
+  constructor(x: number, y: number, m: number, d: number) {
+    super('otter', x, y, m, d, 300);
+    this.r = 36;
+    this.hw = 46;
+    this.hh = 26;
+    this.cd = 1.5;
+    this.t = 5;
+    this.state = 'float';
+  }
+  override introMove(w: RoomWorld, dt: number) {
+    this.y += (w.arena.y0 + 90 - this.y) * Math.min(1, dt * 1.5);
+  }
+  override knock() {}
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    const a = w.arena;
+    this.t -= dt;
+    this.cd -= dt;
+    this.facing = Math.sign(p.x - this.x) || this.facing;
+    if (this.state === 'dive') {
+      // Down at her, then back up to float.
+      if (this.t > 0.6) this.steer(p.x, p.y, 420 + ph * 40, dt, 3);
+      else this.steer(this.x, a.y0 + 90, 380, dt, 3);
+      if (this.t <= 0) {
+        this.state = 'float';
+        this.t = 4.5 - ph * 0.6;
+        for (let i = 0; i < 6 + ph * 2; i++) this.shoot(w, (i / (6 + ph * 2)) * Math.PI * 2, 170, { color: 0xc8f0ff, r: 6 });
+      }
+      return;
+    }
+    this.steer((a.x0 + a.x1) / 2 + Math.sin(this.age * 0.5) * (a.x1 - a.x0) * 0.35, a.y0 + 90 + Math.sin(this.age * 2) * 8, 90, dt, 1.5);
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0) {
+      this.tele = 0;
+      this.cd = 1.8 - ph * 0.3;
+      // Lob cracked urchins: they burst into spines where they land.
+      const n = ph === 3 ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        const T = 1.1 + i * 0.15, g = 420;
+        const tx = p.x + (i ? R.range(-90, 90) : 0);
+        const s = new EnemyShot(this.x, this.y - 20, (tx - this.x) / T, (p.y - this.y - 0.5 * g * T * T) / T, { color: 0x6a3a8a, r: 10, gravity: g, life: 3, dmg: this.shotDmg });
+        (s as any).burst = true;
+        w.shots.push(s);
+      }
+      w.fx.text(this.x, this.y - 50, 'CRACK!', 0xc8a0ff, 22);
+      sfx.enemyShoot();
+    }
+    if (ph >= 2 && this.t <= 0) {
+      this.state = 'dive';
+      this.t = 1.8;
+      w.fx.text(this.x, this.y - 50, 'SPLOOSH!', 0x9ad8f0, 26);
+      sfx.splash();
+    }
+  }
+  override applyPhysics(w: RoomWorld, dt: number) {
+    clampArena(this, w, dt, 70, 60);
+  }
+}
+
+/** A sawfish: telegraphed charges across the wreck; hitting a wall shakes debris loose. */
+class Sawfish extends Boss {
+  constructor(x: number, y: number, m: number, d: number) {
+    super('sawfish', x, y, m, d, 370);
+    this.r = 34;
+    this.hw = 60;
+    this.hh = 22;
+    this.cd = 1.5;
+    this.t = 2.5;
+    this.state = 'circle';
+  }
+  override introMove(_w: RoomWorld, dt: number) {
+    this.y -= 80 * dt;
+  }
+  override knock() {}
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    const a = w.arena;
+    this.t -= dt;
+    this.cd -= dt;
+    if (this.state === 'charge') {
+      // The saw sweeps up and down as it goes.
+      if (R.chance(dt * 8)) w.fluid.splat(this.x, this.y, this.vx * 0.6, 0, 50);
+      if (this.t <= 0) {
+        this.state = 'circle';
+        this.t = 3.2 - ph * 0.5;
+      }
+      return;
+    }
+    if (this.state === 'aim') {
+      this.vx *= Math.exp(-6 * dt);
+      this.steer(this.x, p.y, 120, dt, 4);
+      this.vx *= 0.9;
+      this.tele = 1 - Math.max(0, this.t) / 0.9;
+      if (this.t <= 0) {
+        this.tele = 0;
+        this.state = 'charge';
+        this.vx = this.facing * (560 + ph * 60);
+        this.vy = 0;
+        this.t = 2.4;
+        w.fx.text(this.x, this.y - 50, 'BZZZZZT!', 0xe8e4d8, 26);
+        sfx.bossRoar();
+      }
+      return;
+    }
+    const side = p.x < (a.x0 + a.x1) / 2 ? a.x1 - 140 : a.x0 + 140;
+    this.steer(side, p.y + Math.sin(this.age * 2) * 60, 160, dt, 1.5);
+    if (this.cd <= 0) {
+      this.cd = 1.4 - ph * 0.2;
+      // Flicks rusty nails out of the saw.
+      for (const o of [-0.25, 0, 0.25]) this.shoot(w, Math.atan2(p.y - this.y, p.x - this.x) + o, 230, { color: 0xa86a3a, r: 6 });
+      sfx.enemyShoot();
+    }
+    if (this.t <= 0) {
+      this.state = 'aim';
+      this.facing = Math.sign(p.x - this.x) || 1;
+      this.t = 0.9;
+    }
+  }
+  override applyPhysics(w: RoomWorld, dt: number) {
+    const a = w.arena;
+    const nx = this.x + this.vx * dt;
+    if (this.state === 'charge' && (nx < a.x0 + 70 || nx > a.x1 - 70)) {
+      // Slams the hull: debris rains from above.
+      this.vx = 0;
+      this.state = 'circle';
+      this.t = 2.4 - this.phase * 0.4;
+      w.fx.shake(12);
+      w.fx.text(this.x, this.y - 50, 'KRUNCH!', 0xffc23d, 30);
+      sfx.explosion();
+      const n = 3 + this.phase * 2;
+      for (let i = 0; i < n; i++) {
+        const x = R.range(a.x0 + 60, a.x1 - 60);
+        w.hazards.push(new Hazard('vline', x, 0, 36, 0.7 + i * 0.12, 0.3, 0x8a6a4a, this.display, this.shotDmg));
+      }
+    }
+    clampArena(this, w, dt, 70, 60);
+  }
+}
+
+/** A peacock mantis shrimp: hops, then punches so fast the water boils (cavitation). */
+class MantisShrimp extends Boss {
+  punch = 0;
+  constructor(x: number, y: number, m: number, d: number) {
+    super('mantis', x, y, m, d, 450);
+    this.swimmer = false;
+    this.gravity = 900;
+    this.r = 40;
+    this.hw = 50;
+    this.hh = 26;
+    this.cd = 1.6;
+    this.t = 3;
+  }
+  override introMove(w: RoomWorld, dt: number) {
+    this.vy += this.gravity * dt;
+    super.applyPhysics(w, dt, false);
+  }
+  override knock() {}
+  private strike(w: RoomWorld) {
+    const ph = this.phase;
+    const px = this.x + this.facing * 70, py = this.y - 6;
+    this.punch = 1;
+    w.hazards.push(new Hazard('circle', px, py, 60, 0.05, 0.15, 0xffffff, this.display, this.contactDmg));
+    w.fx.ring(px, py, 120, 0xffffff);
+    w.fx.flash(0xffffff, 0.12);
+    w.fx.shake(8);
+    w.fx.text(px, py - 40, 'SNAP!', 0xffe14d, 30);
+    w.fluid.blast(px, py, 420, 260);
+    sfx.explosion();
+    // Cavitation bubbles burst outwards.
+    const n = 6 + ph * 2;
+    for (let i = 0; i < n; i++) {
+      const a = (this.facing > 0 ? 0 : Math.PI) + (i / (n - 1) - 0.5) * 2.2;
+      w.shots.push(new EnemyShot(px, py, Math.cos(a) * 200, Math.sin(a) * 200, { color: 0xdff6ff, r: 7, life: 2, dmg: this.shotDmg }));
+    }
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    this.t -= dt;
+    this.cd -= dt;
+    this.punch = Math.max(0, this.punch - dt * 4);
+    if (this.grounded) {
+      if (this.state === 'air') {
+        this.state = 'walk';
+        w.fx.burst(this.x, this.y + this.hh, 'sand', undefined, 16);
+        if (ph >= 2) this.strike(w);
+      }
+      this.vx *= Math.exp(-6 * dt);
+      this.facing = Math.sign(p.x - this.x) || this.facing;
+    }
+    if (this.cd < this.teleTime) this.tele = 1 - Math.max(0, this.cd) / this.teleTime;
+    if (this.cd <= 0 && this.grounded) {
+      this.tele = 0;
+      this.cd = (ph === 3 ? 1.1 : 1.8) - this.menace * 0.2;
+      if (Math.abs(p.x - this.x) < 160 && Math.abs(p.y - this.y) < 120) this.strike(w);
+      else {
+        // Pellet of shell grit at range.
+        for (const o of [-0.15, 0.15]) this.shoot(w, Math.atan2(p.y - this.y, p.x - this.x) + o, 260, { color: 0x5cf2ff, r: 7 });
+        sfx.enemyShoot();
+      }
+    }
+    if (this.t <= 0 && this.grounded) {
+      // Hop towards her.
+      this.t = 3 - ph * 0.5;
+      this.vy = -560 - ph * 60;
+      this.vx = clamp(p.x - this.x, -380, 380) * 1.1;
+      this.state = 'air';
+      if (ph === 3 && this.livingMinions(w) < 3) w.addEnemy(createEnemy('clownanemone', this.x, this.y + 10, this.menace, 'floor'));
+    }
+  }
+}
+
+/** The giant squid: sweeping tentacle lashes, ink blackouts, a beak in the middle of it all. */
+class GiantSquid extends Boss {
+  /** Tentacle strikes in flight, for drawing: target and remaining time. */
+  lashes: { x: number; y: number; t: number; kind: 'hline' | 'vline' | 'circle' }[] = [];
+  ink = 0;
+  constructor(x: number, y: number, m: number, d: number) {
+    super('giantsquid', x, y, m, d, 560);
+    this.r = 46;
+    this.hw = 40;
+    this.hh = 50;
+    this.cd = 1.6;
+    this.t = 3;
+  }
+  override introMove(_w: RoomWorld, dt: number) {
+    this.y -= 90 * dt;
+  }
+  override knock() {}
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    const a = w.arena;
+    this.t -= dt;
+    this.cd -= dt;
+    for (const l of this.lashes) l.t -= dt;
+    this.lashes = this.lashes.filter((l) => l.t > 0);
+    this.ink = Math.max(0, this.ink - dt * 0.4);
+    w.bossDark = Math.max(w.bossDark * Math.exp(-dt), this.ink * 0.8);
+    this.facing = Math.sign(p.x - this.x) || this.facing;
+    this.steer((a.x0 + a.x1) / 2 + Math.sin(this.age * 0.45) * (a.x1 - a.x0) * 0.3, a.y0 + (a.y1 - a.y0) * 0.35 + Math.sin(this.age * 0.9) * 50, 90, dt, 1.2);
+    if (this.cd <= 0) {
+      this.cd = 2 - ph * 0.35;
+      const warn = this.teleTime * 1.5;
+      const kinds: ('hline' | 'vline' | 'circle')[] = ph === 1 ? ['circle'] : ph === 2 ? ['circle', 'hline'] : ['circle', 'hline', 'vline'];
+      for (const k of kinds) {
+        const hx = k === 'circle' ? p.x : k === 'vline' ? p.x + R.range(-60, 60) : 0;
+        const hy = k === 'circle' ? p.y : k === 'hline' ? p.y + R.range(-30, 30) : 0;
+        w.hazards.push(new Hazard(k, hx, hy, k === 'circle' ? 54 : 32, warn, 0.35, 0xc85a5a, this.display, this.shotDmg));
+        this.lashes.push({ x: k === 'hline' ? p.x : hx, y: k === 'vline' ? p.y : hy, t: warn + 0.35, kind: k });
+      }
+      w.fx.text(this.x, this.y - 70, 'WHUMP!', 0xff8a8a, 24);
+    }
+    if (this.t <= 0) {
+      this.t = 6 - ph;
+      // Ink blackout and a spray of ink blobs.
+      this.ink = 1;
+      w.fx.burst(this.x, this.y, 'ink', 0x14081e, 20);
+      for (let i = 0; i < 8 + ph * 3; i++) this.shoot(w, (i / (8 + ph * 3)) * Math.PI * 2 + this.age, 150, { color: 0x2a1a3a, r: 9 });
+      if (ph >= 2 && this.livingMinions(w) < 3) w.addEnemy(createEnemy('squidling', this.x + R.range(-80, 80), this.y + 60, this.menace, 'none'));
+      w.fx.text(this.x, this.y - 70, 'INK!', 0xc8a0ff, 28);
+      sfx.splash();
+    }
+  }
+  override die(w: RoomWorld) {
+    w.bossDark = 0;
+    super.die(w);
+  }
+  override applyPhysics(w: RoomWorld, dt: number) {
+    clampArena(this, w, dt, 90, 90);
+  }
+}
+
+/** The frilled shark: an eel-like living fossil that snakes about and lunges. */
+class FrilledShark extends Boss {
+  segs: { x: number; y: number }[] = [];
+  trail: { x: number; y: number }[] = [];
+  open = 0;
+  constructor(x: number, y: number, m: number, d: number) {
+    super('frillshark', x, y, m, d, 620);
+    this.r = 26;
+    this.hw = this.hh = 24;
+    this.cd = 1.4;
+    this.t = 3;
+    for (let i = 0; i < 12; i++) this.segs.push({ x, y: y + i * 4 });
+  }
+  override introMove(_w: RoomWorld, dt: number) {
+    this.y -= 100 * dt;
+    this.follow();
+  }
+  override knock() {}
+  private follow() {
+    this.trail.unshift({ x: this.x, y: this.y });
+    if (this.trail.length > 300) this.trail.length = 300;
+    for (let i = 0; i < this.segs.length; i++) {
+      const t = this.trail[Math.min(this.trail.length - 1, (i + 1) * 5)];
+      if (t) this.segs[i] = { x: t.x, y: t.y };
+    }
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    this.t -= dt;
+    this.cd -= dt;
+    this.follow();
+    if (Math.abs(this.vx) > 5) this.facing = Math.sign(this.vx);
+    if (this.state === 'lunge') {
+      this.open = Math.min(1, this.open + dt * 6);
+      if (this.t <= 0) {
+        this.state = 'snake';
+        this.t = 2.6 - ph * 0.4;
+      }
+    } else {
+      this.open = Math.max(0, this.open - dt * 3);
+      // Snake towards her in S-curves.
+      const a = Math.atan2(p.y - this.y, p.x - this.x) + Math.sin(this.age * 3) * 0.9;
+      this.steer(this.x + Math.cos(a) * 200, this.y + Math.sin(a) * 200, 150 + ph * 25, dt, 2);
+      if (this.t < this.teleTime) this.tele = 1 - Math.max(0, this.t) / this.teleTime;
+      if (this.t <= 0) {
+        this.tele = 0;
+        const a2 = Math.atan2(p.y - this.y, p.x - this.x);
+        this.vx = Math.cos(a2) * (600 + ph * 60);
+        this.vy = Math.sin(a2) * (600 + ph * 60);
+        this.state = 'lunge';
+        this.t = 0.7;
+        w.fx.text(this.x, this.y - 50, 'CHOMP!', 0xff3d5a, 28);
+        sfx.bossRoar();
+      }
+    }
+    if (this.cd <= 0 && ph >= 2) {
+      this.cd = 2.4 - ph * 0.4;
+      // Shed teeth from along the frilled gills.
+      for (let i = 2; i < this.segs.length; i += 3) {
+        const sg = this.segs[i];
+        for (const s of [-1, 1]) {
+          const ang = Math.atan2(p.y - sg.y, p.x - sg.x) + s * 0.5;
+          w.shots.push(new EnemyShot(sg.x, sg.y, Math.cos(ang) * 180, Math.sin(ang) * 180, { color: 0xe8e4d8, r: 5, dmg: this.shotDmg }));
+        }
+      }
+      sfx.enemyShoot();
+    }
+    for (const sg of this.segs) if ((sg.x - p.x) ** 2 + (sg.y - p.y) ** 2 < 22 * 22) {
+      w.hurtPlayer(this.contactDmg * 0.6, this.display);
+      break;
+    }
+  }
+  override applyPhysics(w: RoomWorld, dt: number) {
+    clampArena(this, w, dt, 50, 50);
+  }
+}
+
+/** A giant sea spider: a tiny body on eight stilt legs that stab down where she swims. */
+class SeaSpider extends Boss {
+  /** Leg tips (world), and which ones are stabbing. */
+  feet: { x: number; y: number; stab: number }[] = [];
+  constructor(x: number, y: number, m: number, d: number) {
+    super('seaspider', x, y, m, d, 640);
+    this.r = 30;
+    this.hw = this.hh = 26;
+    this.cd = 1.4;
+    this.t = 4;
+    for (let i = 0; i < 8; i++) this.feet.push({ x: x + (i - 3.5) * 40, y: y + 120, stab: 0 });
+  }
+  override introMove(_w: RoomWorld, dt: number) {
+    this.y -= 80 * dt;
+    this.place(dt);
+  }
+  override knock() {}
+  /** Feet walk to resting spots around the body. */
+  private place(dt: number) {
+    this.feet.forEach((f, i) => {
+      if (f.stab > 0) {
+        f.stab -= dt;
+        return;
+      }
+      const side = i < 4 ? -1 : 1;
+      const k = i % 4;
+      const hx = this.x + side * (60 + k * 34), hy = this.y + 40 + (k - 1.5) * 50;
+      if (dist(f.x, f.y, hx, hy) > 80) {
+        f.x += (hx - f.x) * Math.min(1, dt * 10);
+        f.y += (hy - f.y) * Math.min(1, dt * 10);
+      }
+    });
+  }
+  override think(w: RoomWorld, dt: number) {
+    const p = w.player;
+    const ph = this.phase;
+    const a = w.arena;
+    this.t -= dt;
+    this.cd -= dt;
+    this.steer(p.x + Math.sin(this.age * 0.5) * 160, Math.min(p.y - 140, a.y1 - 220), 60 + ph * 12, dt, 1);
+    this.place(dt);
+    if (this.cd <= 0) {
+      this.cd = 1.7 - ph * 0.3;
+      // Legs stab at where she is and where she is going.
+      const n = ph;
+      for (let i = 0; i < n; i++) {
+        const fx = p.x + p.vx * 0.4 * i + R.range(-30, 30), fy = p.y + p.vy * 0.4 * i + R.range(-30, 30);
+        const warn = this.teleTime * 1.3 + i * 0.15;
+        w.hazards.push(new Hazard('circle', fx, fy, 40, warn, 0.25, 0xd8c8a8, this.display, this.shotDmg));
+        const foot = this.feet[(this.turnFoot++) % 8];
+        foot.x = fx;
+        foot.y = fy;
+        foot.stab = warn + 0.25;
+      }
+    }
+    if (this.t <= 0) {
+      this.t = 5 - ph * 0.7;
+      // The proboscis sprays digestive spit.
+      const ang = Math.atan2(p.y - this.y, p.x - this.x);
+      for (let i = 0; i < 5 + ph; i++) this.shoot(w, ang + (i - (4 + ph) / 2) * 0.12, 200 + i * 10, { color: 0xc8d86a, r: 7 });
+      if (ph === 3 && this.livingMinions(w) < 4) for (let i = 0; i < 2; i++) w.addEnemy(createEnemy('isopod', this.x + R.range(-100, 100), a.y1 - 60, this.menace, 'floor'));
+      w.fx.text(this.x, this.y - 50, 'SSSLURP', 0xc8d86a, 24);
+      sfx.enemyShoot();
+    }
+  }
+  turnFoot = 0;
+  override applyPhysics(w: RoomWorld, dt: number) {
+    clampArena(this, w, dt, 140, 100);
+  }
+}
+
 export function createBoss(kind: BossKind, x: number, y: number, menace: number, depth: number): Boss {
   switch (kind) {
     case 'barnacle': return new BarnacleBill(x, y, menace, depth);
@@ -944,5 +1459,12 @@ export function createBoss(kind: BossKind, x: number, y: number, menace: number,
     case 'siphonophore': return new Siphonophore(x, y, menace, depth);
     case 'hollowmaw': return new HollowMaw(x, y, menace, depth);
     case 'hand': return new TheHand(x, y, menace, depth);
+    case 'grouper': return new Grouper(x, y, menace, depth);
+    case 'otter': return new Otter(x, y, menace, depth);
+    case 'sawfish': return new Sawfish(x, y, menace, depth);
+    case 'mantis': return new MantisShrimp(x, y, menace, depth);
+    case 'giantsquid': return new GiantSquid(x, y, menace, depth);
+    case 'frillshark': return new FrilledShark(x, y, menace, depth);
+    case 'seaspider': return new SeaSpider(x, y, menace, depth);
   }
 }

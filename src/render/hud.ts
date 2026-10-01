@@ -179,7 +179,7 @@ export class Hud {
       this.bossName.text = b.display;
     } else this.bossName.text = '';
 
-    this.depthLabel.text = world.biome.name.toUpperCase();
+    this.depthLabel.text = world.biome.name.toUpperCase() + (world.depth < 7 && world.areaId === LEVEL_ID ? `  ·  ${world.stage}/3` : '');
     this.depthLabel.visible = !this.bigMap;
     this.drawMap(run, world, t);
   }

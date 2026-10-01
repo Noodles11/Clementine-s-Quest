@@ -1,5 +1,7 @@
 // Per-depth data: palettes, Menace, enemy pools, boss pools.
 
+import { stream } from '../core/rng';
+
 export type EnemyKind =
   | 'blob'
   | 'urchin'
@@ -33,7 +35,11 @@ export type EnemyKind =
 
 export type BossKind =
   | 'barnacle' | 'queenclam' | 'kelpie' | 'sirurchin' | 'admiral' | 'treasuremimic'
-  | 'ringmaster' | 'jesters' | 'motherangler' | 'siphonophore' | 'hollowmaw' | 'hand';
+  | 'ringmaster' | 'jesters' | 'motherangler' | 'siphonophore' | 'hollowmaw' | 'hand'
+  | 'grouper' | 'otter' | 'sawfish' | 'mantis' | 'giantsquid' | 'frillshark' | 'seaspider';
+
+/** Every depth (except The Tank) is three reefs, each ending in a boss. */
+export const STAGES = 3;
 
 /** Depth-specific feature of the level. */
 export type BiomeFeature = 'bounce' | 'dark' | 'currents' | 'tank';
@@ -64,6 +70,8 @@ export interface Biome {
   grade: { tint: [number, number, number]; lift: [number, number, number]; saturation: number; contrast: number };
   enemies: { kind: EnemyKind; weight: number; cost: number }[];
   bosses: BossKind[];
+  /** Always fought last, on the third reef (the story boss). */
+  finalBoss?: BossKind;
   feature?: BiomeFeature;
   /** Radius multiplier of Clementine's own light (dark depths rely on it). */
   glowRadius?: number;
@@ -98,7 +106,7 @@ export const BIOMES: Biome[] = [
       { kind: 'pufferling', weight: 2, cost: 2 },
       { kind: 'flounder', weight: 2, cost: 2 },
     ],
-    bosses: ['barnacle', 'queenclam'],
+    bosses: ['barnacle', 'queenclam', 'grouper'],
   },
   {
     depth: 2,
@@ -131,7 +139,7 @@ export const BIOMES: Biome[] = [
       { kind: 'splitter', weight: 3, cost: 2 },
       { kind: 'squidling', weight: 2, cost: 3 },
     ],
-    bosses: ['kelpie', 'sirurchin'],
+    bosses: ['kelpie', 'sirurchin', 'otter'],
   },
   {
     depth: 3,
@@ -164,7 +172,7 @@ export const BIOMES: Biome[] = [
       { kind: 'squidling', weight: 3, cost: 3 },
       { kind: 'blob', weight: 2, cost: 1 },
     ],
-    bosses: ['admiral', 'treasuremimic'],
+    bosses: ['admiral', 'treasuremimic', 'sawfish'],
   },
   {
     depth: 4,
@@ -196,7 +204,7 @@ export const BIOMES: Biome[] = [
       { kind: 'splitter', weight: 2, cost: 2 },
       { kind: 'barracuda', weight: 2, cost: 3 },
     ],
-    bosses: ['ringmaster', 'jesters'],
+    bosses: ['ringmaster', 'jesters', 'mantis'],
     feature: 'bounce',
   },
   {
@@ -228,7 +236,7 @@ export const BIOMES: Biome[] = [
       { kind: 'squidling', weight: 2, cost: 3 },
       { kind: 'moray', weight: 2, cost: 2 },
     ],
-    bosses: ['motherangler', 'siphonophore'],
+    bosses: ['motherangler', 'siphonophore', 'giantsquid'],
     feature: 'dark',
     glowRadius: 1.6,
   },
@@ -261,7 +269,8 @@ export const BIOMES: Biome[] = [
       { kind: 'ghostshrimp', weight: 2, cost: 2 },
       { kind: 'lanternfish', weight: 2, cost: 2 },
     ],
-    bosses: ['hollowmaw'],
+    bosses: ['frillshark', 'seaspider', 'hollowmaw'],
+    finalBoss: 'hollowmaw',
     feature: 'currents',
     glowRadius: 1.5,
   },
@@ -311,4 +320,25 @@ export const BOSS_NAMES: Record<BossKind, { name: string; issue: string; tagline
   siphonophore: { name: 'The Siphonophore', issue: 'ISSUE #10', tagline: 'A colony with one appetite' },
   hollowmaw: { name: 'The Hollow Maw', issue: 'ISSUE #11', tagline: 'It swallowed the Great Current' },
   hand: { name: 'The Hand', issue: 'FINAL ISSUE', tagline: 'Oh. Oh no. It\'s an aquarium.' },
+  grouper: { name: 'Old Gus the Grouper', issue: 'ISSUE #12', tagline: 'One gulp and you\'re lunch' },
+  otter: { name: 'Mama Otter', issue: 'ISSUE #13', tagline: 'Cracks urchins. Throws the leftovers.' },
+  sawfish: { name: 'Captain Sawtooth', issue: 'ISSUE #14', tagline: 'Cuts through the hull and you' },
+  mantis: { name: 'Punchy the Mantis Shrimp', issue: 'ISSUE #15', tagline: 'The fastest punch in the sea' },
+  giantsquid: { name: 'The Giant Squid', issue: 'ISSUE #16', tagline: 'Eyes the size of dinner plates' },
+  frillshark: { name: 'The Frilled Shark', issue: 'ISSUE #17', tagline: 'Three hundred teeth, all facing in' },
+  seaspider: { name: 'The Sea Spider', issue: 'ISSUE #18', tagline: 'All legs. No mercy.' },
 };
+
+/** Number of reefs (boss fights) at a depth. */
+export function stagesAt(depth: number) {
+  return depth >= 7 ? 1 : STAGES;
+}
+
+/** The boss of reef `stage` (1-based) at a depth: a seeded order, each boss once, the story boss last. */
+export function bossForStage(seed: number, depth: number, stage: number): BossKind {
+  const b = biomeFor(depth);
+  const rest = b.bosses.filter((k) => k !== b.finalBoss);
+  const order = [...stream(seed, 'bossorder', depth).shuffle(rest), ...(b.finalBoss ? [b.finalBoss] : [])];
+  return order[(Math.max(1, stage) - 1) % order.length];
+}
+

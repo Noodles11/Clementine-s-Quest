@@ -30,7 +30,7 @@ export function drawProp(g: Graphics, glow: Graphics, p: Prop, w: RoomWorld, t: 
     case 'crack': {
       if (w.depth === 7) break; // no rift in the tank
       const x0 = p.x - p.w / 2, x1 = p.x + p.w / 2, y = p.y;
-      if (w.depth === 6 && p.active) {
+      if (w.depth === 6 && w.stage === 3 && w.run.data.maxDepth >= 7 && p.active) {
         // The Crack was a pipe all along: a rusty grate over a dark intake.
         g.ellipse(p.x, y + 6, p.w / 2 + 10, 20).fill(0x5a4a3a).stroke({ width: 3 * EW, color: INK, alpha: EA });
         g.ellipse(p.x, y + 6, p.w / 2, 14).fill(0x05040a);

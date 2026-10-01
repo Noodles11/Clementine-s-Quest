@@ -2,7 +2,8 @@
 
 import { Rng, stream } from '../core/rng';
 import { seedToNumber } from '../gen/seed';
-import { generateGrotto, generateLevel, generateTank, type LevelSpec } from '../gen/level';
+import { generateGrotto, generateLevel, generateTank, stageSeed, type LevelSpec } from '../gen/level';
+import { stagesAt } from '../gen/biomes';
 import { ItemPools } from './pools';
 import { ITEM_BY_ID, type StatBlock } from './items';
 import { computeStats, type DerivedStats } from './stats';
@@ -107,6 +108,8 @@ export interface RunData {
   /** Debug run: huge health, stocked pockets, pick any item. */
   debug?: boolean;
   depth: number;
+  /** Reef within the depth (1..3); missing in old saves means 1. */
+  stage?: number;
   maxDepth: number;
   unlocked: string[];
   floorPoolStart: string[];
@@ -153,6 +156,7 @@ export class Run {
       seedCode,
       custom,
       depth: 1,
+      stage: 1,
       maxDepth,
       unlocked: [...unlocked],
       floorPoolStart: [],
@@ -175,25 +179,49 @@ export class Run {
     return new Run(data);
   }
 
+  get stage() {
+    return this.data.stage ?? 1;
+  }
+
+  /** Seed of the current reef (each reef of a depth is its own level). */
+  get floorSeed() {
+    return stageSeed(this.seed, this.stage);
+  }
+
+  /** Identifies the current floor (depth and reef). */
+  get floorKey() {
+    return this.data.depth * 10 + this.stage;
+  }
+
+  /** True on the last reef the dive can reach: its rift ends the run. */
+  get atBottom() {
+    const d = this.data;
+    return d.depth >= d.maxDepth && this.stage >= stagesAt(d.depth);
+  }
+
   buildFloor() {
     const d = this.data;
     this.level = d.depth >= 7
       ? generateTank(this.seed, d.unlocked, d.floorPoolStart)
-      : generateLevel({ seed: this.seed, depth: d.depth, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
+      : generateLevel({ seed: this.seed, depth: d.depth, stage: this.stage, unlocked: d.unlocked, poolRemoved: d.floorPoolStart });
     // Pool state continues from level generation plus anything rerolled since.
     this.pools = new ItemPools(d.unlocked, [...this.level.poolRemovedAfter, ...d.poolRemoved]);
   }
 
   /** The Mermaid's Grotto of the current depth. */
   grottoSpec(): LevelSpec {
-    return generateGrotto(this.seed, this.data.depth, this.level.boss.grottoItems);
+    return generateGrotto(this.floorSeed, this.data.depth, this.level.boss.grottoItems);
   }
 
   nextFloor() {
     const d = this.data;
     d.floorPoolStart = [...this.pools.removed];
     d.poolRemoved = [];
-    d.depth++;
+    if (this.stage < stagesAt(d.depth)) d.stage = this.stage + 1;
+    else {
+      d.depth++;
+      d.stage = 1;
+    }
     d.rooms = {};
     d.mapRevealed = false;
     d.floorDamaged = false;
@@ -206,7 +234,7 @@ export class Run {
     const d = this.data;
     d.debug = true;
     d.custom = true;
-    d.maxDepth = 3;
+    d.maxDepth = 7;
     const p = d.player;
     p.maxHp = p.hp = 999;
     p.coins = p.bombs = 99;
@@ -232,7 +260,7 @@ export class Run {
   }
 
   roomRng(roomId: number, label: string): Rng {
-    return stream(this.seed, 'roomrng', this.data.depth, roomId, label);
+    return stream(this.floorSeed, 'roomrng', this.data.depth, roomId, label);
   }
 
   recompute() {

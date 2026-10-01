@@ -52,7 +52,7 @@ describe('debug dive', () => {
     expect(run.p.bombs).toBe(99);
     expect(run.p.coins).toBe(99);
     expect(run.p.snack).toBeTruthy();
-    expect(run.data.maxDepth).toBe(3);
+    expect(run.data.maxDepth).toBe(7);
     const w = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
     w.debugGive('lure');
     expect(run.p.items).toContain('lure');

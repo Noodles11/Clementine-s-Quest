@@ -91,6 +91,9 @@ export class RoomWorld implements Solidity {
   areaId: number;
   biome: Biome;
   menace: number;
+  stage = 1;
+  /** Floor this world belongs to; it only saves into that floor's state. */
+  floorKey: number;
   depth: number;
   tiles: Uint8Array;
   tw: number;
@@ -155,7 +158,9 @@ export class RoomWorld implements Solidity {
     this.areaId = areaId;
     this.depth = spec.depth;
     this.biome = biomeFor(this.depth);
-    this.menace = this.biome.menace;
+    // Each reef of a depth is a little meaner than the last.
+    this.stage = spec.stage ?? 1;
+    this.menace = Math.min(1, this.biome.menace + (this.depth < 7 ? (this.stage - 1) * 0.04 : 0));
     this.tiles = spec.tiles.slice();
     this.tw = spec.tw;
     this.th = spec.th;
@@ -164,6 +169,7 @@ export class RoomWorld implements Solidity {
     this.arena = spec.boss.arena;
     this.gates = spec.boss.gates;
     this.explored = new Uint8Array(this.tiles.length);
+    this.floorKey = run.floorKey;
 
     const persist = run.roomState(areaId);
     for (const i of persist.broken) this.tiles[i] = T_EMPTY;
@@ -320,7 +326,7 @@ export class RoomWorld implements Solidity {
     this.fx.burst(cx, cy, 'shards', 0xc8743a, 12);
     this.fx.text(cx, cy - 10, 'KRAK!', 0xffa53d, 18);
     sfx.hit();
-    const rng = stream(this.run.seed, 'pot', this.depth, this.areaId, i);
+    const rng = stream(this.run.floorSeed, 'pot', this.depth, this.areaId, i);
     if (rng.chance(0.35)) this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'heart', 'bomb', 'coin']), cx, cy, 0, -40);
   }
 
@@ -537,7 +543,7 @@ export class RoomWorld implements Solidity {
 
   private spawnGroup(g: SpawnGroup) {
     this.spawnedGroups.add(g.id);
-    const crng = stream(this.run.seed, 'champions', this.depth, g.id);
+    const crng = stream(this.run.floorSeed, 'champions', this.depth, g.id);
     for (const s of g.spawns) {
       const e = createEnemy(s.kind, s.x, s.y, this.menace, s.attach);
       e.groupId = g.id;
@@ -558,7 +564,7 @@ export class RoomWorld implements Solidity {
       d.active.charge = Math.min(def?.charge ?? 0, d.active.charge + 1);
     }
     // Reward roll (deterministic per encounter).
-    const rng = stream(this.run.seed, 'clear', this.depth, g.id);
+    const rng = stream(this.run.floorSeed, 'clear', this.depth, g.id);
     const luck = this.run.stats.luck;
     if (rng.chance(0.55 + luck * 0.04)) {
       const kind = rng.weighted<PickupKind>(['coin', 'heart', 'bomb', 'snack', 'clam', 'glowjelly', 'foam', 'goldclam', 'coin5'], (k) =>
@@ -747,7 +753,7 @@ export class RoomWorld implements Solidity {
         const targets = this.pedestals.filter((pd) => pd.itemId && pd.itemId !== HEART_CONTAINER_ID);
         if (!targets.length) { ok = false; break; }
         for (const pd of targets) {
-          const rng = stream(this.run.seed, 'reroll', this.depth, this.areaId, this.run.data.poolRemoved.length);
+          const rng = stream(this.run.floorSeed, 'reroll', this.depth, this.areaId, this.run.data.poolRemoved.length);
           pd.itemId = this.run.drawItem(pd.price !== undefined ? 'shop' : 'treasure', rng);
           this.fx.burst(pd.x, pd.y - 20, 'sparkle', 0xb88adf, 16);
         }
@@ -918,7 +924,7 @@ export class RoomWorld implements Solidity {
       case 'goldclam': {
         if (pk.opened) return false;
         pk.opened = true;
-        const rng = stream(this.run.seed, 'clam', this.depth, this.areaId, Math.round(pk.x), Math.round(pk.y));
+        const rng = stream(this.run.floorSeed, 'clam', this.depth, this.areaId, Math.round(pk.x), Math.round(pk.y));
         const n = pk.kind === 'goldclam' ? rng.int(3, 5) : rng.int(2, 3);
         for (let i = 0; i < n; i++)
           this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'coin5', 'heart', 'bomb', 'snack', 'foam']), pk.x, pk.y - 10, rng.range(-160, 160), rng.range(-260, -120));
@@ -1090,7 +1096,7 @@ export class RoomWorld implements Solidity {
     }
     if (!e.boss && R.chance(0.05 + this.run.stats.luck * 0.01)) this.spawnPickup('coin', e.x, e.y, 0, -60);
     if (e.champion) {
-      const rng = stream(this.run.seed, 'champ', this.depth, this.areaId, this.run.data.kills);
+      const rng = stream(this.run.floorSeed, 'champ', this.depth, this.areaId, this.run.data.kills);
       this.spawnPickup(rng.pick<PickupKind>(['heart', 'coin', 'bomb', 'coin', 'foam', 'halfheart']), e.x, e.y, 0, -80);
     }
   }
@@ -1129,7 +1135,7 @@ export class RoomWorld implements Solidity {
       persist.pedestals.push(ped);
       this.pedestals.push(new Pedestal(ped.itemId, ped.x, ped.y));
       this.spawnPickup('container', cx - TILE * 5, c.y - TILE * 3, 0, 0);
-      const rng = stream(this.run.seed, 'grotto', this.depth);
+      const rng = stream(this.run.floorSeed, 'grotto', this.depth);
       const chance = this.bossHurtPlayer ? 0.33 : 0.66;
       persist.grotto = rng.chance(chance) && this.spec.boss.grottoItems.length > 0;
     }

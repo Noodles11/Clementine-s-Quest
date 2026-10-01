@@ -6,7 +6,7 @@ import { DEFAULT_OPTIONS } from '../src/core/save';
 import { ITEMS } from '../src/game/items';
 import { TILE } from '../src/config';
 
-const ALL_UNLOCKS = ['beat_barnacle', 'beat_queenclam', 'beat_kelpie', 'beat_sirurchin', 'beat_admiral', 'beat_treasuremimic', 'first_synergy', 'transformation', 'die_5', 'beat_ringmaster', 'beat_jesters', 'beat_motherangler', 'beat_siphonophore', 'beat_hollowmaw'];
+const ALL_UNLOCKS = ['beat_barnacle', 'beat_queenclam', 'beat_kelpie', 'beat_sirurchin', 'beat_admiral', 'beat_treasuremimic', 'first_synergy', 'transformation', 'die_5', 'beat_ringmaster', 'beat_jesters', 'beat_motherangler', 'beat_siphonophore', 'beat_hollowmaw', 'beat_grouper', 'beat_otter', 'beat_sawfish', 'beat_mantis', 'beat_giantsquid', 'beat_frillshark', 'beat_seaspider'];
 
 function finite(n: number) {
   return Number.isFinite(n);
@@ -17,9 +17,9 @@ function soak(seed: string, items: string[]) {
   const run = Run.create(seed, true, ALL_UNLOCKS, 7);
   for (const id of items) run.giveItem(id);
   run.p.maxHp = run.p.hp = 300;
-  for (let depth = 1; depth <= 7; depth++) {
+  for (;;) {
     const areas: [number, ReturnType<Run['grottoSpec']>][] = [[LEVEL_ID, run.level], [GROTTO_ID, run.grottoSpec()]];
-    const spots = [...run.level.groups.slice(0, 6).map((g) => ({ x: g.x, y: g.y, boss: false })), { x: run.level.boss.crack.x0 + TILE * 3, y: run.level.boss.crack.y - TILE * 2, boss: true }];
+    const spots = [...run.level.groups.slice(0, run.stage === 3 ? 5 : 2).map((g) => ({ x: g.x, y: g.y, boss: false })), { x: run.level.boss.crack.x0 + TILE * 3, y: run.level.boss.crack.y - TILE * 2, boss: true }];
     for (const [id, spec] of areas)
     for (const spot of id === LEVEL_ID ? spots : [{ x: spec.start.x, y: spec.start.y, boss: false }]) {
       const w = new RoomWorld(run, spec, id, NullFx, DEFAULT_OPTIONS);
@@ -68,12 +68,13 @@ function soak(seed: string, items: string[]) {
       w.persist();
       expect(finite(p.x) && finite(p.y)).toBe(true);
     }
-    if (depth < 7) run.nextFloor();
+    if (run.data.depth >= 7) break;
+    run.nextFloor();
   }
   return run;
 }
 
-describe('soak', { timeout: 400000 }, () => {
+describe('soak', { timeout: 600000 }, () => {
   it('survives every room with no items', () => {
     const run = soak('SOAKAAAA', []);
     expect(run.data.depth).toBe(7);

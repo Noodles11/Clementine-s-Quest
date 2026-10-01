@@ -51,7 +51,7 @@ export interface SceneHooks {
   onRestart(): void;
   onDebugMenu(): void;
   onAutosave(): void;
-  onFloorStart(depth: number): void;
+  onFloorStart(depth: number, stage: number): void;
   onBossIntro(boss: Boss): Promise<void>;
 }
 
@@ -326,7 +326,7 @@ export class GameScene {
     this.mode = 'play';
     this.hud.container.visible = true;
     input.clear();
-    if (fresh) this.hooks.onFloorStart(d.depth);
+    if (fresh) this.hooks.onFloorStart(d.depth, run.stage);
   }
 
   attractPending = false;
@@ -366,13 +366,18 @@ export class GameScene {
     this.hud.container.visible = false;
   }
 
+  /** A pause requested mid-transition takes effect when the transition ends. */
+  private pauseAfterTransition = false;
+
   pause() {
+    if (this.mode === 'transition') this.pauseAfterTransition = true;
     if (this.mode === 'play') {
       this.mode = 'paused';
       this.world?.persist();
     }
   }
   resume() {
+    this.pauseAfterTransition = false;
     if (this.mode === 'paused') this.mode = 'play';
     input.clear();
   }
@@ -397,11 +402,11 @@ export class GameScene {
     const run = this.run!;
     const old = this.world;
     // A world from the floor above must not leak its map or position into this one.
-    if (old && old.spec.depth === run.data.depth) old.persist();
+    if (old && old.floorKey === run.floorKey) old.persist();
     const w = new RoomWorld(run, spec, areaId, this.fx, this.options);
     this.world = w;
     if (areaId !== TITLE_ID) run.data.currentRoom = areaId;
-    const seed = (run.seed ^ (run.data.depth * 0x9e37) ^ areaId) >>> 0;
+    const seed = (run.floorSeed ^ (run.data.depth * 0x9e37) ^ areaId) >>> 0;
     const b = w.biome;
     setPitchShift(1 - b.menace * 0.25);
 
@@ -428,7 +433,7 @@ export class GameScene {
     for (const [, l] of this.pedLabels) l.destroy();
     this.pedLabels.clear();
     this.hintLayer.removeChildren().forEach((c) => c.destroy());
-    if (areaId === LEVEL_ID && w.depth === 1 && this.mode !== 'attract' && !this.attractPending) this.drawHints(w);
+    if (areaId === LEVEL_ID && w.depth === 1 && w.stage === 1 && this.mode !== 'attract' && !this.attractPending) this.drawHints(w);
 
     this.bgWater.texture = waterTexture(b);
     this.bgWater.width = VIEW_W;
@@ -720,6 +725,10 @@ export class GameScene {
       if (tr.t >= 2) {
         this.transition = null;
         this.mode = 'play';
+        if (this.pauseAfterTransition) {
+          this.pauseAfterTransition = false;
+          this.pause();
+        }
       }
       w.fluid.step(dt);
     } else if (this.mode === 'dead' || this.mode === 'splash' || this.mode === 'paused') {
@@ -797,7 +806,7 @@ export class GameScene {
       switch (ev.type) {
         case 'descend':
           sfx.descend();
-          if (this.run!.data.depth >= this.run!.data.maxDepth) {
+          if (this.run!.atBottom) {
             // The rift leads nowhere new yet: the dive ends here.
             this.beginTransition('down', () => {
               this.mode = 'dead';
@@ -810,7 +819,7 @@ export class GameScene {
             this.run!.nextFloor();
             this.buildWorld(this.run!.level, LEVEL_ID);
             this.hooks.onAutosave();
-            this.hooks.onFloorStart(this.run!.data.depth);
+            this.hooks.onFloorStart(this.run!.data.depth, this.run!.stage);
           });
           break;
         case 'grotto':

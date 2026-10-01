@@ -33,11 +33,13 @@ half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, �
 - Creatures ambush you in their chambers; clearing an encounter drops a reward and charges
   your active item. Plants and boulders in front can hide you and them from view.
 - Every boss guards **The Crack** (the rift). After the fight only rewards and the rift remain;
-  if the next depth is still locked, entering the rift ends the dive.
+  on the last reef of the dive, entering the rift ends it.
 - Debug: enter `DEBUG` as a seed for 999 HP, stocked pockets and an item picker (press **`**).
-- Your first dives end at Depth 1; each new boss you defeat unlocks the next depth:
-  Kelp Jungle, Sunken Galleon, Coral Carnival (bounce pads), Twilight Trench (dark),
-  The Abyss (strong currents) — and, below the Hollow Maw, a pipe to somewhere very different.
+- Every depth is **three reefs** in the same biome, each ending in its own boss (19 bosses).
+  One run can dive all the way: Sunlit Shallows, Kelp Jungle, Sunken Galleon, Coral Carnival
+  (bounce pads), Twilight Trench (dark) and The Abyss (strong currents).
+- The Abyss always ends with the Hollow Maw. Beat it a **second** time and the grate over the
+  Crack gives way: the pipe opens to a 7th, very different place — in that run and every run after.
 - 60 items. Ink effects combine, 14 named **synergies** add special effects, and
   three items sharing a tag trigger one of 5 **transformations**.
 - The deeper you go, the darker the water and the meaner the sea gets.

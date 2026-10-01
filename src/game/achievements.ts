@@ -9,12 +9,19 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'dive2', name: 'The Current Pulls Deeper', desc: 'Defeat a Sunlit Shallows boss', reward: 'Dive 2: Kelp Jungle' },
-  { id: 'dive3', name: 'Into the Wreck', desc: 'Defeat a Kelp Jungle boss', reward: 'Dive 3: Sunken Galleon' },
-  { id: 'dive4', name: 'Under the Big Top', desc: 'Defeat a Sunken Galleon boss', reward: 'Dive 4: Coral Carnival' },
-  { id: 'dive5', name: 'Into the Dark', desc: 'Defeat a Coral Carnival boss', reward: 'Dive 5: Twilight Trench' },
-  { id: 'dive6', name: 'Rock Bottom', desc: 'Defeat a Twilight Trench boss', reward: 'Dive 6: The Abyss' },
-  { id: 'tank', name: 'Down the Drain', desc: 'Defeat the Hollow Maw', reward: 'The pipe... leads somewhere' },
+  { id: 'dive2', name: 'The Current Pulls Deeper', desc: 'Clear all three reefs of the Sunlit Shallows', reward: 'Bragging rights' },
+  { id: 'dive3', name: 'Into the Wreck', desc: 'Clear all three reefs of the Kelp Jungle', reward: 'Bragging rights' },
+  { id: 'dive4', name: 'Under the Big Top', desc: 'Clear all three reefs of the Sunken Galleon', reward: 'Bragging rights' },
+  { id: 'dive5', name: 'Into the Dark', desc: 'Clear all three reefs of the Coral Carnival', reward: 'Bragging rights' },
+  { id: 'dive6', name: 'Rock Bottom', desc: 'Clear all three reefs of the Twilight Trench', reward: 'Bragging rights' },
+  { id: 'tank', name: 'Down the Drain', desc: 'Defeat the Hollow Maw twice', reward: 'The pipe opens: The Tank' },
+  { id: 'beat_grouper', name: 'Too Big to Swallow', desc: 'Defeat Old Gus the Grouper', reward: 'Field journal entry' },
+  { id: 'beat_otter', name: 'Rock Paper Otter', desc: 'Defeat Mama Otter', reward: 'Field journal entry' },
+  { id: 'beat_sawfish', name: 'Blunted', desc: 'Defeat Captain Sawtooth', reward: 'Field journal entry' },
+  { id: 'beat_mantis', name: 'Out-Punched', desc: 'Defeat Punchy the Mantis Shrimp', reward: 'Field journal entry' },
+  { id: 'beat_giantsquid', name: 'Kraken Tamer', desc: 'Defeat the Giant Squid', reward: 'Field journal entry' },
+  { id: 'beat_frillshark', name: 'Living Fossil', desc: 'Defeat the Frilled Shark', reward: 'Field journal entry' },
+  { id: 'beat_seaspider', name: 'Leg Day', desc: 'Defeat the Sea Spider', reward: 'Field journal entry' },
   { id: 'beat_ringmaster', name: 'Show\'s Over', desc: 'Defeat Ringmaster Octo', reward: 'Hammerhead' },
   { id: 'beat_jesters', name: 'Last Laugh', desc: 'Defeat the Jester Jellies', reward: 'Fire Urchin Spine' },
   { id: 'beat_motherangler', name: 'Lure Breaker', desc: 'Defeat Mother Angler', reward: 'Giant Squid Eye' },
@@ -41,16 +48,9 @@ export function hasAch(p: Profile, id: string) {
   return p.achievements.includes(id);
 }
 
-/** Deepest depth a new run may reach, given unlocked dives. */
+/** Deepest depth a new run may reach: the whole reef down to the Abyss; The Tank once its pipe is open. */
 export function maxDepthFor(p: Profile): number {
-  let d = 1;
-  if (hasAch(p, 'dive2')) d = 2;
-  if (hasAch(p, 'dive3')) d = 3;
-  if (hasAch(p, 'dive4')) d = 4;
-  if (hasAch(p, 'dive5')) d = 5;
-  if (hasAch(p, 'dive6')) d = 6;
-  if (hasAch(p, 'tank')) d = 7;
-  return Math.min(d, MAX_DEPTH_V1);
+  return Math.min(hasAch(p, 'tank') ? 7 : 6, MAX_DEPTH_V1);
 }
 
 /** Grant; returns true if newly unlocked. */

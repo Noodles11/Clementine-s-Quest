@@ -13,7 +13,7 @@ import { ITEM_BY_ID } from './game/items';
 import { itemEffects } from './game/itemtext';
 import { HP_PER_CONTAINER, Run, type RunData } from './game/run';
 import { SYNERGIES, TRANSFORMATIONS } from './game/synergies';
-import { BIOMES, BOSS_NAMES, biomeFor, type BossKind } from './gen/biomes';
+import { BOSS_NAMES, biomeFor, stagesAt, type BossKind } from './gen/biomes';
 import { normalizeSeedCode, randomSeedCode, SPECIAL_SEEDS } from './gen/seed';
 import { GameScene } from './scene';
 import { UI, type RunSummary } from './ui';
@@ -64,7 +64,7 @@ class Game {
       onRestart: () => (this.run?.data.debug ? this.newRun(undefined, true, true) : this.newRun()),
       onDebugMenu: () => this.showDebugItems(() => this.resumePlay()),
       onAutosave: () => this.autosave(),
-      onFloorStart: (d) => this.onFloorStart(d),
+      onFloorStart: (d, s) => this.onFloorStart(d, s),
       onBossIntro: (b) => this.bossIntro(b),
     }, this.profile.options);
     this.ui.iconFor = (id) => this.scene.itemIcon(id);
@@ -252,9 +252,25 @@ class Game {
     saveRun(this.run.data);
   }
 
-  onFloorStart(depth: number) {
+  onFloorStart(depth: number, stage = 1) {
     const b = biomeFor(depth);
-    this.ui.floorTitle(depth, b.name, b.subtitle);
+    const label = depth >= 7 ? 'THE BOTTOM' : `DEPTH ${depth} · REEF ${stage} OF ${stagesAt(depth)}`;
+    if (depth >= 7) {
+      // Sucked down the pipe.
+      input.setEnabled(false);
+      this.scene.pause();
+      this.ui.showCutscene(
+        [
+          { cap: 'The grate gave way. The Crack was never a crack: it was a pipe, and it was pulling.', sfx: 'SHLUUURP!', bg: 'linear-gradient(#3a4a6a,#05040a)' },
+          { cap: 'Round and round, up and up... and out into fluorescent light.', sfx: 'BLOOP!', bg: 'linear-gradient(#dff6ff,#3a8ab8)' },
+        ],
+        () => {
+          this.ui.clear();
+          this.resumePlay();
+          this.ui.floorTitle(label, b.name, b.subtitle);
+        },
+      );
+    } else this.ui.floorTitle(label, b.name, b.subtitle);
     const p = this.profile;
     p.stats.bestDepth = Math.max(p.stats.bestDepth, depth);
     saveProfile(p);
@@ -275,7 +291,7 @@ class Game {
       const a = ACH_BY_ID[id];
       this.ui.toast(`★ ${a.name}`, `Unlocked: ${a.reward}`);
       sfx.unlock();
-      if (/^dive\d$/.test(id) || id === 'tank') this.pendingUnlocks.push(id);
+      if (id === 'tank') this.pendingUnlocks.push(id);
       saveProfile(this.profile);
     }
   }
@@ -315,8 +331,16 @@ class Game {
         run.data.bossesBeaten.push(kind);
         this.ui.banner(BOSS_NAMES[kind].name, 'Defeated · colour floods back into the reef', '#ff9a2e');
         this.achieve(`beat_${kind}`);
-        if (run.data.depth <= 5) this.achieve(`dive${run.data.depth + 1}`);
-        if (kind === 'hollowmaw') this.achieve('tank');
+        if (run.data.depth <= 5 && run.stage >= stagesAt(run.data.depth)) this.achieve(`dive${run.data.depth + 1}`);
+        if (kind === 'hollowmaw' && !run.data.custom) {
+          // The first time the grate only rattles; the second time it gives way.
+          p.counters.hollowmaw = (p.counters.hollowmaw ?? 0) + 1;
+          if (p.counters.hollowmaw >= 2) {
+            this.achieve('tank');
+            run.data.maxDepth = Math.max(run.data.maxDepth, 7);
+            setTimeout(() => this.ui.banner('The grate gives way', 'The pipe is open · take the rift down', '#dff6ff'), 1500);
+          } else setTimeout(() => this.ui.banner('A rusty grate rattles', 'Something is behind it… beat the Hollow Maw once more', '#dff6ff'), 1500);
+        }
         if (!run.data.custom) {
           if (kind === 'admiral') {
             p.counters.admiral = (p.counters.admiral ?? 0) + 1;
@@ -397,7 +421,6 @@ class Game {
           this.showTitle();
         },
       });
-    const deepest = unlocks.filter((u) => /^dive\d$/.test(u)).map((u) => Number(u.slice(4))).sort().pop();
     if (run.data.depth >= 7) {
       // The true ending.
       this.ui.showCutscene(
@@ -409,23 +432,12 @@ class Game {
         ],
         showEnd,
       );
-    } else if (unlocks.includes('tank')) {
+    } else if (run.data.depth >= 6 && (this.profile.counters.hollowmaw ?? 0) === 1 && !run.data.custom) {
       this.ui.showCutscene(
         [
-          { cap: 'The Hollow Maw coughed up something hard: a rusty metal grate.', sfx: 'KLANK!', bg: 'linear-gradient(#2a2236,#05040a)' },
-          { cap: 'The Crack was never a crack. It was a pipe. And it was pulling.', sfx: 'SHLUUURP!', bg: 'linear-gradient(#3a4a6a,#05040a)' },
-          { cap: 'Light at the end of it... fluorescent light. Next time, the pipe takes you in.', sfx: '???', bg: 'linear-gradient(#dff6ff,#3a8ab8)' },
-        ],
-        showEnd,
-      );
-    } else if (deepest) {
-      const d = deepest;
-      const b = BIOMES[d - 1];
-      this.ui.showCutscene(
-        [
-          { cap: 'The boss fell... and the Crack beneath it began to glow.', sfx: 'KRRRAK!', bg: 'linear-gradient(#1a8fb8,#10283a)' },
-          { cap: 'A warm current tugged at Clementine’s tentacles. Deeper. Deeper.', sfx: 'WHOOSH', bg: 'linear-gradient(#2a6f8a,#0b1a2e)' },
-          { cap: `NEW DIVE UNLOCKED: ${b.name}! Next time, the Crack will stay open.`, sfx: 'BLUB!', bg: `linear-gradient(#${b.waterTop.toString(16).padStart(6, '0')},#${b.waterBottom.toString(16).padStart(6, '0')})` },
+          { cap: 'The Hollow Maw coughed up something hard: a rusty metal grate, bolted over the Crack.', sfx: 'KLANK!', bg: 'linear-gradient(#2a2236,#05040a)' },
+          { cap: 'Behind it, water rushed somewhere far away. The grate rattled… and held.', sfx: 'RATTLE', bg: 'linear-gradient(#3a4a6a,#05040a)' },
+          { cap: 'Beat the Hollow Maw once more, and it might give way.', sfx: '???', bg: 'linear-gradient(#14243a,#03060e)' },
         ],
         showEnd,
       );

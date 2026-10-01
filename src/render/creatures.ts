@@ -8,6 +8,7 @@ import { INK } from '../ambient/plants';
 import { ENEMY_INFO, type Enemy } from '../game/enemies';
 import type { Boss } from '../game/bosses';
 import { EYELESS } from './mobs';
+import { drawReefBoss } from './bossart';
 
 const W = 3; // outline width
 
@@ -62,6 +63,10 @@ export function drawBoss(g: Graphics, b: Boss, t: number) {
   const x = b.x + (b.tele > 0 ? Math.sin(t * 50) * b.tele * 3 : 0);
   const y = b.y;
   const m = b.menace;
+  if (drawReefBoss(g, b, t)) {
+    if (b.frozen > 0) g.circle(b.x, b.y, b.r + 6).stroke({ width: 4, color: 0xcff8ff, alpha: 0.8 });
+    return;
+  }
   switch (b.bossKind) {
     case 'barnacle': {
       const col = tone(b, 0xb8a58a);
@@ -343,6 +348,9 @@ export function drawEnemyGlow(g: Graphics, e: Enemy, t: number) {
       break;
     case 'hollowmaw':
       g.circle(e.x, e.y + 14, 90).fill({ color: 0xff3d6a, alpha: 0.12 });
+      break;
+    case 'giantsquid':
+      g.circle(e.x + e.facing * 6, e.y + 18, 22).fill({ color: 0x9ad8f0, alpha: 0.18 });
       break;
   }
   if (e.menace >= 0.35 && !e.hidden && !e.boss && e.kind !== 'ghostshrimp' && !EYELESS.has(e.kind)) {

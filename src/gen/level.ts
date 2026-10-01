@@ -10,7 +10,7 @@ import { TILE } from '../config';
 import { valueNoise1, valueNoise2 } from '../core/math';
 import { Rng, stream } from '../core/rng';
 import { ItemPools } from '../game/pools';
-import { biomeFor, type BossKind, type EnemyKind } from './biomes';
+import { biomeFor, bossForStage, type BossKind, type EnemyKind } from './biomes';
 import { isSolidTile, T_BREAK, T_EMPTY, T_ROCK, T_SECRET, T_SPIKE, type Attach, type Decor, type Spawn } from './tiles';
 
 export type CaveKind = 'treasure' | 'shop' | 'secret' | 'curse' | 'side';
@@ -55,6 +55,8 @@ export interface Gate {
 
 export interface LevelSpec {
   depth: number;
+  /** Reef within the depth (1..3). */
+  stage?: number;
   tw: number;
   th: number;
   tiles: Uint8Array;
@@ -93,8 +95,17 @@ export interface LevelSpec {
 export interface LevelOptions {
   seed: number;
   depth: number;
+  /** Reef within the depth (1..3); each has its own layout and boss. */
+  stage?: number;
   unlocked: Iterable<string>;
   poolRemoved: Iterable<string>;
+  /** Filled in by generateLevel. */
+  bossKind?: BossKind;
+}
+
+/** Seed of one reef: the first reef of a depth keeps the run seed. */
+export function stageSeed(seed: number, stage = 1) {
+  return stage <= 1 ? seed : (seed ^ Math.imul(stage, 0x9e3779b1)) >>> 0;
 }
 
 const CW = 24; // macro cell size in tiles
@@ -103,7 +114,9 @@ const MARGIN = 4;
 
 const MACRO: Record<number, [number, number]> = { 1: [5, 4], 2: [6, 5], 3: [7, 5], 4: [7, 5], 5: [7, 6], 6: [8, 6] };
 
-export function generateLevel(opts: LevelOptions): LevelSpec {
+export function generateLevel(base: LevelOptions): LevelSpec {
+  const stage = base.stage ?? 1;
+  const opts = { ...base, stage, seed: stageSeed(base.seed, stage), bossKind: bossForStage(base.seed, base.depth, stage) };
   const { seed, depth } = opts;
   for (let attempt = 0; attempt < 40; attempt++) {
     const rng = stream(seed, 'level', depth, attempt);
@@ -116,7 +129,9 @@ export function generateLevel(opts: LevelOptions): LevelSpec {
 function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec | null {
   const { depth, seed } = opts;
   const biome = biomeFor(depth);
-  const [MW, MH] = MACRO[Math.min(6, Math.max(1, depth))];
+  const [mw, MH] = MACRO[Math.min(6, Math.max(1, depth))];
+  // The first two reefs of a depth are a little smaller than the last.
+  const MW = (opts.stage ?? 1) < 3 ? Math.max(4, mw - 1) : mw;
   const tw = MW * CW + MARGIN * 2;
   const th = MH * CH + MARGIN * 2;
   const tiles = new Uint8Array(tw * th).fill(T_ROCK);
@@ -462,7 +477,8 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
       for (let x = Math.floor(plug.x - 4); x <= plug.x + 4; x++)
         if (Math.hypot(x + 0.5 - plug.x, y + 0.5 - plug.y) < 2.6 && at(x, y) === T_EMPTY) set(x, y, T_SECRET);
   }
-  const bossKind = irng.pick(biome.bosses);
+  const pickedBoss = irng.pick(biome.bosses);
+  const bossKind = opts.bossKind ?? pickedBoss;
   const bossItem = pools.draw('boss', irng);
   const grottoItems = [pools.draw('grotto', irng), pools.draw('grotto', irng)];
 
@@ -594,7 +610,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
   if (depth > 1) pickups.push({ kind: irng.pick(['coin', 'bomb', 'heart']), x: startPx.x + TILE * 3, y: startPx.y });
 
   return {
-    depth, tw, th, tiles, surface, surfaceSpan, chambers, edges, start: startPx,
+    depth, stage: opts.stage ?? 1, tw, th, tiles, surface, surfaceSpan, chambers, edges, start: startPx,
     boss: {
       kind: bossKind,
       arena: { x0: ax0, y0: ay0, x1: ax1, y1: ay1 },

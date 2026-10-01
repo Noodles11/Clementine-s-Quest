@@ -904,3 +904,30 @@ Siphonophore → Kraken Call · Hollow Maw → Lamprey Mouth.
 - Animation: the mantle squeezes 1.5× harder than a swim stroke, the arms flare wide and then whip
   shut into a tight bundle; a water jet, wake bubbles and a soft violet flash mark the burst.
 
+## 31. Three reefs per depth; dive to the Abyss in one run
+
+- **Every depth (1–6) is three reefs** of the same biome, each its own generated level ending in a
+  boss fight; HUD reads e.g. "KELP JUNGLE · 2/3", floor titles "DEPTH 2 · REEF 2 OF 3". The first
+  two reefs are one macro column smaller; each reef is a little meaner (+0.04 menace).
+  The Tank (7) stays a single level with The Hand.
+- **Three bosses per biome**, in a seeded order so each reef has a different one. The Abyss always
+  ends with the Hollow Maw (story boss). New bosses, all drawn from real animals:
+
+| Depth | New boss | Behaviour |
+|---|---|---|
+| 1 | Old Gus the Grouper | Cruises; gulps (suction pull) then spits gravel; rams from phase 2 |
+| 2 | Mama Otter | Floats on its back lobbing cracked urchins that burst into spines; dives at you |
+| 3 | Captain Sawtooth (sawfish) | Telegraphed charges across the wreck; wall slams rain debris |
+| 4 | Punchy the Mantis Shrimp | Hops; cavitation punches (white ring + bubble fan) |
+| 5 | The Giant Squid | Tentacle lashes (circle, row, column), ink blackouts |
+| 6 | The Frilled Shark | Eel-like body, S-curve approach, lunging bites, sheds teeth |
+| 6 | The Sea Spider | Eight stilt legs stab where you are and where you're going |
+
+- **Progression:** a run can go all the way to the Abyss (depth 6) — no more one-depth-per-run
+  unlocks. The `dive2`–`dive6` achievements now mark clearing a biome's three reefs.
+- **The Tank:** the first Hollow Maw kill shows a rusty grate that holds; the **second** (counted
+  across runs, seeded dives excluded) breaks it: `tank` is unlocked, the current run's rift becomes the
+  pipe (a short cutscene) and every later run can reach depth 7.
+- Fix: a world only saves into its own floor's state (depth + reef), so a new reef never inherits the
+  previous one's pickups or map.
+
