@@ -38,7 +38,9 @@ export class Enemy extends Entity {
   stun = 0;
   flash = 0;
   slow = 0;
-  contactDmg = 1;
+  /** Damage to Clementine on touch / per shot, in HP. */
+  contactDmg = 12;
+  shotDmg = 10;
   attach: Attach;
   gravity = 0;
   grounded = false;
@@ -67,6 +69,8 @@ export class Enemy extends Entity {
     this.champion = color;
     this.hp = this.maxHp = this.maxHp * 1.8;
     this.r *= 1.12;
+    this.contactDmg = Math.round(this.contactDmg * 1.25);
+    this.shotDmg = Math.round(this.shotDmg * 1.2);
   }
 
   constructor(kind: EnemyKind | string, x: number, y: number, menace: number, attach: Attach = 'none') {
@@ -79,6 +83,10 @@ export class Enemy extends Entity {
     const info = ENEMY_INFO[kind as EnemyKind];
     this.hp = this.maxHp = (info?.hp ?? 20) * (1 + menace * 0.6);
     this.display = info?.name ?? kind;
+    // Damage to Clementine (HP of 100), harsher deeper down.
+    const hit = CONTACT_DMG[kind as EnemyKind] ?? 12;
+    this.contactDmg = Math.round(hit * (1 + menace * 0.75));
+    this.shotDmg = Math.round(10 * (1 + menace * 0.6));
     this.r = 16;
     this.hw = this.hh = 14;
     this.cd = R.range(0.5, 1.5);
@@ -221,11 +229,17 @@ export class Enemy extends Entity {
   onWall(_w: RoomWorld) {}
 
   shoot(w: RoomWorld, angle: number, speed: number, opts: ConstructorParameters<typeof EnemyShot>[4] = {}) {
-    const s = new EnemyShot(this.x + Math.cos(angle) * this.r, this.y + Math.sin(angle) * this.r, Math.cos(angle) * speed, Math.sin(angle) * speed, opts);
+    const s = new EnemyShot(this.x + Math.cos(angle) * this.r, this.y + Math.sin(angle) * this.r, Math.cos(angle) * speed, Math.sin(angle) * speed, { dmg: this.shotDmg, ...opts });
     w.shots.push(s);
     return s;
   }
 }
+
+/** Contact damage per creature at Depth 1, in HP. */
+const CONTACT_DMG: Partial<Record<EnemyKind, number>> = {
+  blob: 10, jelly: 6, pufferling: 14, splitter: 10, squidling: 8, barracuda: 16,
+  crabby: 12, cannoncrab: 12, mimic: 18, flounder: 14, urchin: 12, moray: 18,
+};
 
 // ── Kinds ──────────────────────────────────────────────────────────
 

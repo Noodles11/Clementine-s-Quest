@@ -17,7 +17,7 @@ import { ITEM_BY_ID, HEART_CONTAINER_ID } from './items';
 import { Pedestal, Pickup, Prop } from './pickups';
 import { Player } from './player';
 import { Beam, Bubble, EnemyShot, InkBomb, Zone } from './projectiles';
-import { SNACK_EFFECT_TEXT, type PickupKind, type Run } from './run';
+import { FOAM_PICKUP, HEAL_HALF, HEAL_HEART, HP_PER_CONTAINER, SNACK_EFFECT_TEXT, type PickupKind, type Run } from './run';
 import { SYNERGIES, TRANSFORMATIONS } from './synergies';
 import type { Solidity } from './entity';
 import { moveBox } from './entity';
@@ -78,6 +78,8 @@ export interface InkMark {
 }
 
 const MAX_INK_MARKS = 260;
+/** Resolution of the destructible-rock mask (px). */
+const CARVE = 8;
 
 export class RoomWorld implements Solidity {
   run: Run;
@@ -122,6 +124,13 @@ export class RoomWorld implements Solidity {
   /** Ink stains on the rock (cosmetic, newest last). */
   inkMarks: InkMark[] = [];
   inkVersion = 0;
+  /** Craters blown into the rock (Worms-style destructible terrain). */
+  holes: { x: number; y: number; r: number }[] = [];
+  /** Fine collision mask: 1 where rock has been blown away. */
+  private carved: Uint8Array;
+  private cw: number;
+  /** Craters made since the scene last looked (plants there get uprooted). */
+  newHoles: { x: number; y: number; r: number }[] = [];
   /** Fog of war: tiles Clementine has seen. */
   explored: Uint8Array;
   exploredVersion = 0;
@@ -147,6 +156,9 @@ export class RoomWorld implements Solidity {
 
     const persist = run.roomState(areaId);
     for (const i of persist.broken) this.tiles[i] = T_EMPTY;
+    this.cw = Math.ceil(this.widthPx / CARVE);
+    this.carved = new Uint8Array(this.cw * Math.ceil(this.heightPx / CARVE));
+    for (const [hx, hy, hr] of persist.holes ?? []) this.carveMask(hx, hy, hr);
     this.clearedGroups = new Set(persist.groupsCleared ?? []);
     this.bossDead = !!persist.bossDead;
     if (persist.explored) unpackBits(persist.explored, this.explored);
@@ -208,7 +220,56 @@ export class RoomWorld implements Solidity {
   solidAt(x: number, y: number) {
     const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
     if (tx < 0 || ty < 0 || tx >= this.tw || ty >= this.th) return true;
-    return isSolidTile(this.tiles[ty * this.tw + tx]);
+    if (!isSolidTile(this.tiles[ty * this.tw + tx])) return false;
+    return !this.carved[Math.floor(y / CARVE) * this.cw + Math.floor(x / CARVE)];
+  }
+
+  private carveMask(x: number, y: number, r: number) {
+    this.holes.push({ x, y, r });
+    const m = TILE * 2; // the level's outer shell can't be breached
+    const x0 = Math.max(m, x - r), x1 = Math.min(this.widthPx - m, x + r);
+    const y0 = Math.max(m, y - r), y1 = Math.min(this.heightPx - m, y + r);
+    for (let cy = Math.floor(y0 / CARVE); cy <= Math.floor(y1 / CARVE); cy++)
+      for (let cx = Math.floor(x0 / CARVE); cx <= Math.floor(x1 / CARVE); cx++) {
+        const px = (cx + 0.5) * CARVE, py = (cy + 0.5) * CARVE;
+        if ((px - x) ** 2 + (py - y) ** 2 <= r * r) this.carved[cy * this.cw + cx] = 1;
+      }
+  }
+
+  /**
+   * Blow a round crater into the rock (bombs, explosive ink, charged shots,
+   * beams). Pots, urchins and ink stains inside it are destroyed.
+   */
+  carve(x: number, y: number, r: number) {
+    // Only bother if there is rock here at all.
+    let any = false;
+    for (let a = 0; a < 12 && !any; a++) any = this.solidAt(x + Math.cos(a * 0.52) * r * 0.8, y + Math.sin(a * 0.52) * r * 0.8);
+    if (!any && !this.solidAt(x, y)) return;
+    this.carveMask(x, y, r);
+    this.newHoles.push({ x, y, r });
+    const s = this.run.roomState(this.areaId);
+    (s.holes ??= []).push([Math.round(x), Math.round(y), Math.round(r)]);
+    // Redraw a margin around the crater too (its edges shade the rock nearby).
+    const t0x = Math.floor((x - r) / TILE) - 2, t1x = Math.floor((x + r) / TILE) + 2;
+    const t0y = Math.floor((y - r) / TILE) - 2, t1y = Math.floor((y + r) / TILE) + 2;
+    for (let ty = t0y; ty <= t1y; ty++)
+      for (let tx = t0x; tx <= t1x; tx++) {
+        if (tx < 0 || ty < 0 || tx >= this.tw || ty >= this.th) continue;
+        const i = ty * this.tw + tx;
+        const near = dist(x, y, (tx + 0.5) * TILE, (ty + 0.5) * TILE) < r + TILE * 0.3;
+        if (near && this.tiles[i] === T_SPIKE) this.setTile(i, T_EMPTY);
+        else {
+          this.dirtyTiles.push(i);
+          this.terrainDirty = true;
+        }
+      }
+    const before = this.inkMarks.length;
+    this.inkMarks = this.inkMarks.filter((m) => dist(m.x, m.y, x, y) > r + 6);
+    if (this.inkMarks.length !== before) this.inkVersion++;
+    this.fluid.refreshSolid();
+    // Rubble and silt.
+    this.fx.burst(x, y, 'shards', this.biome.rock, Math.round(6 + r / 5));
+    this.fx.burst(x, y + r * 0.3, 'sand', undefined, Math.round(4 + r / 10));
   }
 
   spikeAt(x: number, y: number) {
@@ -448,17 +509,19 @@ export class RoomWorld implements Solidity {
   }
 
   // ── Player interaction ───────────────────────────────────────
-  hurtPlayer(halves: number, by: string) {
+  /** Damage Clementine by `amount` hit points. */
+  hurtPlayer(amount: number, by: string) {
     const p = this.player;
     if (p.invuln > 0 || p.shield > 0 || this.exiting) return;
     if (this.boss && !this.boss.dead) this.bossHurtPlayer = true;
-    const died = this.run.damage(halves);
+    amount = Math.round(amount);
+    const died = this.run.damage(amount);
     p.invuln = 1.1;
     p.hurtFlash = 1;
     this.fx.shake(7);
     this.fx.flash(0xff2d8a, 0.35);
     this.fx.hitstop(4);
-    this.fx.text(p.x, p.y - 34, R.pick(['OUCH!', 'EEK!', 'BLUB!!']), 0xff5cae, 24);
+    this.fx.text(p.x, p.y - 34, `-${amount}`, 0xff5c7a, 24);
     this.fx.burst(p.x, p.y, 'blood', 0xff9a3d, 10);
     this.fx.light(p.x, p.y, 160, 0xff2d8a, 1, 0.35);
     this.fluid.blast(p.x, p.y, 180, 90);
@@ -466,7 +529,7 @@ export class RoomWorld implements Solidity {
     if (died) this.events.push({ type: 'died', by });
   }
 
-  explode(x: number, y: number, r: number, dmg: number, o: { hurtsPlayer?: boolean; steam?: boolean; ink?: boolean; fromBomb?: boolean } = {}) {
+  explode(x: number, y: number, r: number, dmg: number, o: { hurtsPlayer?: boolean; steam?: boolean; ink?: boolean; fromBomb?: boolean; carve?: number } = {}) {
     for (const e of this.enemies) {
       if (e.dead || e.hidden) continue;
       if (dist(x, y, e.x, e.y) < r + e.r) {
@@ -474,7 +537,7 @@ export class RoomWorld implements Solidity {
         e.knock(e.x - x, e.y - y, 260);
       }
     }
-    if (o.hurtsPlayer && dist(x, y, this.player.x, this.player.y) < r + this.player.r) this.hurtPlayer(2, 'Ink Bomb');
+    if (o.hurtsPlayer && dist(x, y, this.player.x, this.player.y) < r + this.player.r) this.hurtPlayer(20, 'Ink Bomb');
     const t0x = Math.floor((x - r) / TILE), t1x = Math.floor((x + r) / TILE);
     const t0y = Math.floor((y - r) / TILE), t1y = Math.floor((y + r) / TILE);
     if (o.fromBomb || !o.steam)
@@ -483,6 +546,8 @@ export class RoomWorld implements Solidity {
           if (this.tileAt(tx, ty) === T_BREAK && dist(x, y, (tx + 0.5) * TILE, (ty + 0.5) * TILE) < r + TILE * 0.5) this.breakTile(tx, ty);
         }
     if (o.fromBomb) this.openSecretNear(x, y, r);
+    if (o.fromBomb) this.carve(x, y, 62);
+    else if (o.carve) this.carve(x, y, o.carve);
     for (const p of this.pickups) {
       const d = dist(x, y, p.x, p.y);
       if (d < r * 1.5 && d > 0.1) {
@@ -588,12 +653,12 @@ export class RoomWorld implements Solidity {
       case 'speedup': t.speed = (t.speed ?? 0) + 0.15; break;
       case 'speeddown': t.speed = (t.speed ?? 0) - 0.1; break;
       case 'fullheal': d.hp = d.maxHp; break;
-      case 'ouch': if (d.hp + d.foam > 1) this.run.damage(1); else this.run.heal(2); p.hurtFlash = 1; break;
+      case 'ouch': if (d.hp + d.foam > 10) this.run.damage(10); else this.run.heal(HEAL_HEART); p.hurtFlash = 1; break;
       case 'luckup': t.luck = (t.luck ?? 0) + 1; break;
       case 'rangeup': t.range = (t.range ?? 0) + 0.75; break;
       case 'rangedown': t.range = (t.range ?? 0) - 0.5; break;
       case 'tearsup': t.fireRate = (t.fireRate ?? 0) + 0.25; break;
-      case 'foam': this.run.addFoam(2); break;
+      case 'foam': this.run.addFoam(FOAM_PICKUP); break;
       case 'bombs': d.bombs = Math.min(99, d.bombs + 2); break;
     }
     if (!this.run.data.identified.includes(name)) this.run.data.identified.push(name);
@@ -615,18 +680,19 @@ export class RoomWorld implements Solidity {
       case 'heart':
       case 'halfheart':
         if (d.hp >= d.maxHp) return false;
-        this.run.heal(pk.kind === 'heart' ? 2 : 1);
+        this.run.heal(pk.kind === 'heart' ? HEAL_HEART : HEAL_HALF);
+        this.fx.text(p.x, p.y - 40, `+${pk.kind === 'heart' ? HEAL_HEART : HEAL_HALF}`, 0x7aff9a, 20);
         this.fx.burst(p.x, p.y, 'heal', 0xff4d6d, 8);
         sfx.heart();
         break;
       case 'foam':
         if (d.maxHp + d.foam >= this.run.totalHeartCap()) return false;
-        this.run.addFoam(2);
+        this.run.addFoam(FOAM_PICKUP);
         sfx.heart();
         break;
       case 'container':
         this.run.addContainer(1);
-        this.fx.text(p.x, p.y - 40, 'HEART UP!', 0xff4d6d, 24);
+        this.fx.text(p.x, p.y - 40, `MAX HP +${HP_PER_CONTAINER}`, 0xff4d6d, 24);
         sfx.item();
         break;
       case 'snack': {
@@ -701,12 +767,13 @@ export class RoomWorld implements Solidity {
       sfx.coin();
     }
     if (pd.hearts !== undefined) {
-      const cost = pd.hearts * 2;
-      const payContainers = d.maxHp >= cost && (d.maxHp > cost || d.foam > 0);
-      const payFoam = !payContainers && d.foam >= cost * 1.5 && (d.foam > cost * 1.5 || d.maxHp > 0);
+      // A Siren deal costs max HP (or 1.5× as much foam).
+      const cost = pd.hearts * HP_PER_CONTAINER;
+      const payContainers = d.maxHp > cost;
+      const payFoam = !payContainers && d.foam >= cost * 1.5;
       if (!payContainers && !payFoam) {
         pd.cooldown = 0.8;
-        this.fx.text(pd.x, pd.y - 50, 'NOT ENOUGH HEART', 0xff4d6d, 18);
+        this.fx.text(pd.x, pd.y - 50, 'NOT ENOUGH HP', 0xff4d6d, 18);
         sfx.deny();
         return;
       }
@@ -853,7 +920,7 @@ export class RoomWorld implements Solidity {
     }
 
     // Spikes.
-    if (this.spikeAt(p.x, p.y + p.hh)) this.hurtPlayer(1, 'Urchin Spikes');
+    if (this.spikeAt(p.x, p.y + p.hh)) this.hurtPlayer(Math.round(8 * (1 + this.menace)), 'Urchin Spikes');
 
     const act2 = ACTIVE_RANGE * ACTIVE_RANGE;
     for (const e of this.enemies) {

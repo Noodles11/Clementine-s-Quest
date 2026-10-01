@@ -407,7 +407,9 @@ export class GameScene {
     this.frontPlants.removeChildren();
     this.inkG.clear();
     this.inkDrawn = -1;
-    this.plants = new PlantSystem(spec.decor, b.menace);
+    // Growth that stood where craters were blown is gone.
+    const inHole = (x: number, y: number) => w.holes.some((ho) => (x - ho.x) ** 2 + (y - ho.y) ** 2 < (ho.r + 8) ** 2);
+    this.plants = new PlantSystem(spec.decor.filter((d) => !inHole(d.x, d.y)), b.menace);
     this.plantsLayer.addChild(this.plants.container);
     this.frontPlants.addChild(this.plants.front);
     this.jellyLayer.removeChildren();
@@ -859,6 +861,12 @@ export class GameScene {
       this.terrain.rebuildDirty(w);
       w.terrainDirty = false;
     }
+    if (w.newHoles.length) {
+      for (const ho of w.newHoles.splice(0)) {
+        this.plants?.removeNear(ho.x, ho.y, ho.r);
+        this.vents = this.vents.filter((v) => (v.x - ho.x) ** 2 + (v.y - ho.y) ** 2 > (ho.r + 8) ** 2);
+      }
+    }
     this.updateCamera();
     const sh = this.fx.shakeAmt;
     // Handheld / ROV camera drift plus impact shake.
@@ -1020,7 +1028,7 @@ export class GameScene {
         glow.circle(pd.x, by, 26).fill({ color: ITEM_BY_ID[pd.itemId]?.color ?? 0xffffff, alpha: 0.35 + Math.sin(t * 2) * 0.1 });
       } else if (pd.pickup) drawPickup(ig, pd.pickup, pd.x, by + 6, t);
       let label = this.pedLabels.get(pd);
-      const txt = pd.price !== undefined ? `${pd.price}¢` : pd.hearts !== undefined ? '♥'.repeat(pd.hearts) : '';
+      const txt = pd.price !== undefined ? `${pd.price}¢` : pd.hearts !== undefined ? `−${pd.hearts * 20} MAX HP` : '';
       if (txt && !label) {
         label = new Text({ text: txt, style: { fontFamily: FONT_UI, fontSize: 16, fontWeight: '700', fill: pd.hearts ? 0xff4d6d : 0xffe14d, stroke: { color: INK, width: 4 } } });
         label.anchor.set(0.5);

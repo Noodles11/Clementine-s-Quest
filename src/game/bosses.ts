@@ -38,7 +38,7 @@ export class Hazard {
     if (this.kind === 'hline') hit = Math.abs(p.y - this.y) < this.size / 2 + 8 && p.x > a.x0 && p.x < a.x1;
     else if (this.kind === 'vline') hit = Math.abs(p.x - this.x) < this.size / 2 + 8 && p.y > a.y0 - 100 && p.y < a.y1;
     else hit = dist(p.x, p.y, this.x, this.y) < this.size + 8;
-    if (hit) w.hurtPlayer(1, 'Kelpie the Tangler');
+    if (hit) w.hurtPlayer(15, 'Kelpie the Tangler');
     if (!this.hitDone) {
       this.hitDone = true;
       w.fx.shake(4);
@@ -59,7 +59,8 @@ export abstract class Boss extends Enemy {
     this.boss = true;
     this.depth = depth;
     this.hp = this.maxHp = hp;
-    this.contactDmg = depth >= 3 ? 2 : 1;
+    this.contactDmg = depth >= 3 ? 25 : depth === 2 ? 22 : 18;
+    this.shotDmg = depth >= 3 ? 16 : depth === 2 ? 14 : 12;
     this.display = BOSS_NAMES[kind].name;
   }
   get phase() {

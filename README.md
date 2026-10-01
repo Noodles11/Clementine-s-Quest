@@ -26,6 +26,9 @@ half to aim and shoot (free-angle twin-stick). Buttons: 💣 bomb, ★ active, �
 - Each depth is one big reef labyrinth. The camera follows Clementine; explore the tunnels
   to find treasure caves, Barnaby's shop, bomb-able secret caves and — always somewhere at
   the bottom — the boss. Hold **Tab** for the map (it fills in as you explore).
+- Clementine has 100 HP (health bar, top left). Hearts heal 15 HP, containers add max HP.
+- The reef is destructible: ink bombs blow round craters into rock, and stronger shots
+  (explosive ink, charged pearls, beams) chip small holes. Plain ink only leaves stains.
 - Creatures ambush you in their chambers; clearing an encounter drops a reward and charges
   your active item. Plants and boulders in front can hide you and them from view.
 - Every boss guards **The Crack**. Your first dives end at Depth 1; each new boss you

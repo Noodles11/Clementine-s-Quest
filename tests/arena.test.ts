@@ -9,7 +9,7 @@ import { TILE } from '../src/config';
 describe('boss arena', () => {
   it('wakes the boss on entry and seals the tunnels with a current until it is beaten', () => {
     const run = Run.create('ARENATST', true, [], 1);
-    run.p.hp = run.p.maxHp = 99;
+    run.p.hp = run.p.maxHp = 9999;
     const w = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
     const a = w.arena;
     const c = w.spec.boss.crack;

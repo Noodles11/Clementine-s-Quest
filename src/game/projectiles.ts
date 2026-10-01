@@ -198,6 +198,8 @@ export class Bubble extends Entity {
       }
       w.damageTileAt(nx, ny, this.dmg);
       this.stain(w, ...this.surfaceNormal(w, nx, ny));
+      // A well-charged pearl punches a small crater.
+      if (this.pearl >= 0.5) w.carve(nx, ny, 10 + this.pearl * 14);
       this.pop(w);
       return;
     }
@@ -290,7 +292,7 @@ export class Bubble extends Entity {
     sfx.pop();
     w.fluid.blast(this.x, this.y, 60 + this.r * 3, 40 + this.r * 2);
     if (this.has('explosive')) {
-      w.explode(this.x, this.y, 58 + this.r, this.dmg * 1.5 + 8, { hurtsPlayer: false, ink: this.syn.has('inkfish') });
+      w.explode(this.x, this.y, 58 + this.r, this.dmg * 1.5 + 8, { hurtsPlayer: false, ink: this.syn.has('inkfish'), carve: 16 + this.r * 0.5 });
     }
     if (this.syn.has('bigmadpuff') && this.r > this.radius0 * 1.6 && !this.mini) {
       for (let i = 0; i < 6; i++) {
@@ -339,7 +341,7 @@ export class EnemyShot extends Entity {
     this.color = opts.color ?? 0xff4d6d;
     this.gravity = opts.gravity ?? 0;
     this.life = opts.life ?? 4;
-    this.dmg = opts.dmg ?? 1;
+    this.dmg = opts.dmg ?? 10;
     this.homing = opts.homing ?? 0;
     this.ghost = opts.ghost ?? false;
   }
@@ -375,6 +377,7 @@ export class Beam {
   dead = false;
   age = 0;
   tick = 0;
+  burn = 0.1;
   angle: number;
   len = 0;
   constructor(
@@ -413,6 +416,18 @@ export class Beam {
       L += 12;
     }
     this.len = L;
+    // The beam slowly burns a hole where it first meets rock.
+    this.burn -= dt;
+    if (this.burn <= 0) {
+      this.burn = 0.18;
+      for (let s = 20; s < L; s += 8) {
+        const px = this.x + this.dx * s, py = this.y + this.dy * s;
+        if (w.solidAt(px, py)) {
+          w.carve(px + this.dx * 6, py + this.dy * 6, 13);
+          break;
+        }
+      }
+    }
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.07;

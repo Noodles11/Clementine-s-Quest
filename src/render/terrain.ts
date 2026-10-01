@@ -214,7 +214,14 @@ export class TerrainView {
     const base = (f[k] * (1 - u) + f[k + 1] * u) * (1 - v) + (f[k + Wt] * (1 - u) + f[k + Wt + 1] * u) * v;
     const seed = w.spec.tw * 13 + w.depth * 101;
     const noise = (valueNoise2(x / 70, y / 70, seed) - 0.5) * 0.3 + (valueNoise2(x / 26, y / 26, seed + 1) - 0.5) * 0.16 + 0.03;
-    return base + noise >= ISO;
+    if (base + noise < ISO) return false;
+    for (const ho of w.holes) if ((x - ho.x) ** 2 + (y - ho.y) ** 2 < ho.r * ho.r) return false;
+    return true;
+  }
+
+  private holesNear(w: RoomWorld, x0: number, y0: number, x1: number, y1: number) {
+    const m = TILE * 6;
+    return w.holes.filter((ho) => ho.x + ho.r + m > x0 && ho.x - ho.r - m < x1 && ho.y + ho.r + m > y0 && ho.y - ho.r - m < y1);
   }
 
   private isRock(w: RoomWorld, x: number, y: number) {
@@ -310,10 +317,11 @@ export class TerrainView {
     const rock = new Graphics();
     const core = new Graphics();
     const detail = new Graphics();
-    // The contour is traced on a half-tile grid over the smoothed tile field
-    // plus two octaves of noise, so walls wander like real reef.
-    const h = TILE / 2;
-    const n = CHUNK * 2;
+    // The contour is traced on a third-of-a-tile grid over the smoothed tile
+    // field plus two octaves of noise, so walls wander like real reef. Craters
+    // blown into the rock are subtracted as round holes.
+    const h = TILE / 3;
+    const n = CHUNK * 3;
     const i0 = cx * n, i1 = Math.min(Math.ceil(w.widthPx / h) - 1, i0 + n - 1);
     const j0 = cy * n, j1 = Math.min(Math.ceil(w.heightPx / h) - 1, j0 + n - 1);
     const Wt = w.tw + 2;
@@ -325,6 +333,7 @@ export class TerrainView {
       const k = iy * Wt + ix;
       return (arr[k] * (1 - u) + arr[k + 1] * u) * (1 - v) + (arr[k + Wt] * (1 - u) + arr[k + Wt + 1] * u) * v;
     };
+    const holes = this.holesNear(w, i0 * h - h, j0 * h - h, (i1 + 2) * h, (j1 + 2) * h);
     const cols = i1 - i0 + 2;
     const fv = new Float32Array(cols * (j1 - j0 + 2));
     const dv = new Float32Array(fv.length);
@@ -335,6 +344,13 @@ export class TerrainView {
         const k = (j - j0) * cols + (i - i0);
         fv[k] = bil(this.field, x, y) + noise;
         dv[k] = Math.min(bil(this.depthField, x, y), 6) / 6 + noise * 0.6;
+        for (const ho of holes) {
+          const d = Math.hypot(x - ho.x, y - ho.y) - ho.r;
+          if (d > TILE * 2) continue;
+          fv[k] = Math.min(fv[k], ISO + d / 24);
+          // Freshly exposed rock is lit like an outer face, blending back to the core.
+          dv[k] = Math.min(dv[k], Math.max(0, d) / (TILE * 6) + Math.max(0, d - TILE) / TILE);
+        }
       }
     const val = (i: number, j: number) => fv[(j - j0) * cols + (i - i0)];
     const rockBase = mixColor(b.rock, b.rockDark, 0.2);

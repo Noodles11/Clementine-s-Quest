@@ -807,3 +807,23 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   range dissolves the blob into an ink cloud.
 - Where ink hits rock it leaves a **stain**: a blob flattened along the drawn rock face, spatter
   along the surface and drips running down walls and hanging from ceilings (newest 260 kept per area).
+
+## 22. Destructible reef (Worms-style)
+
+- Rock can be blown away in round craters. A fine 8 px mask on top of the tiles decides collision;
+  the renderer subtracts the craters from the rock field so walls show clean round bites with
+  silt settling on the new floors.
+- **Who digs:** ink bombs (r ≈ 62 px), explosive ink (small), well-charged pearl shots (small) and
+  beams (slowly burn a small hole where they meet rock). Plain ink never digs.
+- Plants, urchins and ink stains inside a crater are destroyed. The level's outer shell (2 tiles)
+  can't be breached. Craters are saved per area.
+
+## 23. Numeric health
+
+- Clementine has **100 HP** shown as a health bar (ticks every 25 HP, a drain trail for recent hits).
+- Heart +15 HP, half heart +8 HP, heart container +20 max HP, foam = +15 bonus HP that soaks hits
+  first (pale-blue bar extension). Max HP + foam ≤ 300. Siren deals cost 20 max HP per heart shown.
+- Damage at Depth 1: jelly 6, squidling 8, blob/splitter 10, crab/cannon crab/urchin 12,
+  pufferling/flounder 14, barracuda 16, mimic/moray 18, creature shots 10, urchin beds 8,
+  own ink bomb 20, Kelpie's vines 15; bosses 18/22/25 contact and 12/14/16 per shot by depth.
+  Creature damage scales ×(1 + 0.75·menace) deeper down; champions hit 25% harder.

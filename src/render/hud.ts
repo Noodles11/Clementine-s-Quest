@@ -1,4 +1,4 @@
-// In-game HUD: hearts, counters, active item, snack, stats, minimap, boss bar.
+// In-game HUD: health bar, counters, active item, snack, stats, minimap, boss bar.
 
 import { Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { EA, EW } from './style';
@@ -51,7 +51,8 @@ export class Hud {
   constructor() {
     this.mapLayer.addChild(this.mapFrame, this.mapSprite, this.mapMarks, this.mapMask);
     this.mapSprite.mask = this.mapMask;
-    this.container.addChild(this.osdG, this.g, this.coins, this.bombs, this.keys, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec, this.mapLayer);
+    this.hpText.anchor.set(0, 0.5);
+    this.container.addChild(this.osdG, this.g, this.hpText, this.coins, this.bombs, this.keys, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec, this.mapLayer);
     this.osd.anchor.set(0, 0);
     this.osdRec.anchor.set(1, 0);
     this.stats.alpha = 0.75;
@@ -69,6 +70,8 @@ export class Hud {
   }
 
   bigMap = false;
+  private trail = 1;
+  private hpText = label(13);
 
   update(run: Run, world: RoomWorld, t: number) {
     const g = this.g;
@@ -90,29 +93,26 @@ export class Hud {
       for (let i = 1; i < max; i++) g.moveTo(79, 72 - (56 * i) / max).lineTo(87, 72 - (56 * i) / max).stroke({ width: (1.5) * EW, color: INK, alpha: EA });
     }
 
-    // Hearts.
-    const hx0 = 104, hy0 = 26;
-    const containers = Math.ceil(d.maxHp / 2);
-    let i = 0;
-    const perRow = 8;
-    for (let c = 0; c < containers; c++, i++) {
-      const x = hx0 + (i % perRow) * 24, y = hy0 + Math.floor(i / perRow) * 22;
-      const fill = Math.max(0, Math.min(2, d.hp - c * 2));
-      heart(g, x, y, 9, 0x3a1a2a);
-      if (fill === 2) heart(g, x, y, 9, 0xff4d6d);
-      else if (fill === 1) {
-        heart(g, x, y, 9, 0x3a1a2a);
-        g.moveTo(x, y + 8).bezierCurveTo(x - 14, y - 2, x - 7, y - 13, x, y - 4.5).closePath().fill(0xff4d6d);
-      }
-    }
-    const foamHearts = Math.ceil(d.foam / 2);
-    for (let c = 0; c < foamHearts; c++, i++) {
-      const x = hx0 + (i % perRow) * 24, y = hy0 + Math.floor(i / perRow) * 22;
-      const half = c === foamHearts - 1 && d.foam % 2 === 1;
-      if (half) g.moveTo(x, y + 8).bezierCurveTo(x - 14, y - 2, x - 7, y - 13, x, y - 4.5).closePath().fill(0xd8f4ff).stroke({ width: (2) * EW, color: INK, alpha: EA });
-      else heart(g, x, y, 9, 0xd8f4ff);
-    }
-    if (d.hp <= 2 && d.foam === 0 && Math.floor(t * 3) % 2 === 0) heart(g, hx0, hy0, 11, 0xff2d5a);
+    // Health bar: 100 HP base, foam extends it in pale blue.
+    const bx = 104, by = 18;
+    const scale = 2; // px per HP
+    const bw = Math.min(440, d.maxHp * scale);
+    const fw = Math.min(600 - bw, d.foam * scale);
+    const bh = 16;
+    g.roundRect(bx - 3, by - 3, bw + fw + 6, bh + 6, 6).fill({ color: 0x06101c, alpha: 0.6 }).stroke({ width: 2.5 * EW, color: INK, alpha: EA });
+    // Recent damage drains slowly behind the bar.
+    const frac = d.maxHp > 0 ? d.hp / d.maxHp : 0;
+    this.trail = Math.max(frac, this.trail - 0.004);
+    if (this.trail > frac) g.roundRect(bx, by, bw * this.trail, bh, 4).fill({ color: 0xffe0a0, alpha: 0.6 });
+    const low = frac <= 0.25;
+    const col = low ? (Math.floor(t * 3) % 2 === 0 ? 0xff2d4a : 0xd9283e) : frac <= 0.5 ? 0xe8723a : 0xd94a5a;
+    if (d.hp > 0) g.roundRect(bx, by, Math.max(4, bw * frac), bh, 4).fill(col);
+    g.roundRect(bx, by, Math.max(4, bw * frac), bh * 0.4, 3).fill({ color: 0xffffff, alpha: 0.18 });
+    if (fw > 0) g.roundRect(bx + bw, by, fw, bh, 4).fill(0xbfeaff).stroke({ width: 1, color: 0x6ab8d8, alpha: 0.8 });
+    // Ticks every 25 HP.
+    for (let v = 25; v < d.maxHp; v += 25) g.moveTo(bx + v * scale, by + 2).lineTo(bx + v * scale, by + bh - 2).stroke({ width: 1, color: 0x000000, alpha: 0.25 });
+    this.hpText.text = d.foam > 0 ? `${d.hp} / ${d.maxHp}  +${d.foam}` : `${d.hp} / ${d.maxHp}`;
+    this.hpText.position.set(bx + 6, by + bh / 2);
 
     // Counters.
     drawPickup(g, 'coin', 92, 70, 0);

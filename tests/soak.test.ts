@@ -16,7 +16,7 @@ function finite(n: number) {
 function soak(seed: string, items: string[]) {
   const run = Run.create(seed, true, ALL_UNLOCKS, 3);
   for (const id of items) run.giveItem(id);
-  run.p.maxHp = run.p.hp = 24;
+  run.p.maxHp = run.p.hp = 300;
   for (let depth = 1; depth <= 3; depth++) {
     const areas: [number, ReturnType<Run['grottoSpec']>][] = [[LEVEL_ID, run.level], [GROTTO_ID, run.grottoSpec()]];
     const spots = [...run.level.groups.map((g) => ({ x: g.x, y: g.y, boss: false })), { x: run.level.boss.crack.x0 + TILE * 3, y: run.level.boss.crack.y - TILE * 2, boss: true }];
@@ -52,7 +52,7 @@ function soak(seed: string, items: string[]) {
         }
         if (f === 100) w.dropBomb();
         if (f === 200) w.useActive();
-        run.p.hp = Math.max(run.p.hp, 12); // never die during the soak
+        run.p.hp = Math.max(run.p.hp, 150); // never die during the soak
         w.step(1 / 60);
         w.events.length = 0;
         w.exiting = false;

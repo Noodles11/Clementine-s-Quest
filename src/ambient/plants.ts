@@ -107,6 +107,18 @@ export class PlantSystem {
     }
   }
 
+  /** Uproot everything anchored inside a crater. */
+  removeNear(x: number, y: number, r: number) {
+    const inside = (d: Decor) => (d.x - x) ** 2 + (d.y - y) ** 2 < (r + 8) ** 2;
+    this.chains = this.chains.filter((c) => !inside(c.d));
+    this.clumps = this.clumps.filter((c) => !inside(c.d));
+    this.wobblies = this.wobblies.filter((wb) => {
+      if (!inside(wb.d)) return true;
+      wb.g.destroy();
+      return false;
+    });
+  }
+
   /** Nudge static decor near an impact. */
   impulse(x: number, y: number, strength: number, radius: number) {
     for (const w of this.wobblies) {

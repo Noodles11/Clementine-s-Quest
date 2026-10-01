@@ -48,6 +48,8 @@ export interface RoomPersist {
   bossDead?: boolean;
   grotto?: boolean;
   groupsCleared?: number[];
+  /** Craters blown into the rock: [x, y, r]. */
+  holes?: number[][];
   /** Packed fog-of-war bitmap. */
   explored?: string;
   /** Where Clementine was when last saved. */
@@ -88,8 +90,18 @@ export const SNACK_COLORS: Record<string, number> = {
   'White Salt Taffy': 0xf4f4f4, 'Teal Nori Roll': 0x2ec4b6, 'Gold Urchin Drop': 0xffc43d,
 };
 
+/** Health is numeric: Clementine starts with 100 HP. */
+export const START_HP = 100;
+export const HP_PER_CONTAINER = 20;
+/** Healing from pickups. */
+export const HEAL_HEART = 15;
+export const HEAL_HALF = 8;
+export const FOAM_PICKUP = 15;
+/** Item foam values are authored in old half-heart units. */
+export const FOAM_PER_HALF = 8;
+
 export interface RunData {
-  v: 2;
+  v: 3;
   seedCode: string;
   custom: boolean;
   depth: number;
@@ -121,7 +133,7 @@ export class Run {
   private pools!: ItemPools;
 
   constructor(data: RunData) {
-    if (data.v !== 2) throw new Error('Old run format');
+    if (data.v !== 3) throw new Error('Old run format');
     this.data = data;
     this.seed = seedToNumber(data.seedCode);
     this.buildFloor();
@@ -135,7 +147,7 @@ export class Run {
     const snacks: Record<string, SnackEffect> = {};
     SNACK_EFFECTS.forEach((e, i) => (snacks[names[i]] = e));
     const data: RunData = {
-      v: 2,
+      v: 3,
       seedCode,
       custom,
       depth: 1,
@@ -144,7 +156,7 @@ export class Run {
       floorPoolStart: [],
       poolRemoved: [],
       player: {
-        hp: 6, maxHp: 6, foam: 0, coins: 0, bombs: 1, keys: 0, items: [], active: null, snack: null, temp: {},
+        hp: START_HP, maxHp: START_HP, foam: 0, coins: 0, bombs: 1, keys: 0, items: [], active: null, snack: null, temp: {},
       },
       rooms: {},
       currentRoom: 0,
@@ -215,11 +227,11 @@ export class Run {
     return this.data.player;
   }
 
-  /** Returns true if the player died. Damage in half-hearts. */
-  damage(halves: number): boolean {
+  /** Returns true if the player died. Damage in hit points; foam absorbs it first. */
+  damage(amount: number): boolean {
     const p = this.p;
     this.data.floorDamaged = true;
-    let rem = halves;
+    let rem = Math.round(amount);
     const fromFoam = Math.min(p.foam, rem);
     p.foam -= fromFoam;
     rem -= fromFoam;
@@ -227,24 +239,27 @@ export class Run {
     return p.hp <= 0 && p.foam <= 0;
   }
 
-  heal(halves: number) {
+  heal(amount: number) {
     const p = this.p;
-    p.hp = Math.min(p.maxHp, p.hp + halves);
+    p.hp = Math.min(p.maxHp, p.hp + Math.round(amount));
   }
 
+  /** Cap on max HP plus foam. */
   totalHeartCap() {
-    return 24; // 12 hearts incl. foam
+    return 300;
   }
 
-  addFoam(halves: number) {
+  /** Foam: extra hit points on top of health that soak damage first. */
+  addFoam(amount: number) {
     const p = this.p;
-    p.foam = Math.min(this.totalHeartCap() - p.maxHp, p.foam + halves);
+    p.foam = Math.max(0, Math.min(this.totalHeartCap() - p.maxHp, p.foam + Math.round(amount)));
   }
 
+  /** Heart containers: each raises max HP (and heals) by HP_PER_CONTAINER. */
   addContainer(n: number) {
     const p = this.p;
-    p.maxHp = Math.min(this.totalHeartCap(), p.maxHp + n * 2);
-    p.hp = Math.min(p.maxHp, p.hp + n * 2);
+    p.maxHp = Math.min(this.totalHeartCap(), p.maxHp + n * HP_PER_CONTAINER);
+    p.hp = Math.min(p.maxHp, p.hp + n * HP_PER_CONTAINER);
     p.foam = Math.min(p.foam, this.totalHeartCap() - p.maxHp);
   }
 
@@ -263,7 +278,7 @@ export class Run {
     }
     p.items.push(id);
     if (def.hearts) this.addContainer(def.hearts);
-    if (def.foam) this.addFoam(def.foam);
+    if (def.foam) this.addFoam(def.foam * FOAM_PER_HALF);
     this.recompute();
     return null;
   }

@@ -50,7 +50,7 @@ export interface ItemDef {
   flags?: ShotFlag[];
   /** Extra heart containers. */
   hearts?: number;
-  /** Foam (shield) hearts, in half-heart units. */
+  /** Foam (bonus HP), in half-heart units (×FOAM_PER_HALF HP). */
   foam?: number;
   /** Active item charge in rooms. */
   charge?: number;
