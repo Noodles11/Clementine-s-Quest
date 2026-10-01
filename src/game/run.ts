@@ -10,7 +10,6 @@ import { computeStats, type DerivedStats } from './stats';
 export type PickupKind =
   | 'coin'
   | 'coin5'
-  | 'key'
   | 'bomb'
   | 'heart'
   | 'halfheart'
@@ -64,7 +63,6 @@ export interface PlayerData {
   foam: number;
   coins: number;
   bombs: number;
-  keys: number;
   items: string[];
   active: { id: string; charge: number } | null;
   snack: string | null;
@@ -160,7 +158,7 @@ export class Run {
       floorPoolStart: [],
       poolRemoved: [],
       player: {
-        hp: START_HP, maxHp: START_HP, foam: 0, coins: 0, bombs: 1, keys: 0, items: [], active: null, snack: null, temp: {},
+        hp: START_HP, maxHp: START_HP, foam: 0, coins: 0, bombs: 1, items: [], active: null, snack: null, temp: {},
       },
       rooms: {},
       currentRoom: 0,
@@ -209,7 +207,7 @@ export class Run {
     d.maxDepth = 3;
     const p = d.player;
     p.maxHp = p.hp = 999;
-    p.coins = p.bombs = p.keys = 99;
+    p.coins = p.bombs = 99;
     p.snack = Object.keys(d.snacks)[0];
     d.identified = Object.keys(d.snacks);
   }

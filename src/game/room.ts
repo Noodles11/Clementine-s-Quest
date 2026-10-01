@@ -317,7 +317,7 @@ export class RoomWorld implements Solidity {
     this.fx.text(cx, cy - 10, 'KRAK!', 0xffa53d, 18);
     sfx.hit();
     const rng = stream(this.run.seed, 'pot', this.depth, this.areaId, i);
-    if (rng.chance(0.35)) this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'heart', 'bomb', 'key']), cx, cy, 0, -40);
+    if (rng.chance(0.35)) this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'heart', 'bomb', 'coin']), cx, cy, 0, -40);
   }
 
   /** Coins buried under an X spill out once the rock above them is blown away. */
@@ -510,8 +510,8 @@ export class RoomWorld implements Solidity {
     const rng = stream(this.run.seed, 'clear', this.depth, g.id);
     const luck = this.run.stats.luck;
     if (rng.chance(0.55 + luck * 0.04)) {
-      const kind = rng.weighted<PickupKind>(['coin', 'heart', 'key', 'bomb', 'snack', 'clam', 'glowjelly', 'foam', 'goldclam', 'coin5'], (k) =>
-        ({ coin: 34, heart: 16, key: 12, bomb: 13, snack: 8, clam: 6, glowjelly: 3, foam: 4, goldclam: 2, coin5: 3 } as Record<string, number>)[k])!;
+      const kind = rng.weighted<PickupKind>(['coin', 'heart', 'bomb', 'snack', 'clam', 'glowjelly', 'foam', 'goldclam', 'coin5'], (k) =>
+        ({ coin: 38, heart: 18, bomb: 17, snack: 8, clam: 6, glowjelly: 3, foam: 4, goldclam: 2, coin5: 3 } as Record<string, number>)[k])!;
       // Drop it near Clementine so she sees it.
       const p = this.player;
       let sx = p.x, sy = p.y - 40;
@@ -743,7 +743,6 @@ export class RoomWorld implements Solidity {
     switch (pk.kind) {
       case 'coin': d.coins = Math.min(99, d.coins + 1); sfx.coin(); break;
       case 'coin5': d.coins = Math.min(99, d.coins + 5); sfx.coin(); break;
-      case 'key': d.keys = Math.min(99, d.keys + 1); sfx.pickup(); break;
       case 'bomb': d.bombs = Math.min(99, d.bombs + 1); sfx.pickup(); break;
       case 'heart':
       case 'halfheart':
@@ -786,15 +785,11 @@ export class RoomWorld implements Solidity {
       case 'clam':
       case 'goldclam': {
         if (pk.opened) return false;
-        if (pk.kind === 'goldclam') {
-          if (d.keys <= 0) return false;
-          d.keys--;
-        }
         pk.opened = true;
         const rng = stream(this.run.seed, 'clam', this.depth, this.areaId, Math.round(pk.x), Math.round(pk.y));
         const n = pk.kind === 'goldclam' ? rng.int(3, 5) : rng.int(2, 3);
         for (let i = 0; i < n; i++)
-          this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'coin5', 'heart', 'bomb', 'key', 'snack', 'foam']), pk.x, pk.y - 10, rng.range(-160, 160), rng.range(-260, -120));
+          this.spawnPickup(rng.pick<PickupKind>(['coin', 'coin', 'coin5', 'heart', 'bomb', 'snack', 'foam']), pk.x, pk.y - 10, rng.range(-160, 160), rng.range(-260, -120));
         this.fx.text(pk.x, pk.y - 30, 'CLACK!', 0xfff27a, 22);
         sfx.coin();
         return false; // the shell stays, opened
@@ -886,6 +881,22 @@ export class RoomWorld implements Solidity {
     this.fx.burst(this.player.x, this.player.y, 'sparkle', ITEM_BY_ID[id]?.color ?? 0xffffff, 24);
   }
 
+  /** Debug: make Clementine's items exactly this set. */
+  debugSetItems(ids: string[]) {
+    const want = new Set(ids);
+    const d = this.run.p;
+    d.items = d.items.filter((id) => want.has(id));
+    if (d.active && !want.has(d.active.id)) d.active = null;
+    this.run.recompute();
+    for (const id of ids) {
+      const def = ITEM_BY_ID[id];
+      if (!def) continue;
+      if (def.kind === 'active' ? d.active?.id !== id : !d.items.includes(id)) this.debugGive(id);
+    }
+    this.run.recompute();
+    this.player.stats = this.run.stats;
+  }
+
   checkSynergies() {
     const st = this.run.stats;
     for (const s of st.synergies) {
@@ -932,7 +943,7 @@ export class RoomWorld implements Solidity {
     if (!e.boss && R.chance(0.05 + this.run.stats.luck * 0.01)) this.spawnPickup('coin', e.x, e.y, 0, -60);
     if (e.champion) {
       const rng = stream(this.run.seed, 'champ', this.depth, this.areaId, this.run.data.kills);
-      this.spawnPickup(rng.pick<PickupKind>(['heart', 'coin', 'bomb', 'key', 'foam', 'halfheart']), e.x, e.y, 0, -80);
+      this.spawnPickup(rng.pick<PickupKind>(['heart', 'coin', 'bomb', 'coin', 'foam', 'halfheart']), e.x, e.y, 0, -80);
     }
   }
 

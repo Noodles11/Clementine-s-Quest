@@ -1,4 +1,4 @@
-# Clementine's Quest 🪼
+# Clementine's Quest 🐙
 
 A funky, comic-style underwater roguelite for the browser — *The Binding of Isaac*
 seen through the glass of a fish tank. You are **Clementine**, a tiny bioluminescent octopus who

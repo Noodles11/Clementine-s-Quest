@@ -191,7 +191,12 @@ class Game {
   /** Debug dives: pick any item. */
   showDebugItems(onClose: () => void) {
     input.setEnabled(false);
-    this.ui.showItemPicker((id) => this.scene.world?.debugGive(id), onClose);
+    const run = this.run!;
+    const owned = [...new Set([...run.p.items, ...(run.p.active ? [run.p.active.id] : [])])];
+    this.ui.showItemPicker(owned, (sel) => {
+      this.scene.world?.debugSetItems(sel);
+      onClose();
+    }, onClose);
   }
 
   // ── Runs ───────────────────────────────────────────────

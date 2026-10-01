@@ -413,7 +413,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
         set(cx - 1, fy - 1, T_ROCK);
         set(cx, fy - 1, T_ROCK);
         if (hasItem) pedestals.push({ x: cx * TILE, y: (fy - 1) * TILE - 40, itemId: pools.draw(ch.cave === 'curse' ? 'curse' : ch.cave === 'secret' ? 'secret' : 'treasure', irng) });
-        else for (let i = 0; i < 5; i++) pickups.push({ kind: irng.pick(['coin', 'coin5', 'bomb', 'key', 'heart']), x: (cx + irng.range(-3, 3)) * TILE, y: (fy - 2) * TILE });
+        else for (let i = 0; i < 5; i++) pickups.push({ kind: irng.pick(['coin', 'coin5', 'bomb', 'coin', 'heart']), x: (cx + irng.range(-3, 3)) * TILE, y: (fy - 2) * TILE });
         if (ch.cave === 'curse') {
           for (let x = cx - 5; x <= cx + 5; x++) {
             if (Math.abs(x - cx) < 3) continue;
@@ -427,8 +427,8 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
         const nItems = irng.int(1, 2);
         const slots: PedestalSpec[] = [];
         for (let i = 0; i < nItems; i++) slots.push({ x: 0, y: 0, itemId: pools.draw('shop', irng), price: 15 });
-        const prices: Record<string, number> = { heart: 3, bomb: 5, key: 5, snack: 4, foam: 5 };
-        for (const p of irng.shuffle(['heart', 'bomb', 'key', 'snack', 'foam']).slice(0, 4 - nItems)) slots.push({ x: 0, y: 0, itemId: null, pickup: p, price: prices[p] });
+        const prices: Record<string, number> = { heart: 3, bomb: 5, snack: 4, foam: 5 };
+        for (const p of irng.shuffle(['heart', 'bomb', 'snack', 'foam']).slice(0, 4 - nItems)) slots.push({ x: 0, y: 0, itemId: null, pickup: p, price: prices[p] });
         slots.forEach((s, i) => {
           const x = cx + Math.round((i - (slots.length - 1) / 2) * 2.6);
           const f = floorBelow(x, ch.cy);
@@ -525,7 +525,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     const fy = floorBelow(Math.floor(cx), cy);
     if (pockets.length === 1) pedestals.push({ x: cx * TILE, y: fy * TILE - 34, itemId: pools.draw('treasure', prng) });
     else if (prng.chance(0.3)) pickups.push({ kind: prng.chance(0.4) ? 'goldclam' : 'clam', x: cx * TILE, y: (fy - 0.5) * TILE });
-    else for (let i = 0; i < prng.int(3, 5); i++) pickups.push({ kind: prng.pick(['coin', 'coin', 'coin5', 'heart', 'key', 'bomb']), x: (cx + prng.range(-1.6, 1.6)) * TILE, y: (fy - 0.5) * TILE });
+    else for (let i = 0; i < prng.int(3, 5); i++) pickups.push({ kind: prng.pick(['coin', 'coin', 'coin5', 'heart', 'bomb', 'bomb']), x: (cx + prng.range(-1.6, 1.6)) * TILE, y: (fy - 0.5) * TILE });
   }
 
   // ── Buried coins under X marks ────────────────────────────
@@ -550,7 +550,7 @@ function tryGenerate(rng: Rng, opts: LevelOptions, attempt: number): LevelSpec |
     x0: Math.floor(crackX - 4), x1: Math.ceil(crackX + 4), y: floorY,
   });
   const startPx = { x: start.cx * TILE, y: (surface ? start.cy - 2 : start.cy) * TILE };
-  if (depth > 1) pickups.push({ kind: irng.pick(['coin', 'bomb', 'key']), x: startPx.x + TILE * 3, y: startPx.y });
+  if (depth > 1) pickups.push({ kind: irng.pick(['coin', 'bomb', 'heart']), x: startPx.x + TILE * 3, y: startPx.y });
 
   return {
     depth, tw, th, tiles, surface, surfaceSpan, chambers, edges, start: startPx,

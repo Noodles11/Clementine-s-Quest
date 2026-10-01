@@ -11,7 +11,7 @@ import type { RoomWorld } from './room';
 
 export const ENEMY_INFO: Record<EnemyKind, { name: string; lore: string; hp: number; color: number }> = {
   blob: { name: 'Blubber Blob', lore: 'A gumdrop of goo. Wants a hug. Hugs hurt.', hp: 10, color: 0x7ee0a0 },
-  jelly: { name: 'Jelly Swarm', lore: 'Tiny cousins with bad manners.', hp: 4, color: 0xd99cff },
+  jelly: { name: 'Jelly Swarm', lore: 'Tiny stinging drifters with bad manners.', hp: 4, color: 0xd99cff },
   crabby: { name: 'Crabby', lore: 'Scuttles sideways, leaps upwards, complains constantly.', hp: 14, color: 0xff6a4d },
   urchin: { name: 'Sea Urchin', lore: 'Never moves. Never needs to.', hp: 12, color: 0x7a4dff },
   pufferling: { name: 'Pufferling', lore: 'Puffs up when nervous. Is always nervous.', hp: 16, color: 0xffd24d },

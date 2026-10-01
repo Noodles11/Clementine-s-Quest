@@ -141,7 +141,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'ghostjelly', name: 'Ghost Jelly', tagline: 'Spectral ink',
-    lore: 'A cousin who drifted a little too far. Ink ignores rocks.',
+    lore: 'A ghostly jelly that drifted a little too far. Ink ignores rocks.',
     kind: 'passive', quality: 2, pools: ['treasure', 'secret', 'grotto'], flags: ['spectral'],
     costume: 'ghost', color: 0xc8d8ff,
   },

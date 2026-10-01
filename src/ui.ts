@@ -212,14 +212,24 @@ export class UI {
     this.show(o);
   }
 
-  /** Debug runs: grant any item. Stays open so several can be picked. */
-  showItemPicker(onPick: (id: string) => void, onClose: Handler) {
+  /**
+   * Debug runs: choose any set of items. Items Clementine already has start
+   * selected; click to toggle, then apply. Only one active item can be chosen.
+   */
+  showItemPicker(owned: string[], onApply: (selected: string[]) => void, onClose: Handler) {
     const o = el('div', 'overlay');
     const panel = el('div', 'panel halftone');
     panel.style.width = '820px';
-    panel.style.height = '480px';
+    panel.style.height = '500px';
     panel.append(el('h1', 'title-text', 'Debug · items'));
-    panel.append(el('p', 'muted', 'Click an item to give it to Clementine. Actives replace the current one.'));
+    const info = el('p', 'muted');
+    panel.append(info);
+    const selected = new Set(owned);
+    const cards = new Map<string, HTMLElement>();
+    const refresh = () => {
+      for (const [id, card] of cards) card.classList.toggle('picked', selected.has(id));
+      info.textContent = `${selected.size} selected — click to pick or unpick, then Apply. Only one active item at a time.`;
+    };
     const grid = el('div', 'dex');
     for (const it of ITEMS) {
       const card = el('div', 'card');
@@ -228,12 +238,26 @@ export class UI {
       void this.iconFor(it.id).then((u) => (img.src = u));
       card.append(img, el('div', '', `<b>${esc(it.name)}</b>${esc(it.tagline)}<br/><span class="muted">${it.kind}</span>`));
       card.addEventListener('click', () => {
-        onPick(it.id);
-        card.classList.add('done');
+        if (selected.has(it.id)) selected.delete(it.id);
+        else {
+          if (it.kind === 'active') for (const id of [...selected]) if (ITEM_BY_ID[id]?.kind === 'active') selected.delete(id);
+          selected.add(it.id);
+        }
+        refresh();
       });
+      cards.set(it.id, card);
       grid.append(card);
     }
-    panel.append(grid, btn('Back to the dive', 'orange back', onClose));
+    refresh();
+    panel.append(
+      grid,
+      btn('Apply', 'orange', () => onApply([...selected])),
+      btn('Clear all', 'gray small', () => {
+        selected.clear();
+        refresh();
+      }),
+      btn('Cancel', 'gray small back', onClose),
+    );
     o.append(panel);
     this.show(o);
   }

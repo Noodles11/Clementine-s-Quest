@@ -13,6 +13,40 @@ import { LEVEL_ID } from '../game/room';
 import { heart } from './creatures';
 import { drawItemIcon, drawPickup } from './icons';
 
+type Landmark = 'shop' | 'treasure' | 'secret' | 'curse' | 'boss' | 'rift';
+
+/** Map icons for whole chambers. */
+function drawLandmark(g: Graphics, k: Landmark, x: number, y: number, s: number, t: number) {
+  const ring = { width: 1.5, color: 0x06101c, alpha: 0.9 };
+  switch (k) {
+    case 'shop': // a coin pouch
+      g.circle(x, y + s * 0.15, s).fill(0x3fbf86).stroke(ring);
+      g.rect(x - s * 0.35, y - s * 1.05, s * 0.7, s * 0.4).fill(0x3fbf86);
+      g.circle(x, y + s * 0.15, s * 0.42).fill(0xffe14d);
+      break;
+    case 'treasure': // a gem
+      g.poly([x, y - s, x + s, y - s * 0.2, x, y + s, x - s, y - s * 0.2]).fill(0xffd23d).stroke(ring);
+      g.poly([x, y - s, x + s * 0.4, y - s * 0.2, x, y + s * 0.5, x - s * 0.4, y - s * 0.2]).fill({ color: 0xffffff, alpha: 0.35 });
+      break;
+    case 'secret':
+      g.circle(x, y, s * 0.9).fill(0x9a6bff).stroke(ring);
+      g.circle(x, y - s * 0.15, s * 0.32).fill(0xffffff);
+      break;
+    case 'curse':
+      g.poly([x, y - s, x + s, y + s * 0.8, x - s, y + s * 0.8]).fill(0xd93b3b).stroke(ring);
+      break;
+    case 'boss': // a skull
+      g.circle(x, y - s * 0.1, s).fill(0xff4d6d).stroke(ring);
+      g.rect(x - s * 0.55, y + s * 0.5, s * 1.1, s * 0.5).fill(0xff4d6d);
+      g.circle(x - s * 0.38, y - s * 0.15, s * 0.28).fill(0x1a0a14);
+      g.circle(x + s * 0.38, y - s * 0.15, s * 0.28).fill(0x1a0a14);
+      break;
+    case 'rift':
+      g.ellipse(x, y, s * 1.1, s * 0.5).fill({ color: 0x9ef0ff, alpha: 0.6 + Math.sin(t * 3) * 0.3 }).stroke(ring);
+      break;
+  }
+}
+
 /** Map samples per tile. */
 const MAP_SUB = 3;
 
@@ -31,7 +65,6 @@ export class Hud {
   private g = new Graphics();
   private coins = label(18);
   private bombs = label(18);
-  private keys = label(18);
   private stats = label(12, 0xe8f4ff);
   private snack = label(12);
   private bossName = label(18, 0xffffff, FONT_TITLE);
@@ -55,14 +88,13 @@ export class Hud {
     this.mapLayer.addChild(this.mapFrame, this.mapSprite, this.mapMarks, this.mapMask);
     this.mapSprite.mask = this.mapMask;
     this.hpText.anchor.set(0, 0.5);
-    this.container.addChild(this.osdG, this.g, this.hpText, this.coins, this.bombs, this.keys, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec, this.mapLayer);
+    this.container.addChild(this.osdG, this.g, this.hpText, this.coins, this.bombs, this.stats, this.snack, this.bossName, this.depthLabel, this.charge, this.osd, this.osdRec, this.mapLayer);
     this.osd.anchor.set(0, 0);
     this.osdRec.anchor.set(1, 0);
     this.stats.alpha = 0.75;
     this.coins.position.set(104, 58);
     this.bombs.position.set(104, 82);
-    this.keys.position.set(104, 106);
-    this.stats.position.set(18, 138);
+    this.stats.position.set(18, 114);
     this.stats.style.lineHeight = 17;
     this.snack.anchor.set(1, 1);
     this.snack.position.set(VIEW_W - 72, VIEW_H - 16);
@@ -120,10 +152,8 @@ export class Hud {
     // Counters.
     drawPickup(g, 'coin', 92, 70, 0);
     drawPickup(g, 'bomb', 92, 94, 0);
-    drawPickup(g, 'key', 92, 118, 0);
     this.coins.text = String(d.coins).padStart(2, '0');
     this.bombs.text = String(d.bombs).padStart(2, '0');
-    this.keys.text = String(d.keys).padStart(2, '0');
     this.coins.position.set(104, 58);
 
     // Stats column.
@@ -150,6 +180,7 @@ export class Hud {
     } else this.bossName.text = '';
 
     this.depthLabel.text = world.biome.name.toUpperCase();
+    this.depthLabel.visible = !this.bigMap;
     this.drawMap(run, world, t);
   }
 
@@ -188,6 +219,18 @@ export class Hud {
   }
 
   /** Repaint the fog-of-war map: open water that has been seen, outlined by its rock. */
+  private legendLabels = new Map<string, Text>();
+  private legend(k: string) {
+    let l = this.legendLabels.get(k);
+    if (!l) {
+      l = label(12, 0xe8f4ff);
+      l.anchor.set(0, 0.5);
+      this.mapLayer.addChild(l);
+      this.legendLabels.set(k, l);
+    }
+    return l;
+  }
+
   private paintMap(w: RoomWorld) {
     const W = w.tw * MAP_SUB, H = w.th * MAP_SUB;
     let c = this.mapCanvas;
@@ -214,6 +257,9 @@ export class Hud {
           const edge = (x > 0 && !rock[i - 1]) || (x < W - 1 && !rock[i + 1]) || (y > 0 && !rock[i - W]) || (y < H - 1 && !rock[i + W]);
           if (edge) {
             r = 190; g = 214; b = 236; a = 235;
+          } else {
+            // Seen rock: a dark, solid silhouette so passages read clearly.
+            r = 14; g = 26; b = 38; a = 170;
           }
         }
         d[i * 4] = r;
@@ -271,20 +317,41 @@ export class Hud {
       const i = Math.floor(y / TILE) * w.tw + Math.floor(x / TILE);
       return !!w.explored[i];
     };
-    // Points of interest once seen.
-    for (const pd of w.pedestals) {
-      if (!seen(pd.x, pd.y)) continue;
-      const [x, y] = at(pd.x, pd.y);
-      if (inBox(x, y)) mk.circle(x, y, big ? 4 : 3).fill(pd.price !== undefined ? 0x5cf2a0 : pd.hearts !== undefined ? 0xff5cae : 0xffd23d).stroke({ width: 1, color: INK });
-    }
+    // Landmarks: whole chambers are marked once any part of them has been seen.
+    const sz = big ? 7 : 5;
+    const marks: { kind: Landmark; x: number; y: number }[] = [];
     if (w.areaId === LEVEL_ID) {
-      const c = w.spec.boss.crack;
-      const cx = (c.x0 + c.x1) / 2;
-      if (seen(cx, c.y - TILE) || run.data.mapRevealed) {
-        const [x, y] = at(cx, c.y - TILE * 2);
-        if (inBox(x, y)) mk.circle(x, y, big ? 6 : 4).fill(w.bossDead ? 0x9ef0ff : 0xff4d6d).stroke({ width: 1.5, color: INK });
+      for (const ch of w.spec.chambers) {
+        const kind: Landmark | null = ch.kind === 'boss' ? 'boss' : ch.cave === 'shop' ? 'shop' : ch.cave === 'treasure' ? 'treasure' : ch.cave === 'secret' ? 'secret' : ch.cave === 'curse' ? 'curse' : null;
+        if (!kind) continue;
+        const cx = ch.cx * TILE, cy = ch.cy * TILE;
+        const known = seen(cx, cy) || seen(cx - ch.rx * TILE * 0.6, cy) || seen(cx + ch.rx * TILE * 0.6, cy) ||
+          (run.data.mapRevealed && kind !== 'secret');
+        if (known) marks.push({ kind, x: cx, y: cy });
+      }
+      if (w.bossDead) {
+        const c = w.spec.boss.crack;
+        marks.push({ kind: 'rift', x: (c.x0 + c.x1) / 2, y: c.y - TILE });
       }
     }
+    for (const m of marks) {
+      const [x, y] = at(m.x, m.y);
+      if (inBox(x, y)) drawLandmark(mk, m.kind, x, y, sz, t);
+    }
+    if (big) {
+      // Legend under the map.
+      const items: [Landmark, string][] = [['shop', 'Shop'], ['treasure', 'Treasure'], ['secret', 'Secret'], ['curse', 'Curse den'], ['boss', 'Boss'], ['rift', 'Rift']];
+      let lx = bx + 16;
+      const ly = by + bh + 14;
+      for (const [k, txt] of items) {
+        drawLandmark(mk, k, lx, ly, 6, t);
+        const lab = this.legend(k);
+        lab.text = txt;
+        lab.position.set(lx + 11, ly);
+        lab.visible = true;
+        lx += 30 + txt.length * 7.5;
+      }
+    } else for (const lab of this.legendLabels.values()) lab.visible = false;
     const [px, py] = at(p.x, p.y);
     mk.circle(px, py, (big ? 4.5 : 3.5) + Math.sin(t * 6) * 0.8).fill(0xff9a2e).stroke({ width: 1.5, color: 0xffffff });
     void run;

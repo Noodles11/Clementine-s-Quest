@@ -2,7 +2,7 @@
 
 > A twin-stick roguelite dungeon crawler in the spirit of *The Binding of Isaac*,
 > set in a funky, comic-book underwater realm. You play **Clementine**, a small
-> orange jellyfish on a quest to the bottom of the ocean.
+> bioluminescent orange octopus on a quest to the bottom of the ocean.
 
 Status: **v1 vertical slice implemented** (see §17 for what shipped and what differs).
 Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
@@ -21,7 +21,7 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 | Descent mood | The deeper she dives, the **darker the world and the more ruthless the mobs** (§5.3). |
 | Finale twist | Below the Abyss, a **pipe** in the Crack sucks Clementine into a **human's fish tank**. Final boss: **The Hand** (§5.4, §12.3). |
 | Descending | The next depth is reached through **The Crack** — a fissure in the boss room floor, guarded by the boss (§5.2). |
-| Clementine | **Soft-body jellyfish**: pulsing bell + physically simulated trailing tentacles (§11.2). |
+| Clementine | **Bioluminescent octopus**: breathing mantle + eight physically simulated arms (§20; was a jellyfish, §11.2). |
 | Glow | **Neon bloom** on shots, damage, pickups, synergies (§11.3). |
 | Water | **Living water**: cosmetic fluid sim drives bubbles, fish, plants, currents (§11.4). |
 | Renderer | **PixiJS v8 (WebGL2)** + custom shaders — needed for bloom, refraction, caustics at 60 FPS (§14). |
@@ -40,7 +40,7 @@ Decisions are recorded in §0. Sections marked *(post-v1)* are future content.
 
 The **Great Current** — the warm song that keeps the reef alive — has gone
 silent. Something at the bottom of the Abyss is swallowing it. The grown-up sea
-creatures are too scared to dive. Clementine, a tiny tangerine-colored jellyfish
+creatures are too scared to dive. Clementine, a tiny tangerine-colored octopus
 who "glows a little too much," drifts down to find out why.
 
 - **Tone arc:** starts upbeat, cheeky, Saturday-morning cartoon in the
@@ -855,3 +855,13 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
   above opens them. The first holds a treasure item, the rest clams or a handful of collectibles.
 - **Buried coins:** 8–12 per level under faint scratched X marks on reef floors. Blow a hole there and
   2–3 coins (or a 5-coin) pop out. Dug spots are saved.
+
+## 27. Keys removed; map landmarks; debug picker
+
+- **No keys.** Gold clams open like ordinary clams (with a richer haul); keys are gone from drops,
+  shops, the HUD and debug stock. The Admiral achievement is now "The Admiral's Chart".
+- **Map:** seen rock is drawn as a solid silhouette with lit edges; whole chambers are marked once seen —
+  shop (coin pouch), treasure (gem), secret (purple), curse den (red triangle), boss (skull), and the rift
+  after the boss falls — instead of individual items. The Tab map shows a legend.
+- **Debug picker:** multi-select. Owned items start highlighted; click to pick or unpick (one active at a
+  time), then Apply to make Clementine's items exactly that set.

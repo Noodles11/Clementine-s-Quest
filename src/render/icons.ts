@@ -212,12 +212,6 @@ export function drawPickup(g: Graphics, kind: PickupKind, x: number, y: number, 
         }
       break;
     }
-    case 'key':
-      g.circle(x - 6, y, 6).fill(0xffe0f0).stroke(O);
-      g.circle(x - 6, y, 2.2).fill(INK);
-      g.moveTo(x, y).lineTo(x + 12, y).lineTo(x + 12, y + 5).moveTo(x + 7, y).lineTo(x + 7, y + 4).stroke({ width: (4) * EW, color: INK, alpha: EA });
-      g.moveTo(x, y).lineTo(x + 12, y).lineTo(x + 12, y + 5).moveTo(x + 7, y).lineTo(x + 7, y + 4).stroke({ width: 2, color: 0xffe0f0 });
-      break;
     case 'bomb':
       g.circle(x, y + 2, 10).fill(0x3a2a5a).stroke(O);
       g.circle(x - 3, y - 1, 3).fill({ color: 0xffffff, alpha: 0.4 });
@@ -259,7 +253,6 @@ export function drawPickup(g: Graphics, kind: PickupKind, x: number, y: number, 
       } else {
         g.moveTo(x - 17, y + 3).quadraticCurveTo(x, y - 18, x + 17, y + 3).closePath().fill(shade(col)).stroke(O);
         for (let i = -2; i <= 2; i++) g.moveTo(x + i * 6, y + 1).lineTo(x + i * 3, y - 9).stroke({ width: 1.5, color: darken(col, 0.3) });
-        if (kind === 'goldclam') g.rect(x - 3, y - 2, 6, 6).fill(0x8a6a2a).stroke({ width: (1.5) * EW, color: INK, alpha: EA });
       }
       break;
     }

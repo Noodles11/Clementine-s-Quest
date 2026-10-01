@@ -771,3 +771,10 @@ kbd {
   left: 50%;
   margin-left: 6px;
 }
+
+/* Debug item picker: chosen items glow. */
+.dex .card.picked {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.18);
+  box-shadow: 0 0 0 2px rgba(255, 179, 71, 0.55) inset;
+}

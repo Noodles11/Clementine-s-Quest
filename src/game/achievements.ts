@@ -17,7 +17,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_sirurchin', name: 'Knighted', desc: 'Defeat Sir Urchin', reward: 'Starfish Arm' },
   { id: 'beat_admiral', name: 'Mutiny!', desc: 'Defeat the Rusty Admiral', reward: 'Ink Sac' },
   { id: 'beat_treasuremimic', name: 'Fool\'s Gold', desc: 'Defeat the Treasure Mimic', reward: 'Siren Song' },
-  { id: 'admiral_key', name: "The Admiral's Key", desc: 'Defeat the Rusty Admiral 3 times', reward: 'A key to somewhere deeper...' },
+  { id: 'admiral_key', name: "The Admiral's Chart", desc: 'Defeat the Rusty Admiral 3 times', reward: 'A chart to somewhere deeper...' },
   { id: 'first_synergy', name: 'Better Together', desc: 'Discover your first synergy', reward: 'Mitosis' },
   { id: 'transformation', name: 'Metamorphosis', desc: 'Transform for the first time', reward: 'Double Helix' },
   { id: 'die_5', name: 'Lights Out', desc: 'Lose 5 runs', reward: 'Glow Burst' },

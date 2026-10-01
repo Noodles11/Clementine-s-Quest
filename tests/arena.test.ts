@@ -44,13 +44,12 @@ describe('boss arena', () => {
 });
 
 describe('debug dive', () => {
-  it('starts stocked: 999 HP, 99 bombs/keys/coins, a snack, all depths', () => {
+  it('starts stocked: 999 HP, 99 bombs/coins, a snack, all depths', () => {
     const run = Run.create('ABCDEFGH', true, [], 1);
     run.makeDebug();
     expect(run.p.hp).toBe(999);
     expect(run.p.maxHp).toBe(999);
     expect(run.p.bombs).toBe(99);
-    expect(run.p.keys).toBe(99);
     expect(run.p.coins).toBe(99);
     expect(run.p.snack).toBeTruthy();
     expect(run.data.maxDepth).toBe(3);
@@ -59,5 +58,20 @@ describe('debug dive', () => {
     expect(run.p.items).toContain('lure');
     w.eatSnack();
     expect(run.p.snack).toBeTruthy(); // never runs out
+  });
+});
+
+describe('debug item picker', () => {
+  it('sets the exact item set, adding and removing', () => {
+    const run = Run.create('ABCDEFGH', true, [], 1);
+    run.makeDebug();
+    const w = new RoomWorld(run, run.level, LEVEL_ID, NullFx, DEFAULT_OPTIONS);
+    w.debugSetItems(['lure', 'swordfish', 'conch']);
+    expect(run.p.items.sort()).toEqual(['lure', 'swordfish']);
+    expect(run.p.active?.id).toBe('conch');
+    w.debugSetItems(['swordfish']);
+    expect(run.p.items).toEqual(['swordfish']);
+    expect(run.p.active).toBeNull();
+    expect(run.stats.flags.has('homing')).toBe(false);
   });
 });
