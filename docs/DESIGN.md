@@ -784,3 +784,16 @@ Inspired by Hollow Knight: each depth is a single, large, continuous level inste
 - **Map:** fog-of-war minimap (top right) and a full map on **Tab**, revealing tiles as they are seen.
 - **Saving:** per-area state (cleared encounters, pickups, pedestals, broken rock, explored map,
   position) is autosaved every 30 s and on key events; Continue resumes where you were.
+
+## 20. Clementine v3 — a bioluminescent octopus (supersedes the jellyfish in §11.2/§18)
+
+- **Body:** egg-shaped mantle and head that breathes slowly, chromatophore spots that flicker,
+  a raised eye with a golden iris and a horizontal slit pupil that stays level whatever the body
+  does, a siphon under the mantle edge, glowing sucker rims (like real bioluminescent octopods).
+- **Arms:** eight verlet chains pulled toward a muscular pose and pushed by the water; a web joins
+  the arm bases; far arms are drawn behind the body, near arms in front.
+- **Hovering:** mantle upright, arms spread like an umbrella, slowly reaching, curling at the tips.
+- **Setting off:** one jet — the mantle squeezes, water shoots from the siphon, arms flare then
+  sweep together in a power stroke and she darts forward (~1.8× speed, 0.38 s). A sharp turn
+  (>110°) takes another jet.
+- **Cruising:** smooth continuous movement, mantle first, arms trailing in a loose rippling bundle.

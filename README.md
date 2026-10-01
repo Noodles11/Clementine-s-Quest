@@ -1,7 +1,7 @@
 # Clementine's Quest 🪼
 
 A funky, comic-style underwater roguelite for the browser — *The Binding of Isaac*
-seen through the glass of a fish tank. You are **Clementine**, a tiny jellyfish who
+seen through the glass of a fish tank. You are **Clementine**, a tiny bioluminescent octopus who
 glows a little too much, diving deeper and deeper to find out why the Great Current
 went silent.
 

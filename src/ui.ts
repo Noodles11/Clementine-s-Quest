@@ -122,7 +122,7 @@ export class UI {
     const s = el('div', 'title-screen');
     const left = el('div');
     left.append(el('div', 'logo', `Clementine's<small>QUEST</small>`));
-    left.append(el('div', 'tagline', 'The Great Current has gone silent. One tiny jellyfish who glows a little too much drifts down to find out why.'));
+    left.append(el('div', 'tagline', 'The Great Current has gone silent. One tiny octopus who glows a little too much drifts down to find out why.'));
     const menu = el('div', 'menu');
     if (canContinue) menu.append(btn('Continue Dive', 'orange', h.continueRun));
     menu.append(btn('New Dive', canContinue ? '' : 'orange', h.newRun));

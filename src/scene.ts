@@ -37,7 +37,7 @@ import { drawBoss, drawEnemy, drawEnemyGlow } from './render/creatures';
 import { FxSystem } from './render/fxsys';
 import { Hud } from './render/hud';
 import { drawItemIcon, drawPedestal, drawPickup } from './render/icons';
-import { JellyView } from './render/jelly';
+import { OctopusView } from './render/octopus';
 import { TerrainView } from './render/terrain';
 import { tex } from './render/textures';
 import { CameraFilter } from './render/camera';
@@ -152,7 +152,7 @@ export class GameScene {
   midBlur = new BlurFilter({ strength: 2, quality: 1 });
 
   fx: FxSystem;
-  jelly: JellyView | null = null;
+  jelly: OctopusView | null = null;
   plants: PlantSystem | null = null;
   schools: FishSchools[] = [];
   snow: ParticleSystem;
@@ -405,7 +405,7 @@ export class GameScene {
     this.frontPlants.addChild(this.plants.front);
     this.jellyLayer.removeChildren();
     const size = run.data.seedCode === 'HUGEJELL' ? 1.7 : run.data.seedCode === 'TEENYJEL' ? 0.6 : 1;
-    this.jelly = new JellyView(w.player.x, w.player.y, size);
+    this.jelly = new OctopusView(w.player.x, w.player.y, size);
     this.jellyLayer.addChild(this.jelly.container);
     for (const [, l] of this.pedLabels) l.destroy();
     this.pedLabels.clear();
@@ -672,7 +672,7 @@ export class GameScene {
     this.render(dt);
   }
 
-  /** Title screen: Clementine drifts in open water with real jellyfish strokes. */
+  /** Title screen: Clementine drifts in open water with gentle octopus jets. */
   private attractStep(w: RoomWorld, dt: number) {
     const p = w.player;
     this.attractClock += dt;
@@ -934,7 +934,7 @@ export class GameScene {
             this.fx.world.spawn({ kind: 'bubble', x: v.x + R.range(-4, 4), y: v.y - i * 8, vx: R.range(-10, 10), vy: R.range(-60, -30), life: 6, size: R.range(4, 10), gravity: -50, wobble: 10, fluid: 0.7, drag: 0.8 });
         }
       }
-      // Clementine's pulses release a few tiny bubbles.
+      // Each jet releases a few tiny bubbles.
       if (p.pulseKick > 0.95 && R.chance(0.5)) this.fx.world.spawn({ kind: 'bubble', x: p.x + R.range(-10, 10), y: p.y + 14, vx: -p.vx * 0.2, vy: -40, life: 3, size: R.range(3, 6), gravity: -60, wobble: 8, fluid: 0.7 });
     }
 
